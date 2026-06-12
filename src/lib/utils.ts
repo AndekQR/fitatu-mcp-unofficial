@@ -9,6 +9,10 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 export function createTextResult(data: unknown): CallToolResult {
   // Handle undefined gracefully by converting to null
   const safeData = data === undefined ? null : data;
+  const structuredContent =
+    typeof safeData === "object" && safeData !== null
+      ? (safeData as Record<string, unknown>)
+      : undefined;
 
   return {
     content: [
@@ -17,6 +21,6 @@ export function createTextResult(data: unknown): CallToolResult {
         text: JSON.stringify(safeData, null, 2),
       },
     ],
-    structuredContent: safeData
+    ...(structuredContent ? { structuredContent } : {}),
   };
 }

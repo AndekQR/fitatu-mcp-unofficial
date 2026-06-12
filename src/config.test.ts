@@ -16,15 +16,18 @@ describe("getConfig", () => {
   });
 
   it("reads Fitatu credentials from environment variables", async () => {
-    const { getConfig } = await loadConfigWithEnv({
-      FITATU_EMAIL: "test@example.com",
-      FITATU_PASSWORD: "test-password",
-    });
+    const { getConfig, getFitatuPassword, getFitatuUsername } =
+      await loadConfigWithEnv({
+        FITATU_EMAIL: "test@example.com",
+        FITATU_PASSWORD: "test-password",
+      });
 
     expect(getConfig()).toMatchObject({
       FITATU_EMAIL: "test@example.com",
       FITATU_PASSWORD: "test-password",
     });
+    expect(getFitatuUsername()).toBe("test@example.com");
+    expect(getFitatuPassword()).toBe("test-password");
   });
 
   it("exits when Fitatu email is invalid", async () => {

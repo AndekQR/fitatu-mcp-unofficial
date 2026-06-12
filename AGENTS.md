@@ -126,26 +126,8 @@ Do not expose:
 
 ## Testing Guidelines
 
-Use the test framework configured in the repository.
+Do not add new tests unless explicitly requested by the user; modifying existing tests is allowed when needed to keep them consistent with code changes.
 
-Do not add tests for every small change by default. Tests should be written only when explicitly requested or when the code covers critical system behaviour where a regression would be costly.
-
-Prioritize tests for:
-
-- Fitatu authentication or authorization handling.
-- Request construction for important Fitatu API calls.
-- Response mapping for core user-facing data.
-- Error mapping for authentication, validation, and upstream HTTP failures.
-- Configuration parsing when invalid configuration could break the server.
-- MCP tools that perform important write operations or expose essential user workflows.
-
-Avoid creating large numbers of low-value tests for trivial wrappers, simple getters, obvious type-only changes, or implementation details that are likely to change during early development.
-
-Prefer focused tests with mocked HTTP clients over tests that depend on live Fitatu services.
-
-Do not use real Fitatu tokens, cookies, account data, or personal nutrition data in tests. Use sanitized fixtures.
-
-When adding tests, keep them small, readable, and tied to observable behaviour rather than internal implementation details.
 ## Configuration & Operational Notes
 
 Runtime configuration should be sourced from environment variables or another explicit configuration mechanism used by the project.
@@ -160,20 +142,6 @@ When adding configuration values, document:
 - Whether it is required.
 - Its default value, if any.
 - Whether it contains sensitive data.
-
-## Logging
-
-Use structured logging if the project already has a logger.
-
-Logs should contain enough context for debugging but must not expose secrets or personal data.
-
-Redact or omit:
-
-- Tokens.
-- Cookies.
-- Authorization headers.
-- Personal Fitatu account data.
-- Sensitive request and response payloads.
 
 ## Working With Reference Implementations
 

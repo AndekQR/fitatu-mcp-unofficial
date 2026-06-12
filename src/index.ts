@@ -50,7 +50,7 @@ const mcpHandler = async (req: express.Request, res: express.Response) => {
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (sessionId) => {
           transports[sessionId] = transport;
-          logger.info("MCP session initialized", { sessionId });
+          logger.info({ sessionId }, "MCP session initialized");
         },
       });
 
@@ -80,7 +80,7 @@ const mcpHandler = async (req: express.Request, res: express.Response) => {
 
     // Handle unknown session
     if (sessionId && !transports[sessionId]) {
-      logger.warn("Request for unknown session", { sessionId });
+      logger.warn({ sessionId }, "Request for unknown session");
       res.status(404).json({ error: "Session not found" });
       return;
     }
@@ -96,9 +96,12 @@ const mcpHandler = async (req: express.Request, res: express.Response) => {
       });
     }
   } catch (error) {
-    logger.error("Error handling MCP request", {
-      error: error instanceof Error ? error.message : error,
-    });
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : error,
+      },
+      "Error handling MCP request",
+    );
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -123,19 +126,22 @@ async function main() {
 
   app.listen(config.PORT, () => {
     logger.info(
-      `MCP TypeScript Template Server running on port ${config.PORT}`,
       {
         environment: config.NODE_ENV,
         serverName: config.SERVER_NAME,
         version: config.SERVER_VERSION,
       },
+      `MCP TypeScript Template Server running on port ${config.PORT}`,
     );
   });
 }
 
 main().catch((error) => {
-  logger.error("Server startup error", {
-    error: error instanceof Error ? error.message : error,
-  });
+  logger.error(
+    {
+      error: error instanceof Error ? error.message : error,
+    },
+    "Server startup error",
+  );
   process.exit(1);
 });

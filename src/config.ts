@@ -28,6 +28,14 @@ export function getConfig(): Config {
   return config;
 }
 
+export function getFitatuUsername(): string {
+  return getConfig().FITATU_EMAIL;
+}
+
+export function getFitatuPassword(): string {
+  return getConfig().FITATU_PASSWORD;
+}
+
 export function isProduction(): boolean {
   return getConfig().NODE_ENV === "production";
 }

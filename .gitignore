@@ -146,3 +146,5 @@ vite.config.ts.timestamp-*
 
 /.idea/*
 /.github/*
+/docs/*
+/test-results.json

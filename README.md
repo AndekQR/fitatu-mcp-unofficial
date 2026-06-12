@@ -53,6 +53,25 @@ cd my-mcp-server
 npm install
 ```
 
+## Configuration
+
+Runtime configuration is read from environment variables through `process.env` and validated at startup.
+
+For local development, copy the example file and fill in your own Fitatu credentials:
+
+```bash
+cp .env.example .env
+```
+
+Required Fitatu variables:
+
+- `FITATU_EMAIL` - required Fitatu account email address. Sensitive.
+- `FITATU_PASSWORD` - required Fitatu account password. Sensitive.
+
+Do not commit `.env`. The repository keeps `.env.example` as documentation only.
+
+Fitatu credentials are runtime secrets. Do not access them through `import.meta.env` or expose them in MCP responses, logs, tests, or fixtures.
+
 ## Development
 
 ### Watch mode for development (with hot reloading)
@@ -104,6 +123,7 @@ npx @modelcontextprotocol/inspector
 ```
 
 This will launch a web interface that allows you to:
+
 - Connect to your MCP server
 - Test your tools interactively
 - View request/response messages

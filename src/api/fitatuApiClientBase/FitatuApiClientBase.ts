@@ -8,8 +8,6 @@ import {
 import type { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "./FitatuApiRequestOptions.ts";
 import type { FitatuRequestContext } from "./FitatuRequestContext.ts";
-import { nonEmptyString, toLocaleSegment } from "./fitatuApiLocale.ts";
-import { normalizeBaseUrl, normalizePath } from "./fitatuApiUrl.ts";
 
 export abstract class FitatuApiClientBase {
   protected readonly fetchFn: typeof fetch;
@@ -148,4 +146,25 @@ function filterHeaders(
       return headerValue ? [[name, headerValue]] : [];
     }),
   );
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, "");
+}
+
+function normalizePath(path: string): string {
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+function toLocaleSegment(locale: string): string {
+  return locale.replaceAll("_", "-").toLowerCase();
+}
+
+function nonEmptyString(value: string | null | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }

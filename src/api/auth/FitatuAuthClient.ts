@@ -12,7 +12,6 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 
   private readonly credentialsProvider: () => FitatuCredentials;
   private session: FitatuAuthSession | undefined;
-  private pendingLogin: Promise<FitatuAuthSession> | undefined;
 
   private constructor(options: FitatuAuthClientOptions = {}) {
     super(options);
@@ -35,21 +34,12 @@ export class FitatuAuthClient extends FitatuApiClientBase {
       return this.session;
     }
 
-    if (!this.pendingLogin) {
-      this.pendingLogin = this.login();
-    }
-
-    try {
-      this.session = await this.pendingLogin;
-      return this.session;
-    } finally {
-      this.pendingLogin = undefined;
-    }
+    this.session = await this.login();
+    return this.session;
   }
 
   public clearSession(): void {
     this.session = undefined;
-    this.pendingLogin = undefined;
   }
 
   private async login(): Promise<FitatuAuthSession> {

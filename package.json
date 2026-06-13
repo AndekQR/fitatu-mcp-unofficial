@@ -6,8 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "vite build",
-    "dev": "node --watch src/index.ts | pino-pretty",
-    "start": "node dist/index.js",
+    "dev": "node --env-file=.env --watch src/index.ts | pino-pretty",
+    "start": "node --env-file=.env dist/index.js",
     "test": "vitest",
     "test:ci": "vitest run --reporter=json --outputFile=test-results.json",
     "lint": "eslint src/",

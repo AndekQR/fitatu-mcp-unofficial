@@ -3,10 +3,9 @@ import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
-import { createTextResult } from "./lib/utils.ts";
 import { logger } from "./logger.ts";
 import { getConfig } from "./config.ts";
+import { GetCurrentUserTool } from "./tools/GetCurrentUserTool.ts";
 
 const getServer = () => {
   const config = getConfig();
@@ -15,20 +14,7 @@ const getServer = () => {
     version: config.SERVER_VERSION,
   });
 
-  server.registerTool(
-    "echo",
-    {
-      title: "Echo",
-      description: "Echo back the provided message",
-      inputSchema: {
-        message: z.string().describe("The message to echo back"),
-      },
-    },
-    async (args) => {
-      const data = { echo: args.message };
-      return createTextResult(data);
-    },
-  );
+  new GetCurrentUserTool().register(server);
 
   return server;
 };

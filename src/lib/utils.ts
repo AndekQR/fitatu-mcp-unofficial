@@ -24,3 +24,15 @@ export function createTextResult(data: unknown): CallToolResult {
     ...(structuredContent ? { structuredContent } : {}),
   };
 }
+
+export function createErrorResult(message: string): CallToolResult {
+  return {
+    isError: true,
+    content: [
+      {
+        type: "text",
+        text: message,
+      },
+    ],
+  };
+}

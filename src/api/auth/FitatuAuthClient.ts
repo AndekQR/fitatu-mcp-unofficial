@@ -1,4 +1,5 @@
 import { getFitatuPassword, getFitatuUsername } from "../../config.ts";
+import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import { FitatuAuthError } from "./FitatuAuthError.ts";
 import type { FitatuAuthClientOptions } from "./FitatuAuthClientOptions.ts";
 import type { FitatuAuthSession } from "./FitatuAuthSession.ts";
@@ -6,40 +7,15 @@ import type { FitatuCredentials } from "./FitatuCredentials.ts";
 import { FitatuLoginResponse } from "./FitatuLoginResponse.ts";
 import type { FitatuLoginRequestBody } from "./FitatuLoginRequestBody.ts";
 
-const DEFAULT_FITATU_API_BASE_URL = "https://en-gb.fitatu.com/api";
-
-const DEFAULT_LOGIN_HEADERS = {
-  "user-agent": "Dart/3.9 (dart:io)",
-  "app-storagelocale": "en_GB",
-  "accept-encoding": "gzip",
-  "content-type": "application/json;charset=UTF-8",
-  "app-os": "ANDROID",
-  "app-timezone": "Europe/Warsaw",
-  "app-searchlocale": "en_GB",
-  "api-secret": "PYRXtfs88UDJMuCCrNpLV",
-  "api-cluster": "dart - -",
-  "app-locale": "en_GB",
-  "app-uuid": "64c2d1b0-c8ad-11e8-8956-0242ac120008",
-  "app-version": "4.14.1",
-  "api-apk-uuid": "CP21.260330.012",
-  "api-key": "FITATU-MOBILE-APP",
-} as const;
-
-export class FitatuAuthClient {
+export class FitatuAuthClient extends FitatuApiClientBase {
   private static instance: FitatuAuthClient | undefined;
 
-  private readonly baseUrl: string;
-  private readonly fetchFn: typeof fetch;
   private readonly credentialsProvider: () => FitatuCredentials;
   private session: FitatuAuthSession | undefined;
   private pendingLogin: Promise<FitatuAuthSession> | undefined;
 
   private constructor(options: FitatuAuthClientOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_FITATU_API_BASE_URL).replace(
-      /\/+$/,
-      "",
-    );
-    this.fetchFn = options.fetchFn ?? fetch;
+    super(options);
     this.credentialsProvider =
       options.credentialsProvider ?? defaultCredentialsProvider;
   }
@@ -83,9 +59,10 @@ export class FitatuAuthClient {
       _password: credentials.password,
     };
 
-    const response = await this.fetchFn(`${this.baseUrl}/login`, {
+    const response = await this.fetchFitatuApi({
       method: "POST",
-      headers: DEFAULT_LOGIN_HEADERS,
+      path: "/login",
+      bootstrap: true,
       body: JSON.stringify(body),
     });
 

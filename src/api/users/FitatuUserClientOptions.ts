@@ -1,6 +1,3 @@
-import type { FitatuApiClientBaseOptions } from "../FitatuApiClientBase/FitatuApiClientBaseOptions.ts";
-import type { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
+import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
 
-export interface FitatuUserClientOptions extends FitatuApiClientBaseOptions {
-  readonly authClient?: FitatuAuthClient;
-}
+export type FitatuUserClientOptions = FitatuApiClientBaseOptions;

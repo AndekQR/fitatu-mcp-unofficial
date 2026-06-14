@@ -2,5 +2,5 @@ import type { FitatuApiClientBaseOptions } from "../FitatuApiClientBase/FitatuAp
 import type { FitatuCredentials } from "./FitatuCredentials.ts";
 
 export interface FitatuAuthClientOptions extends FitatuApiClientBaseOptions {
-  readonly credentialsProvider?: () => FitatuCredentials;
+	readonly credentialsProvider?: () => FitatuCredentials;
 }

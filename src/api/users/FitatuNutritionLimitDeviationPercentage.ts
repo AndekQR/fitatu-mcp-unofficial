@@ -1,22 +1,22 @@
 export class FitatuNutritionLimitDeviationPercentage {
-  public declare readonly energy?: number;
-  public declare readonly carbohydrate?: number;
-  public declare readonly protein?: number;
-  public declare readonly fat?: number;
+	declare public readonly energy?: number;
+	declare public readonly carbohydrate?: number;
+	declare public readonly protein?: number;
+	declare public readonly fat?: number;
 
-  private constructor(data: Record<string, unknown>) {
-    Object.assign(this, data);
-  }
+	private constructor(data: Record<string, unknown>) {
+		Object.assign(this, data);
+	}
 
-  public static fromApiResponse(
-    data: unknown,
-  ): FitatuNutritionLimitDeviationPercentage | null {
-    if (data === null || data === undefined) {
-      return null;
-    }
+	public static fromApiResponse(
+		data: unknown,
+	): FitatuNutritionLimitDeviationPercentage | null {
+		if (data === null || data === undefined) {
+			return null;
+		}
 
-    return new FitatuNutritionLimitDeviationPercentage(
-      data as Record<string, unknown>,
-    );
-  }
+		return new FitatuNutritionLimitDeviationPercentage(
+			data as Record<string, unknown>,
+		);
+	}
 }

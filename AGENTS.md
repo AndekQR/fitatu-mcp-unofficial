@@ -6,13 +6,16 @@ This repository is intended to implement a Model Context Protocol server for Fit
 
 The project should use the official Model Context Protocol TypeScript SDK as the primary reference for MCP server, tool, and resource implementation patterns.
 
-Any existing Python implementation should be treated only as a read-only reference. It may help identify possible Fitatu endpoints, request payloads, response shapes, tool names, or edge cases, but it should not be copied mechanically. The Python code may contain mistakes, inconsistencies, or design choices that should be improved in the TypeScript implementation.
+Any existing Python implementation should be treated only as a read-only reference. It may help identify possible Fitatu endpoints, request payloads, response
+shapes, tool names, or edge cases, but it should not be copied mechanically. The Python code may contain mistakes, inconsistencies, or design choices that
+should be improved in the TypeScript implementation.
 
 Sometimes the existing Python project with similar might be helpful, it's under /Users/daniel/Projects/fitatu_mcp
 
 ## Build, Test, and Development Commands
 
 Use the commands defined in `package.json`.
+Wo work only on the main branch, if not specified otherwise.
 
 Common expected commands may include:
 
@@ -64,7 +67,8 @@ The implementation should distinguish between:
 - Error handling.
 - Tests.
 
-Prefer object-oriented design where it improves encapsulation, readability, and testability. Client classes, service classes, typed errors, and small mapper functions are preferred over large procedural handlers.
+Prefer object-oriented design where it improves encapsulation, readability, and testability. Client classes, service classes, typed errors, and small mapper
+functions are preferred over large procedural handlers.
 
 Use dependency injection for configuration, logging, and HTTP clients where practical.
 
@@ -99,7 +103,8 @@ The HTTP layer should handle:
 
 Captured HTTP traffic may be used only for legitimate work with the user’s own account and own network traffic.
 
-Do not implement functionality intended to bypass authentication, steal credentials, evade limits, scrape at scale, or access data from accounts that do not belong to the user.
+Do not implement functionality intended to bypass authentication, steal credentials, evade limits, scrape at scale, or access data from accounts that do not
+belong to the user.
 
 ## Validation & Error Handling
 

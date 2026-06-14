@@ -8,69 +8,69 @@ import { FitatuLoginResponse } from "./FitatuLoginResponse.ts";
 import type { FitatuLoginRequestBody } from "./FitatuLoginRequestBody.ts";
 
 export class FitatuAuthClient extends FitatuApiClientBase {
-  private static instance: FitatuAuthClient | undefined;
+	private static instance: FitatuAuthClient | undefined;
 
-  private readonly credentialsProvider: () => FitatuCredentials;
-  private session: FitatuAuthSession | undefined;
+	private readonly credentialsProvider: () => FitatuCredentials;
+	private session: FitatuAuthSession | undefined;
 
-  private constructor(options: FitatuAuthClientOptions = {}) {
-    super(options);
-    this.credentialsProvider =
-      options.credentialsProvider ?? defaultCredentialsProvider;
-  }
+	private constructor(options: FitatuAuthClientOptions = {}) {
+		super(options);
+		this.credentialsProvider =
+			options.credentialsProvider ?? defaultCredentialsProvider;
+	}
 
-  public static getInstance(
-    options: FitatuAuthClientOptions = {},
-  ): FitatuAuthClient {
-    if (!FitatuAuthClient.instance) {
-      FitatuAuthClient.instance = new FitatuAuthClient(options);
-    }
+	public static getInstance(
+		options: FitatuAuthClientOptions = {},
+	): FitatuAuthClient {
+		if (!FitatuAuthClient.instance) {
+			FitatuAuthClient.instance = new FitatuAuthClient(options);
+		}
 
-    return FitatuAuthClient.instance;
-  }
+		return FitatuAuthClient.instance;
+	}
 
-  public async getSession(): Promise<FitatuAuthSession> {
-    if (this.session) {
-      return this.session;
-    }
+	public async getSession(): Promise<FitatuAuthSession> {
+		if (this.session) {
+			return this.session;
+		}
 
-    this.session = await this.login();
-    return this.session;
-  }
+		this.session = await this.login();
+		return this.session;
+	}
 
-  public clearSession(): void {
-    this.session = undefined;
-  }
+	public clearSession(): void {
+		this.session = undefined;
+	}
 
-  private async login(): Promise<FitatuAuthSession> {
-    const credentials = this.credentialsProvider();
-    const body: FitatuLoginRequestBody = {
-      _username: credentials.username,
-      _password: credentials.password,
-    };
+	private async login(): Promise<FitatuAuthSession> {
+		const credentials = this.credentialsProvider();
+		const body: FitatuLoginRequestBody = {
+			_username: credentials.username,
+			_password: credentials.password,
+		};
 
-    const response = await this.fetchFitatuApi({
-      method: "POST",
-      path: "/login",
-      bootstrap: true,
-      body: JSON.stringify(body),
-    });
+		const response = await this.fetchFitatuApi({
+			method: "POST",
+			path: "/login",
+			bootstrap: true,
+			body: JSON.stringify(body),
+		});
 
-    if (!response.ok) {
-      throw new FitatuAuthError("Fitatu login failed", {
-        statusCode: response.status,
-      });
-    }
+		if (!response.ok) {
+			throw new FitatuAuthError("Fitatu login failed", {
+				statusCode: response.status,
+			});
+		}
 
-    return FitatuLoginResponse.fromApiResponse(
-      await response.json(),
-    ).toSession();
-  }
+		return FitatuLoginResponse.fromApiResponse(
+			await response.json(),
+		).toSession();
+	}
 }
 
 function defaultCredentialsProvider(): FitatuCredentials {
-  return {
-    username: getFitatuUsername(),
-    password: getFitatuPassword(),
-  };
+	return {
+		username: getFitatuUsername(),
+		password: getFitatuPassword(),
+	};
 }

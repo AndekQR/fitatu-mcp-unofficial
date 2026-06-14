@@ -4,61 +4,61 @@ import { FitatuUserAppConfig } from "./FitatuUserAppConfig.ts";
 import { FitatuUserMeta } from "./FitatuUserMeta.ts";
 
 export class FitatuUserProfile {
-  public declare readonly id?: string;
-  public declare readonly username?: string | null;
-  public declare readonly nickname?: string | null;
-  public declare readonly email?: string | null;
-  public declare readonly roles?: readonly string[];
-  public declare readonly accessControl?: readonly string[];
-  public declare readonly sex?: number | null;
-  public declare readonly enabled?: boolean;
-  public declare readonly createdAt?: string | null;
-  public declare readonly registeredAt?: string | null;
-  public declare readonly registrationSource?: number | null;
-  public declare readonly hasDietSettings?: boolean | null;
-  public declare readonly hasUserSettings?: boolean | null;
-  public declare readonly hasActivityEnergyInclusionMode?: boolean | null;
-  public declare readonly demo?: boolean;
-  public declare readonly locale?: string | null;
-  public declare readonly storageLocale?: string | null;
-  public declare readonly searchLocale?: string | null;
-  public declare readonly timezone?: string | null;
-  public readonly meta: FitatuUserMeta | null;
-  public declare readonly hasActivityTraining?: boolean | null;
-  public readonly appConfig: FitatuUserAppConfig | null;
-  public declare readonly marketingAccepted?: boolean | null;
-  public declare readonly sensitiveAccepted?: boolean | null;
-  public declare readonly advertisementDummyDisplayDate?: string | null;
-  public declare readonly foodProposalSettings?: unknown | null;
-  public declare readonly weightUnit?: string | null;
-  public declare readonly sizeUnit?: string | null;
-  public declare readonly facebookId?: string | null;
-  public declare readonly hasPassword?: boolean | null;
-  public declare readonly requestedEmailChange?: string | null;
-  public declare readonly isWeightMeasurementRequired?: boolean | null;
-  public readonly dietGeneration: FitatuDietGeneration | null;
-  public declare readonly matchingProcess?: unknown | null;
-  public declare readonly subscription?: unknown | null;
-  public declare readonly partnerId?: string | null;
-  public readonly promoCodePlans: readonly FitatuPromoCodePlan[];
-  public declare readonly systemInfo?: string | null;
-  public declare readonly systemVersion?: string | null;
-  public declare readonly appVersion?: string | null;
-  public declare readonly searchUrls?: readonly string[];
+	declare public readonly id?: string;
+	declare public readonly username?: string | null;
+	declare public readonly nickname?: string | null;
+	declare public readonly email?: string | null;
+	declare public readonly roles?: readonly string[];
+	declare public readonly accessControl?: readonly string[];
+	declare public readonly sex?: number | null;
+	declare public readonly enabled?: boolean;
+	declare public readonly createdAt?: string | null;
+	declare public readonly registeredAt?: string | null;
+	declare public readonly registrationSource?: number | null;
+	declare public readonly hasDietSettings?: boolean | null;
+	declare public readonly hasUserSettings?: boolean | null;
+	declare public readonly hasActivityEnergyInclusionMode?: boolean | null;
+	declare public readonly demo?: boolean;
+	declare public readonly locale?: string | null;
+	declare public readonly storageLocale?: string | null;
+	declare public readonly searchLocale?: string | null;
+	declare public readonly timezone?: string | null;
+	public readonly meta: FitatuUserMeta | null;
+	declare public readonly hasActivityTraining?: boolean | null;
+	public readonly appConfig: FitatuUserAppConfig | null;
+	declare public readonly marketingAccepted?: boolean | null;
+	declare public readonly sensitiveAccepted?: boolean | null;
+	declare public readonly advertisementDummyDisplayDate?: string | null;
+	declare public readonly foodProposalSettings?: unknown | null;
+	declare public readonly weightUnit?: string | null;
+	declare public readonly sizeUnit?: string | null;
+	declare public readonly facebookId?: string | null;
+	declare public readonly hasPassword?: boolean | null;
+	declare public readonly requestedEmailChange?: string | null;
+	declare public readonly isWeightMeasurementRequired?: boolean | null;
+	public readonly dietGeneration: FitatuDietGeneration | null;
+	declare public readonly matchingProcess?: unknown | null;
+	declare public readonly subscription?: unknown | null;
+	declare public readonly partnerId?: string | null;
+	public readonly promoCodePlans: readonly FitatuPromoCodePlan[];
+	declare public readonly systemInfo?: string | null;
+	declare public readonly systemVersion?: string | null;
+	declare public readonly appVersion?: string | null;
+	declare public readonly searchUrls?: readonly string[];
 
-  private constructor(data: Record<string, unknown>) {
-    Object.assign(this, data);
-    this.meta = FitatuUserMeta.fromApiResponse(data.meta);
-    this.appConfig = FitatuUserAppConfig.fromApiResponse(data.appConfig);
-    this.dietGeneration = FitatuDietGeneration.fromApiResponse(
-      data.dietGeneration,
-    );
-    this.promoCodePlans = FitatuPromoCodePlan.fromApiResponseArray(
-      data.promoCodePlans,
-    );
-  }
+	private constructor(data: Record<string, unknown>) {
+		Object.assign(this, data);
+		this.meta = FitatuUserMeta.fromApiResponse(data.meta);
+		this.appConfig = FitatuUserAppConfig.fromApiResponse(data.appConfig);
+		this.dietGeneration = FitatuDietGeneration.fromApiResponse(
+			data.dietGeneration,
+		);
+		this.promoCodePlans = FitatuPromoCodePlan.fromApiResponseArray(
+			data.promoCodePlans,
+		);
+	}
 
-  public static fromApiResponse(data: unknown): FitatuUserProfile {
-    return new FitatuUserProfile(data as Record<string, unknown>);
-  }
+	public static fromApiResponse(data: unknown): FitatuUserProfile {
+		return new FitatuUserProfile(data as Record<string, unknown>);
+	}
 }

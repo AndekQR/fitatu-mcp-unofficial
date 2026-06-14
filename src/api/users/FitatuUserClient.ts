@@ -1,68 +1,61 @@
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
-import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuUserError } from "./FitatuUserError.ts";
 import type { FitatuUserClientOptions } from "./FitatuUserClientOptions.ts";
 import { FitatuUserProfile } from "./FitatuUserProfile.ts";
 
 export class FitatuUserClient extends FitatuApiClientBase {
-  private static instance: FitatuUserClient | undefined;
+	private static instance: FitatuUserClient | undefined;
 
-  private readonly authClient: FitatuAuthClient;
-  private readonly users = new Map<string, FitatuUserProfile>();
+	private readonly users = new Map<string, FitatuUserProfile>();
 
-  private constructor(options: FitatuUserClientOptions = {}) {
-    super(options);
-    this.authClient = options.authClient ?? FitatuAuthClient.getInstance();
-  }
+	private constructor(options: FitatuUserClientOptions = {}) {
+		super(options);
+	}
 
-  public static getInstance(
-    options: FitatuUserClientOptions = {},
-  ): FitatuUserClient {
-    if (!FitatuUserClient.instance) {
-      FitatuUserClient.instance = new FitatuUserClient(options);
-    }
+	public static getInstance(
+		options: FitatuUserClientOptions = {},
+	): FitatuUserClient {
+		if (!FitatuUserClient.instance) {
+			FitatuUserClient.instance = new FitatuUserClient(options);
+		}
 
-    return FitatuUserClient.instance;
-  }
+		return FitatuUserClient.instance;
+	}
 
-  public async getAuthenticatedUser(): Promise<FitatuUserProfile> {
-    const session = await this.authClient.getSession();
-    return this.getUser(session.fitatuUserId);
-  }
+	public async getAuthenticatedUser(): Promise<FitatuUserProfile> {
+		return this.getUser(await this.getAuthenticatedUserId());
+	}
 
-  public async getUser(userId: string): Promise<FitatuUserProfile> {
-    const normalizedUserId = userId.trim();
-    if (!normalizedUserId) {
-      throw new FitatuUserError("Fitatu user id is required");
-    }
+	public async getUser(userId: string): Promise<FitatuUserProfile> {
+		const normalizedUserId = userId.trim();
+		if (!normalizedUserId) {
+			throw new FitatuUserError("Fitatu user id is required");
+		}
 
-    const cachedUser = this.users.get(normalizedUserId);
-    if (cachedUser) {
-      return cachedUser;
-    }
+		const cachedUser = this.users.get(normalizedUserId);
+		if (cachedUser) {
+			return cachedUser;
+		}
 
-    const session = await this.authClient.getSession();
-    const response = await this.fetchFitatuApi({
-      method: "GET",
-      path: `/users/${encodeURIComponent(normalizedUserId)}`,
-      bootstrap: true,
-      apiClusterUserId: normalizedUserId,
-      authorizationToken: session.token,
-    });
+		const response = await this.fetchAuthenticatedFitatuApi({
+			method: "GET",
+			path: `/users/${encodeURIComponent(normalizedUserId)}`,
+			userId: normalizedUserId,
+		});
 
-    if (!response.ok) {
-      throw new FitatuUserError("Fitatu user request failed", {
-        statusCode: response.status,
-      });
-    }
+		if (!response.ok) {
+			throw new FitatuUserError("Fitatu user request failed", {
+				statusCode: response.status,
+			});
+		}
 
-    const user = FitatuUserProfile.fromApiResponse(await response.json());
-    this.users.set(normalizedUserId, user);
+		const user = FitatuUserProfile.fromApiResponse(await response.json());
+		this.users.set(normalizedUserId, user);
 
-    return user;
-  }
+		return user;
+	}
 
-  public clearUserCache(): void {
-    this.users.clear();
-  }
+	public clearUserCache(): void {
+		this.users.clear();
+	}
 }

@@ -28,10 +28,10 @@ This is a TypeScript template for building Model Context Protocol (MCP) servers.
 ### Core Components
 
 - **`src/index.ts`** - Main MCP server entry point that:
-  - Sets up the HTTP server using Express on port 3000 (configurable via PORT env var)
-  - Defines all available MCP tools with their JSON schemas
-  - Routes tool calls to registered tool handlers
-  - Handles error responses in MCP format
+	- Sets up the HTTP server using Express on port 3000 (configurable via PORT env var)
+	- Defines all available MCP tools with their JSON schemas
+	- Routes tool calls to registered tool handlers
+	- Handles error responses in MCP format
 - **`src/config.ts`** - Environment configuration with validation using Zod
 - **`src/logger.ts`** - Structured logging with Pino (OpenTelemetry compatible)
 - **`src/lib/utils.ts`** - Utility functions for MCP response formatting
@@ -39,6 +39,7 @@ This is a TypeScript template for building Model Context Protocol (MCP) servers.
 ### Template MCP Tools Available
 
 The template includes one example tool to demonstrate MCP tool implementation:
+
 - `echo` - Simple echo tool that returns the provided message
 
 ### Build System

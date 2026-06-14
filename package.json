@@ -1,52 +1,52 @@
 {
-  "name": "mcp-typescript-template",
-  "version": "1.0.0",
-  "description": "TypeScript template for building MCP servers",
-  "type": "module",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "vite build",
-    "dev": "node --env-file=.env --watch src/index.ts | pino-pretty",
-    "start": "node --env-file=.env dist/index.js",
-    "test": "vitest",
-    "test:ci": "vitest run --reporter=json --outputFile=test-results.json",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "format": "prettier --write src/**/*.ts",
-    "format:check": "prettier --check src/**/*.ts"
-  },
-  "keywords": [
-    "mcp",
-    "typescript",
-    "template",
-    "vite",
-    "server"
-  ],
-  "author": "",
-  "license": "MIT",
-  "engines": {
-    "node": ">=22.18.0"
-  },
-  "devDependencies": {
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
-    "@types/node": "^22.19.1",
-    "@typescript-eslint/eslint-plugin": "^8.54.0",
-    "@typescript-eslint/parser": "^8.49.0",
-    "concurrently": "^9.2.1",
-    "eslint": "^9.39.2",
-    "globals": "^16.5.0",
-    "prettier": "^3.7.3",
-    "semantic-release": "^25.0.2",
-    "typescript": "^5.9.3",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
-    "@types/express": "^5.0.5",
-    "express": "^5.2.1",
-    "pino": "^10.1.0",
-    "pino-pretty": "^13.1.2"
-  }
+	"name": "mcp-typescript-template",
+	"version": "1.0.0",
+	"description": "TypeScript template for building MCP servers",
+	"type": "module",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "vite build",
+		"dev": "node --env-file=.env --watch src/index.ts | pino-pretty",
+		"start": "node --env-file=.env dist/index.js",
+		"test": "vitest",
+		"test:ci": "vitest run --reporter=json --outputFile=test-results.json",
+		"lint": "eslint src/",
+		"lint:fix": "eslint src/ --fix",
+		"format": "prettier --write src/**/*.ts",
+		"format:check": "prettier --check src/**/*.ts"
+	},
+	"keywords": [
+		"mcp",
+		"typescript",
+		"template",
+		"vite",
+		"server"
+	],
+	"author": "",
+	"license": "MIT",
+	"engines": {
+		"node": ">=22.18.0"
+	},
+	"devDependencies": {
+		"@semantic-release/changelog": "^6.0.3",
+		"@semantic-release/git": "^10.0.1",
+		"@types/node": "^22.19.1",
+		"@typescript-eslint/eslint-plugin": "^8.54.0",
+		"@typescript-eslint/parser": "^8.49.0",
+		"concurrently": "^9.2.1",
+		"eslint": "^9.39.2",
+		"globals": "^16.5.0",
+		"prettier": "^3.7.3",
+		"semantic-release": "^25.0.2",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1",
+		"vitest": "^4.0.18"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.26.0",
+		"@types/express": "^5.0.5",
+		"express": "^5.2.1",
+		"pino": "^10.1.0",
+		"pino-pretty": "^13.1.2"
+	}
 }

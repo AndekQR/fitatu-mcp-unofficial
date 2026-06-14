@@ -1,6 +1,7 @@
 # MCP TypeScript Template
 
-A TypeScript template for building remote Model Context Protocol (MCP) servers with modern tooling and best practices while leveraging the [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk).
+A TypeScript template for building remote Model Context Protocol (MCP) servers with modern tooling and best practices while leveraging
+the [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk).
 
 ## Features
 

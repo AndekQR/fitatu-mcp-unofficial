@@ -50,12 +50,8 @@ export class FitatuUserProfile {
 		Object.assign(this, data);
 		this.meta = FitatuUserMeta.fromApiResponse(data.meta);
 		this.appConfig = FitatuUserAppConfig.fromApiResponse(data.appConfig);
-		this.dietGeneration = FitatuDietGeneration.fromApiResponse(
-			data.dietGeneration,
-		);
-		this.promoCodePlans = FitatuPromoCodePlan.fromApiResponseArray(
-			data.promoCodePlans,
-		);
+		this.dietGeneration = FitatuDietGeneration.fromApiResponse(data.dietGeneration);
+		this.promoCodePlans = FitatuPromoCodePlan.fromApiResponseArray(data.promoCodePlans);
 	}
 
 	public static fromApiResponse(data: unknown): FitatuUserProfile {

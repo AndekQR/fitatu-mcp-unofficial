@@ -47,9 +47,7 @@ export class GetDayPlanItemsTool {
 
 	private readonly dayPlanClient: DayPlanClient;
 
-	public constructor(
-		dayPlanClient: DayPlanClient = DayPlanClient.getInstance(),
-	) {
+	public constructor(dayPlanClient: DayPlanClient = DayPlanClient.getInstance()) {
 		this.dayPlanClient = dayPlanClient;
 	}
 
@@ -61,12 +59,7 @@ export class GetDayPlanItemsTool {
 				description:
 					"Fetches the authenticated Fitatu user's day plan meals and added food items for a YYYY-MM-DD date.",
 				inputSchema: {
-					date: z
-						.string()
-						.regex(
-							/^\d{4}-\d{2}-\d{2}$/,
-							"date must use YYYY-MM-DD format",
-						),
+					date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format"),
 					withRating: z.boolean().default(false).optional(),
 				},
 				outputSchema: dayPlanOutputSchema,
@@ -122,9 +115,7 @@ export class GetDayPlanItemsTool {
 		if (error instanceof DayPlanError) {
 			return {
 				errorName: error.name,
-				message: error.statusCode
-					? "Fitatu day plan request failed."
-					: error.message,
+				message: error.statusCode ? "Fitatu day plan request failed." : error.message,
 				statusCode: error.statusCode,
 			};
 		}

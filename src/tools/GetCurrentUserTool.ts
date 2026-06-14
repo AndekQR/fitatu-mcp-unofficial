@@ -35,9 +35,7 @@ export class GetCurrentUserTool {
 
 	private readonly userClient: FitatuUserClient;
 
-	public constructor(
-		userClient: FitatuUserClient = FitatuUserClient.getInstance(),
-	) {
+	public constructor(userClient: FitatuUserClient = FitatuUserClient.getInstance()) {
 		this.userClient = userClient;
 	}
 
@@ -46,8 +44,7 @@ export class GetCurrentUserTool {
 			this.name,
 			{
 				title: "Get Current Fitatu User",
-				description:
-					"Fetches the currently authenticated Fitatu user profile.",
+				description: "Fetches the currently authenticated Fitatu user profile.",
 				inputSchema: {},
 				outputSchema: currentUserOutputSchema,
 				annotations: {

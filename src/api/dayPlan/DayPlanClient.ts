@@ -1,3 +1,4 @@
+import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
 import { DayPlan } from "./DayPlan.ts";
@@ -14,18 +15,17 @@ export class DayPlanClient extends FitatuApiClientBase {
 	private static instance: DayPlanClient | undefined;
 
 	private constructor(options: DayPlanClientOptions = {}) {
-		const userClient = options.userClient ?? FitatuUserClient.getInstance();
+		const sessionProvider = options.sessionProvider ?? FitatuAuthClient.getInstance();
+		const userClient = options.userClient ?? FitatuUserClient.getInstance({ sessionProvider });
+
 		super({
 			...options,
-			currentUserProvider:
-				options.currentUserProvider ??
-				(() => userClient.getAuthenticatedUser()),
+			sessionProvider,
+			currentUserProvider: options.currentUserProvider ?? userClient,
 		});
 	}
 
-	public static getInstance(
-		options: DayPlanClientOptions = {},
-	): DayPlanClient {
+	public static getInstance(options: DayPlanClientOptions = {}): DayPlanClient {
 		if (!DayPlanClient.instance) {
 			DayPlanClient.instance = new DayPlanClient(options);
 		}
@@ -35,16 +35,12 @@ export class DayPlanClient extends FitatuApiClientBase {
 
 	public async getDayPlan(options: GetDayPlanOptions): Promise<DayPlan> {
 		const date = normalizeDate(options.date);
-		const userId = normalizeUserId(
-			await this.getAuthenticatedUserId(options.userId),
-		);
+		const userId = normalizeUserId(await this.getContextUserId(options.userId));
 
-		const response = await this.fetchAuthenticatedFitatuApi({
+		const response = await this.fetchFitatuApi({
 			method: "GET",
 			path: `/diet-and-activity-plan/${encodeURIComponent(userId)}/day/${date}`,
-			query:
-				options.withRating === true ? { withRating: true } : undefined,
-			userId,
+			query: options.withRating === true ? { withRating: true } : undefined,
 		});
 
 		if (!response.ok) {
@@ -68,10 +64,7 @@ function normalizeDate(value: string): string {
 	}
 
 	const parsed = new Date(`${date}T00:00:00.000Z`);
-	if (
-		Number.isNaN(parsed.getTime()) ||
-		parsed.toISOString().slice(0, 10) !== date
-	) {
+	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
 		throw new DayPlanError("date must be a valid calendar date");
 	}
 

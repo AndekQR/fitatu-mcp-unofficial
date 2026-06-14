@@ -6,9 +6,7 @@ export class FitatuDietGenerationLimit {
 		Object.assign(this, data);
 	}
 
-	public static fromApiResponse(
-		data: unknown,
-	): FitatuDietGenerationLimit | null {
+	public static fromApiResponse(data: unknown): FitatuDietGenerationLimit | null {
 		if (data === null || data === undefined) {
 			return null;
 		}

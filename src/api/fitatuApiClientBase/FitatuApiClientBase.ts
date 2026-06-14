@@ -10,40 +10,23 @@ import type { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts
 import type { FitatuApiRequestOptions } from "./FitatuApiRequestOptions.ts";
 import type { FitatuRequestContext } from "./FitatuRequestContext.ts";
 
-interface FitatuAuthenticatedApiRequestOptions extends Omit<
-	FitatuApiRequestOptions,
-	"bootstrap"
-> {
-	readonly userId?: string;
-}
-
-interface FitatuApiRequestContextOptions extends FitatuApiRequestOptions {
-	readonly apiClusterUserId?: string;
-	readonly authorizationToken?: string;
-	readonly contextUser?: FitatuUserProfile;
-}
-
 export abstract class FitatuApiClientBase {
 	protected readonly fetchFn: typeof fetch;
 
 	private readonly fallbackBaseUrl: string;
 	private readonly hasExplicitBaseUrl: boolean;
-	private readonly currentUserProvider:
-		| (() => Promise<FitatuUserProfile | undefined>)
-		| undefined;
+	private readonly sessionProvider: FitatuApiClientBaseOptions["sessionProvider"];
+	private readonly currentUserProvider: FitatuApiClientBaseOptions["currentUserProvider"];
 
 	protected constructor(options: FitatuApiClientBaseOptions = {}) {
-		this.fallbackBaseUrl = normalizeBaseUrl(
-			options.baseUrl ?? DEFAULT_FITATU_API_BASE_URL,
-		);
+		this.fallbackBaseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_FITATU_API_BASE_URL);
 		this.hasExplicitBaseUrl = Boolean(options.baseUrl);
 		this.fetchFn = options.fetchFn ?? fetch;
+		this.sessionProvider = options.sessionProvider;
 		this.currentUserProvider = options.currentUserProvider;
 	}
 
-	protected async fetchFitatuApi(
-		options: FitatuApiRequestOptions,
-	): Promise<Response> {
+	protected async fetchFitatuApi(options: FitatuApiRequestOptions): Promise<Response> {
 		const context = await this.createRequestContext(options);
 
 		return this.fetchFn(context.url, {
@@ -53,88 +36,50 @@ export abstract class FitatuApiClientBase {
 		});
 	}
 
-	protected async fetchAuthenticatedFitatuApi(
-		options: FitatuAuthenticatedApiRequestOptions,
-	): Promise<Response> {
-		const [session, user] = await Promise.all([
-			this.getAuthSession(),
-			this.getCurrentUser(),
-		]);
-		const userId = this.resolveAuthenticatedUserId(
-			options.userId,
-			user,
-			session,
-		);
+	protected async getContextUserId(userId?: string): Promise<string | undefined> {
+		const [session, user] = await Promise.all([this.getProvidedSession(), this.getProvidedCurrentUser()]);
 
-		const context = await this.createRequestContext({
-			...options,
-			contextUser: user,
-			apiClusterUserId: userId,
-			authorizationToken: session.token,
-		});
-
-		return this.fetchFn(context.url, {
-			method: options.method,
-			headers: context.headers,
-			...(options.body !== undefined ? { body: options.body } : {}),
-		});
+		return this.resolveContextUserId(userId, user, session);
 	}
 
-	protected async getAuthenticatedUserId(userId?: string): Promise<string> {
-		const user = await this.getCurrentUser();
-		const session = await this.getAuthSession();
-
-		return this.resolveAuthenticatedUserId(userId, user, session);
-	}
-
-	protected async createRequestContext(
-		options: FitatuApiRequestContextOptions,
-	): Promise<FitatuRequestContext> {
-		const user = options.bootstrap
-			? undefined
-			: (options.contextUser ?? (await this.getCurrentUser()));
+	protected async createRequestContext(options: FitatuApiRequestOptions): Promise<FitatuRequestContext> {
+		const [session, user] = await Promise.all([this.getProvidedSession(), this.getProvidedCurrentUser()]);
+		const userId = this.resolveContextUserId(undefined, user, session);
 		const baseUrl = this.resolveBaseUrl(user);
 
 		return {
 			url: createUrl(baseUrl, options.path, options.query),
 			headers: {
-				...this.createDefaultHeaders(
-					user,
-					options.apiClusterUserId,
-					options.authorizationToken,
-				),
+				...this.createDefaultHeaders(user, userId, session?.token),
 				...headersToRecord(options.headers),
 			},
 			...(user ? { user } : {}),
 		};
 	}
 
-	private async getAuthSession(): Promise<FitatuAuthSession> {
-		const { FitatuAuthClient } =
-			await import("../auth/FitatuAuthClient.ts");
-
-		return FitatuAuthClient.getInstance().getSession();
-	}
-
-	private resolveAuthenticatedUserId(
+	private resolveContextUserId(
 		userId: string | undefined,
 		user: FitatuUserProfile | undefined,
-		session: FitatuAuthSession,
-	): string {
-		return (
-			nonEmptyString(userId) ??
-			nonEmptyString(user?.id) ??
-			session.fitatuUserId
-		);
+		session: FitatuAuthSession | undefined,
+	): string | undefined {
+		return nonEmptyString(userId) ?? nonEmptyString(user?.id) ?? nonEmptyString(session?.fitatuUserId);
 	}
 
-	private async getCurrentUser(): Promise<FitatuUserProfile | undefined> {
+	private async getProvidedSession(): Promise<FitatuAuthSession | undefined> {
+		if (!this.sessionProvider) {
+			return undefined;
+		}
+
+		return this.sessionProvider.getSession();
+	}
+
+	private async getProvidedCurrentUser(): Promise<FitatuUserProfile | undefined> {
 		if (!this.currentUserProvider) {
 			return undefined;
 		}
 
 		try {
-			return await this.currentUserProvider();
+			return await this.currentUserProvider.getCurrentUser();
 		} catch {
 			return undefined;
 		}
@@ -150,31 +95,27 @@ export abstract class FitatuApiClientBase {
 
 	private createDefaultHeaders(
 		user: FitatuUserProfile | undefined,
-		apiClusterUserId: string | undefined,
-		authorizationToken: string | undefined,
+		clusterUserId: string | undefined,
+		sessionToken: string | undefined,
 	): Record<string, string> {
 		const appLocale = nonEmptyString(user?.locale) ?? DEFAULT_APP_LOCALE;
-		const searchLocale =
-			nonEmptyString(user?.searchLocale) ?? nonEmptyString(user?.locale);
-		const storageLocale =
-			nonEmptyString(user?.storageLocale) ?? nonEmptyString(user?.locale);
+		const searchLocale = nonEmptyString(user?.searchLocale) ?? nonEmptyString(user?.locale);
+		const storageLocale = nonEmptyString(user?.storageLocale) ?? nonEmptyString(user?.locale);
 		const timezone = nonEmptyString(user?.timezone) ?? DEFAULT_APP_TIMEZONE;
 
 		return filterHeaders({
 			...DEFAULT_FITATU_HEADERS,
-			"api-cluster": this.createApiCluster(apiClusterUserId, user),
+			"api-cluster": this.createApiCluster(clusterUserId, user),
 			"app-storagelocale": storageLocale ?? DEFAULT_APP_LOCALE,
 			"app-timezone": timezone,
 			"app-searchlocale": searchLocale ?? DEFAULT_APP_LOCALE,
 			"app-locale": appLocale,
-			authorization: this.createAuthorizationValue(authorizationToken),
+			authorization: this.createAuthorizationValue(sessionToken),
 		});
 	}
 
-	private createAuthorizationValue(
-		authorizationToken: string | undefined,
-	): string | undefined {
-		const token = nonEmptyString(authorizationToken);
+	private createAuthorizationValue(sessionToken: string | undefined): string | undefined {
+		const token = nonEmptyString(sessionToken);
 		if (!token) {
 			return undefined;
 		}
@@ -182,25 +123,18 @@ export abstract class FitatuApiClientBase {
 		return `Bearer ${token}`;
 	}
 
-	private createApiCluster(
-		userId: string | undefined,
-		user?: FitatuUserProfile,
-	): string | undefined {
+	private createApiCluster(userId: string | undefined, user?: FitatuUserProfile): string | undefined {
 		const normalizedUserId = nonEmptyString(userId);
 		if (!normalizedUserId) {
 			return undefined;
 		}
 
-		const localeSegment = toLocaleSegment(
-			user?.locale ?? DEFAULT_APP_LOCALE,
-		);
+		const localeSegment = toLocaleSegment(user?.locale ?? DEFAULT_APP_LOCALE);
 		return `dart-${localeSegment}${normalizedUserId}`;
 	}
 }
 
-function headersToRecord(
-	headers: Record<string, string | null | undefined> | undefined,
-): Record<string, string> {
+function headersToRecord(headers: Record<string, string | null | undefined> | undefined): Record<string, string> {
 	if (!headers) {
 		return {};
 	}
@@ -208,9 +142,7 @@ function headersToRecord(
 	return filterHeaders(headers);
 }
 
-function filterHeaders(
-	headers: Record<string, string | null | undefined>,
-): Record<string, string> {
+function filterHeaders(headers: Record<string, string | null | undefined>): Record<string, string> {
 	return Object.fromEntries(
 		Object.entries(headers).flatMap(([name, value]) => {
 			const headerValue = nonEmptyString(value);
@@ -230,9 +162,7 @@ function normalizePath(path: string): string {
 function createUrl(
 	baseUrl: string,
 	path: string,
-	query:
-		| Record<string, string | number | boolean | null | undefined>
-		| undefined,
+	query: Record<string, string | number | boolean | null | undefined> | undefined,
 ): string {
 	const url = new URL(`${baseUrl}${normalizePath(path)}`);
 

@@ -8,15 +8,11 @@ export class FitatuNutritionLimitDeviationPercentage {
 		Object.assign(this, data);
 	}
 
-	public static fromApiResponse(
-		data: unknown,
-	): FitatuNutritionLimitDeviationPercentage | null {
+	public static fromApiResponse(data: unknown): FitatuNutritionLimitDeviationPercentage | null {
 		if (data === null || data === undefined) {
 			return null;
 		}
 
-		return new FitatuNutritionLimitDeviationPercentage(
-			data as Record<string, unknown>,
-		);
+		return new FitatuNutritionLimitDeviationPercentage(data as Record<string, unknown>);
 	}
 }

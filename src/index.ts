@@ -31,11 +31,7 @@ const mcpHandler = async (req: express.Request, res: express.Response) => {
 
 	try {
 		// Handle initialization requests (usually POST without session ID)
-		if (
-			req.method === "POST" &&
-			!sessionId &&
-			isInitializeRequest(req.body)
-		) {
+		if (req.method === "POST" && !sessionId && isInitializeRequest(req.body)) {
 			logger.info("Initializing new MCP session");
 
 			const transport = new StreamableHTTPServerTransport({
@@ -61,9 +57,7 @@ const mcpHandler = async (req: express.Request, res: express.Response) => {
 
 		// Handle case where no session ID is provided for non-init requests
 		if (req.method === "POST" && !sessionId) {
-			logger.warn(
-				"POST request without session ID for non-initialization request",
-			);
+			logger.warn("POST request without session ID for non-initialization request");
 			res.status(400).json({
 				error: "Session ID required for non-initialization requests",
 			});

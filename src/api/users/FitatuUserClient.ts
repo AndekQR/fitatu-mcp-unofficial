@@ -1,3 +1,4 @@
+import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import { FitatuUserError } from "./FitatuUserError.ts";
 import type { FitatuUserClientOptions } from "./FitatuUserClientOptions.ts";
@@ -9,12 +10,13 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	private readonly users = new Map<string, FitatuUserProfile>();
 
 	private constructor(options: FitatuUserClientOptions = {}) {
-		super(options);
+		super({
+			...options,
+			sessionProvider: options.sessionProvider ?? FitatuAuthClient.getInstance(),
+		});
 	}
 
-	public static getInstance(
-		options: FitatuUserClientOptions = {},
-	): FitatuUserClient {
+	public static getInstance(options: FitatuUserClientOptions = {}): FitatuUserClient {
 		if (!FitatuUserClient.instance) {
 			FitatuUserClient.instance = new FitatuUserClient(options);
 		}
@@ -23,24 +25,24 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	}
 
 	public async getAuthenticatedUser(): Promise<FitatuUserProfile> {
-		return this.getUser(await this.getAuthenticatedUserId());
+		return this.getUser(normalizeUserId(await this.getContextUserId()));
+	}
+
+	public async getCurrentUser(): Promise<FitatuUserProfile> {
+		return this.getAuthenticatedUser();
 	}
 
 	public async getUser(userId: string): Promise<FitatuUserProfile> {
-		const normalizedUserId = userId.trim();
-		if (!normalizedUserId) {
-			throw new FitatuUserError("Fitatu user id is required");
-		}
+		const normalizedUserId = normalizeUserId(userId);
 
 		const cachedUser = this.users.get(normalizedUserId);
 		if (cachedUser) {
 			return cachedUser;
 		}
 
-		const response = await this.fetchAuthenticatedFitatuApi({
+		const response = await this.fetchFitatuApi({
 			method: "GET",
 			path: `/users/${encodeURIComponent(normalizedUserId)}`,
-			userId: normalizedUserId,
 		});
 
 		if (!response.ok) {
@@ -58,4 +60,13 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	public clearUserCache(): void {
 		this.users.clear();
 	}
+}
+
+function normalizeUserId(value: string | undefined): string {
+	const userId = value?.trim();
+	if (!userId) {
+		throw new FitatuUserError("Fitatu user id is required");
+	}
+
+	return userId;
 }

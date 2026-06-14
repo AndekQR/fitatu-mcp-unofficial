@@ -7,27 +7,17 @@ export class FitatuDietGenerationIndicatedLimits {
 	public readonly proteinPercentage: FitatuDietGenerationLimit | null;
 
 	private constructor(data: Record<string, unknown>) {
-		this.carbohydratePercentage = FitatuDietGenerationLimit.fromApiResponse(
-			data.carbohydratePercentage,
-		);
+		this.carbohydratePercentage = FitatuDietGenerationLimit.fromApiResponse(data.carbohydratePercentage);
 		this.energy = FitatuDietGenerationLimit.fromApiResponse(data.energy);
-		this.fatPercentage = FitatuDietGenerationLimit.fromApiResponse(
-			data.fatPercentage,
-		);
-		this.proteinPercentage = FitatuDietGenerationLimit.fromApiResponse(
-			data.proteinPercentage,
-		);
+		this.fatPercentage = FitatuDietGenerationLimit.fromApiResponse(data.fatPercentage);
+		this.proteinPercentage = FitatuDietGenerationLimit.fromApiResponse(data.proteinPercentage);
 	}
 
-	public static fromApiResponse(
-		data: unknown,
-	): FitatuDietGenerationIndicatedLimits | null {
+	public static fromApiResponse(data: unknown): FitatuDietGenerationIndicatedLimits | null {
 		if (data === null || data === undefined) {
 			return null;
 		}
 
-		return new FitatuDietGenerationIndicatedLimits(
-			data as Record<string, unknown>,
-		);
+		return new FitatuDietGenerationIndicatedLimits(data as Record<string, unknown>);
 	}
 }

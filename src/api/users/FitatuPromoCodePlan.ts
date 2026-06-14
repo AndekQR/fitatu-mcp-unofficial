@@ -11,9 +11,7 @@ export class FitatuPromoCodePlan {
 		return new FitatuPromoCodePlan(data as Record<string, unknown>);
 	}
 
-	public static fromApiResponseArray(
-		data: unknown,
-	): readonly FitatuPromoCodePlan[] {
+	public static fromApiResponseArray(data: unknown): readonly FitatuPromoCodePlan[] {
 		if (!Array.isArray(data)) {
 			return [];
 		}

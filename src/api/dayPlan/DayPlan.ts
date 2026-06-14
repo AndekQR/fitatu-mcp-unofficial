@@ -6,25 +6,15 @@ export class DayPlan {
 	public readonly userId: string;
 	public readonly meals: readonly DayPlanMeal[];
 
-	private constructor(input: {
-		date: string;
-		userId: string;
-		meals: readonly DayPlanMeal[];
-	}) {
+	private constructor(input: { date: string; userId: string; meals: readonly DayPlanMeal[] }) {
 		this.date = input.date;
 		this.userId = input.userId;
 		this.meals = input.meals;
 	}
 
-	public static fromApiResponse(input: {
-		data: unknown;
-		date: string;
-		userId: string;
-	}): DayPlan {
+	public static fromApiResponse(input: { data: unknown; date: string; userId: string }): DayPlan {
 		if (!isRecord(input.data)) {
-			throw new DayPlanError(
-				"DayPlan response was not a valid JSON object",
-			);
+			throw new DayPlanError("DayPlan response was not a valid JSON object");
 		}
 
 		if (!isRecord(input.data.dietPlan)) {

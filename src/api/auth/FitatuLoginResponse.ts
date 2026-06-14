@@ -19,30 +19,21 @@ export class FitatuLoginResponse {
 
 	public static fromApiResponse(data: unknown): FitatuLoginResponse {
 		if (!isLoginResponseData(data)) {
-			throw new FitatuAuthError(
-				"Login response was not a valid JSON object",
-			);
+			throw new FitatuAuthError("Login response was not a valid JSON object");
 		}
 
 		const token = firstString(data.token, data.access_token);
 		if (!token) {
-			throw new FitatuAuthError(
-				"Login response did not contain an access token",
-			);
+			throw new FitatuAuthError("Login response did not contain an access token");
 		}
 
-		return new FitatuLoginResponse(
-			token,
-			firstString(data.refresh_token, data.refreshToken),
-		);
+		return new FitatuLoginResponse(token, firstString(data.refresh_token, data.refreshToken));
 	}
 
 	public toSession(): FitatuAuthSession {
 		const fitatuUserId = extractUserIdFromJwt(this.token);
 		if (!fitatuUserId) {
-			throw new FitatuAuthError(
-				"Login token did not contain a Fitatu user id",
-			);
+			throw new FitatuAuthError("Login token did not contain a Fitatu user id");
 		}
 
 		return {
@@ -70,17 +61,9 @@ function extractUserIdFromJwt(token: string): string | undefined {
 	}
 
 	try {
-		const payload = JSON.parse(decodeBase64Url(encodedPayload)) as Record<
-			string,
-			unknown
-		>;
+		const payload = JSON.parse(decodeBase64Url(encodedPayload)) as Record<string, unknown>;
 
-		return firstString(
-			payload.user_id,
-			payload.uid,
-			payload.id,
-			payload.sub,
-		);
+		return firstString(payload.user_id, payload.uid, payload.id, payload.sub);
 	} catch {
 		return undefined;
 	}
@@ -88,9 +71,6 @@ function extractUserIdFromJwt(token: string): string | undefined {
 
 function decodeBase64Url(value: string): string {
 	const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
-	const padded = base64.padEnd(
-		base64.length + ((4 - (base64.length % 4)) % 4),
-		"=",
-	);
+	const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
 	return Buffer.from(padded, "base64").toString("utf-8");
 }

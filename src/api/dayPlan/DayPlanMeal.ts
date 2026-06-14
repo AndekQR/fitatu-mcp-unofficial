@@ -13,10 +13,7 @@ export class DayPlanMeal {
 		this.items = DayPlanItem.fromApiResponseArray(data.items);
 	}
 
-	public static fromApiResponse(
-		mealKey: string,
-		data: unknown,
-	): DayPlanMeal | null {
+	public static fromApiResponse(mealKey: string, data: unknown): DayPlanMeal | null {
 		if (!isRecord(data)) {
 			return null;
 		}

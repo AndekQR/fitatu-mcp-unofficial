@@ -1,1 +1,58 @@
-{"numTotalTestSuites":2,"numPassedTestSuites":2,"numFailedTestSuites":0,"numPendingTestSuites":0,"numTotalTests":2,"numPassedTests":2,"numFailedTests":0,"numPendingTests":0,"numTodoTests":0,"snapshot":{"added":0,"failure":false,"filesAdded":0,"filesRemoved":0,"filesRemovedList":[],"filesUnmatched":0,"filesUpdated":0,"matched":0,"total":0,"unchecked":0,"uncheckedKeysByFile":[],"unmatched":0,"updated":0,"didUpdate":false},"startTime":1781424940382,"success":true,"testResults":[{"assertionResults":[{"ancestorTitles":["getConfig"],"fullName":"getConfig reads Fitatu credentials from environment variables","status":"passed","title":"reads Fitatu credentials from environment variables","duration":38.554874999999996,"failureMessages":[],"meta":{}},{"ancestorTitles":["getConfig"],"fullName":"getConfig exits when Fitatu email is invalid","status":"passed","title":"exits when Fitatu email is invalid","duration":1.9272080000000074,"failureMessages":[],"meta":{}}],"startTime":1781424940495,"endTime":1781424940535.9272,"status":"passed","message":"","name":"/Users/daniel/Projects/fitatu_mcp_ts/src/config.test.ts"}]}
+{
+	"numTotalTestSuites": 2,
+	"numPassedTestSuites": 2,
+	"numFailedTestSuites": 0,
+	"numPendingTestSuites": 0,
+	"numTotalTests": 2,
+	"numPassedTests": 2,
+	"numFailedTests": 0,
+	"numPendingTests": 0,
+	"numTodoTests": 0,
+	"snapshot": {
+		"added": 0,
+		"failure": false,
+		"filesAdded": 0,
+		"filesRemoved": 0,
+		"filesRemovedList": [],
+		"filesUnmatched": 0,
+		"filesUpdated": 0,
+		"matched": 0,
+		"total": 0,
+		"unchecked": 0,
+		"uncheckedKeysByFile": [],
+		"unmatched": 0,
+		"updated": 0,
+		"didUpdate": false
+	},
+	"startTime": 1781426738811,
+	"success": true,
+	"testResults": [
+		{
+			"assertionResults": [
+				{
+					"ancestorTitles": ["getConfig"],
+					"fullName": "getConfig reads Fitatu credentials from environment variables",
+					"status": "passed",
+					"title": "reads Fitatu credentials from environment variables",
+					"duration": 18.375249999999994,
+					"failureMessages": [],
+					"meta": {}
+				},
+				{
+					"ancestorTitles": ["getConfig"],
+					"fullName": "getConfig exits when Fitatu email is invalid",
+					"status": "passed",
+					"title": "exits when Fitatu email is invalid",
+					"duration": 2.2032919999999905,
+					"failureMessages": [],
+					"meta": {}
+				}
+			],
+			"startTime": 1781426738925,
+			"endTime": 1781426738945.2034,
+			"status": "passed",
+			"message": "",
+			"name": "/Users/daniel/Projects/fitatu_mcp_ts/src/config.test.ts"
+		}
+	]
+}

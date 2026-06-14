@@ -4,7 +4,8 @@ Thank you for your interest in contributing!
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by our [Code of Conduct](CODE-OF-CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to nick@nickyt.co.
+This project and everyone participating in it is governed by our [Code of Conduct](CODE-OF-CONDUCT.md). By participating, you are expected to uphold this code.
+Please report unacceptable behavior to nick@nickyt.co.
 
 ## Contributing Process
 
@@ -17,6 +18,7 @@ This project and everyone participating in it is governed by our [Code of Conduc
 ## Reporting Issues
 
 When reporting issues, please include:
+
 - Clear description of the problem
 - Steps to reproduce
 - Expected vs actual behavior

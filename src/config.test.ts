@@ -16,11 +16,10 @@ describe("getConfig", () => {
 	});
 
 	it("reads Fitatu credentials from environment variables", async () => {
-		const { getConfig, getFitatuPassword, getFitatuUsername } =
-			await loadConfigWithEnv({
-				FITATU_EMAIL: "test@example.com",
-				FITATU_PASSWORD: "test-password",
-			});
+		const { getConfig, getFitatuPassword, getFitatuUsername } = await loadConfigWithEnv({
+			FITATU_EMAIL: "test@example.com",
+			FITATU_PASSWORD: "test-password",
+		});
 
 		expect(getConfig()).toMatchObject({
 			FITATU_EMAIL: "test@example.com",
@@ -31,9 +30,7 @@ describe("getConfig", () => {
 	});
 
 	it("exits when Fitatu email is invalid", async () => {
-		const consoleError = vi
-			.spyOn(console, "error")
-			.mockImplementation(() => undefined);
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 		const exit = vi.spyOn(process, "exit").mockImplementation((() => {
 			throw new Error("process.exit called");
 		}) as never);

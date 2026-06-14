@@ -15,13 +15,10 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 
 	private constructor(options: FitatuAuthClientOptions = {}) {
 		super(options);
-		this.credentialsProvider =
-			options.credentialsProvider ?? defaultCredentialsProvider;
+		this.credentialsProvider = options.credentialsProvider ?? defaultCredentialsProvider;
 	}
 
-	public static getInstance(
-		options: FitatuAuthClientOptions = {},
-	): FitatuAuthClient {
+	public static getInstance(options: FitatuAuthClientOptions = {}): FitatuAuthClient {
 		if (!FitatuAuthClient.instance) {
 			FitatuAuthClient.instance = new FitatuAuthClient(options);
 		}
@@ -52,7 +49,6 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 		const response = await this.fetchFitatuApi({
 			method: "POST",
 			path: "/login",
-			bootstrap: true,
 			body: JSON.stringify(body),
 		});
 
@@ -62,9 +58,7 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 			});
 		}
 
-		return FitatuLoginResponse.fromApiResponse(
-			await response.json(),
-		).toSession();
+		return FitatuLoginResponse.fromApiResponse(await response.json()).toSession();
 	}
 }
 

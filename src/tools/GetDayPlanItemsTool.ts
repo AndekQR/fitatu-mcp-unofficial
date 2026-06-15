@@ -31,7 +31,6 @@ const dayPlanItemSchema = z.object({
 
 const dayPlanOutputSchema = {
 	date: z.string(),
-	userId: z.string(),
 	meals: z.array(
 		z.object({
 			mealKey: z.string(),
@@ -76,7 +75,10 @@ export class GetDayPlanItemsTool {
 						date,
 						withRating: withRating === true,
 					});
-					return createTextResult(dayPlan);
+					return createTextResult({
+						date: dayPlan.date,
+						meals: dayPlan.meals,
+					});
 				} catch (error) {
 					return this.createSafeErrorResult(error);
 				}

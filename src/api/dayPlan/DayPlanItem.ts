@@ -48,6 +48,10 @@ export class DayPlanItem {
 			return null;
 		}
 
+		if (typeof data.deletedAt === "string" && data.deletedAt.trim()) {
+			return null;
+		}
+
 		return new DayPlanItem(data);
 	}
 

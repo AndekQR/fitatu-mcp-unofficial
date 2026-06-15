@@ -5,8 +5,13 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "./logger.ts";
 import { getConfig } from "./config.ts";
+import { AddMealItemsTool } from "./tools/AddMealItemsTool.ts";
 import { GetCurrentUserTool } from "./tools/GetCurrentUserTool.ts";
 import { GetDayPlanItemsTool } from "./tools/GetDayPlanItemsTool.ts";
+import { MoveMealItemTool } from "./tools/MoveMealItemTool.ts";
+import { RemoveMealItemTool } from "./tools/RemoveMealItemTool.ts";
+import { SearchFoodTool } from "./tools/SearchFoodTool.ts";
+import { UpdateMealItemTool } from "./tools/UpdateMealItemTool.ts";
 
 const getServer = () => {
 	const config = getConfig();
@@ -17,6 +22,11 @@ const getServer = () => {
 
 	new GetCurrentUserTool().register(server);
 	new GetDayPlanItemsTool().register(server);
+	new SearchFoodTool().register(server);
+	new AddMealItemsTool().register(server);
+	new UpdateMealItemTool().register(server);
+	new RemoveMealItemTool().register(server);
+	new MoveMealItemTool().register(server);
 
 	return server;
 };

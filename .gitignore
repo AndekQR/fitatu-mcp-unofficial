@@ -149,3 +149,4 @@ vite.config.ts.timestamp-*
 /docs/*
 /test-results.json
 /tmp/*
+/PYTHON_REFERENCE_ENDPOINTS.md

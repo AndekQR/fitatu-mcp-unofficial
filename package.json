@@ -9,6 +9,7 @@
 		"dev": "node --env-file=.env --watch src/index.ts | pino-pretty",
 		"start": "node --env-file=.env dist/index.js",
 		"test": "vitest",
+		"test:integration": "node --env-file=.env ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
 		"test:ci": "vitest run --reporter=json --outputFile=test-results.json",
 		"lint": "eslint src/",
 		"lint:fix": "eslint src/ --fix",

@@ -134,15 +134,23 @@ Make sure your server is running (using `npm start` or `npm run dev`) before con
 
 ## Available Tools
 
-The template includes one example tool:
+### search_food
 
-### echo
-
-Echoes back the provided message - a simple example to demonstrate MCP tool implementation.
+Searches Fitatu food catalogs using the v3 API contract and returns product ids, measure ids, compact nutrition fields, and available measures. Use this before
+`add_meal_items` when you need a `foodId`/`productId` and `measureId`.
 
 **Parameters:**
 
-- `message` (string) - The message to echo back
+- `query` or `queries` - provide exactly one. `query` is a single food phrase; `queries` is a non-empty list.
+- `date` - optional `YYYY-MM-DD` context date for user foods. Defaults to today's local date.
+- `locale` - optional search locale. Defaults to `pl_PL`.
+- `limit` - optional result limit from 1 to 50. Defaults to `10`.
+- `includeUserFood` - optional flag for the authenticated user's catalog. Defaults to `true`.
+- `includePublicFood` - optional flag for the public catalog. Defaults to `true`.
+- `includeDetails` - optional flag to enrich top results with `/v3/products/{id}` measures. Defaults to `true`.
+- `detailsLimit` - optional number of results to enrich from 0 to 50. Defaults to `3`.
+
+The tool never falls back to older product detail endpoints such as `/products/{id}` or `/v2/products/{id}`.
 
 ## Customizing Your MCP Server
 

@@ -159,15 +159,18 @@ function normalizePath(path: string): string {
 	return path.startsWith("/") ? path : `/${path}`;
 }
 
-function createUrl(
-	baseUrl: string,
-	path: string,
-	query: Record<string, string | number | boolean | null | undefined> | undefined,
-): string {
+function createUrl(baseUrl: string, path: string, query: FitatuApiRequestOptions["query"] | undefined): string {
 	const url = new URL(`${baseUrl}${normalizePath(path)}`);
 
 	for (const [name, value] of Object.entries(query ?? {})) {
 		if (value === null || value === undefined) {
+			continue;
+		}
+
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				url.searchParams.append(name, String(item));
+			}
 			continue;
 		}
 

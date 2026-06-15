@@ -1,5 +1,6 @@
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuAuthError } from "../auth/FitatuAuthError.ts";
+import { createFitatuApiErrorDetails, getFitatuApiErrors } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
 import type { FoodSearchClientOptions } from "./FoodSearchClientOptions.ts";
@@ -11,6 +12,7 @@ import type {
 	FoodSearchOptions,
 	FoodSearchResult,
 	FoodSearchSource,
+	FoodSearchWarningDetail,
 } from "./FoodSearchResult.ts";
 
 const V3_ACCEPT_HEADER = "application/json; version=v3";
@@ -42,6 +44,9 @@ interface SearchQueryResult {
 	readonly query: string;
 	readonly items: readonly NormalizedSearchItem[];
 	readonly warnings: readonly string[];
+	readonly warningDetails: readonly FoodSearchWarningDetail[];
+	readonly searchAttemptCount: number;
+	readonly searchSuccessCount: number;
 }
 
 interface NormalizedOptions {
@@ -90,6 +95,20 @@ export class FoodSearchClient extends FitatuApiClientBase {
 
 		const items = this.toOutputItems(results);
 		const warnings = results.flatMap((result) => result.warnings);
+		const warningDetails = results.flatMap((result) => result.warningDetails);
+		const searchAttemptCount = results.reduce((sum, result) => sum + result.searchAttemptCount, 0);
+		const searchSuccessCount = results.reduce((sum, result) => sum + result.searchSuccessCount, 0);
+
+		if (searchAttemptCount > 0 && searchSuccessCount === 0) {
+			const fitatuApiErrors = warningDetails.flatMap((warning) => [
+				...(warning.fitatuApiErrors ?? []),
+				...(warning.fitatuApiError ? [warning.fitatuApiError] : []),
+			]);
+			throw new FoodSearchError("All Fitatu food search requests failed", {
+				statusCode: fitatuApiErrors[0]?.statusCode,
+				fitatuApiErrors,
+			});
+		}
 
 		return {
 			status: "ok",
@@ -100,6 +119,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			count: items.length,
 			items,
 			warnings,
+			warningDetails,
 			message: "Food search completed",
 		};
 	}
@@ -110,9 +130,13 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		userId: string | undefined,
 	): Promise<SearchQueryResult> {
 		const warnings: string[] = [];
+		const warningDetails: FoodSearchWarningDetail[] = [];
 		const items: NormalizedSearchItem[] = [];
+		let searchAttemptCount = 0;
+		let searchSuccessCount = 0;
 
 		if (options.includePublicFood) {
+			searchAttemptCount += 1;
 			try {
 				const rows = await this.fetchSearchRows({
 					path: "/search/new/food",
@@ -125,16 +149,20 @@ export class FoodSearchClient extends FitatuApiClientBase {
 					},
 					failureMessage: "Fitatu public food search request failed",
 				});
+				searchSuccessCount += 1;
 				items.push(...this.normalizeRows(rows, "public"));
 			} catch (error) {
 				if (error instanceof FitatuAuthError) {
 					throw error;
 				}
-				warnings.push(`public search failed for query='${query}': ${safeWarningMessage(error)}`);
+				const warning = `public search failed for query='${query}': ${safeWarningMessage(error)}`;
+				warnings.push(warning);
+				warningDetails.push(toWarningDetail(warning, error, { query, source: "public" }));
 			}
 		}
 
 		if (options.includeUserFood) {
+			searchAttemptCount += 1;
 			try {
 				const rows = await this.fetchSearchRows({
 					path: `/search/food/user/${encodeURIComponent(normalizeRequiredText(userId, "Fitatu user id"))}`,
@@ -146,12 +174,15 @@ export class FoodSearchClient extends FitatuApiClientBase {
 					},
 					failureMessage: "Fitatu user food search request failed",
 				});
+				searchSuccessCount += 1;
 				items.push(...this.normalizeRows(rows, "user"));
 			} catch (error) {
 				if (error instanceof FitatuAuthError) {
 					throw error;
 				}
-				warnings.push(`user search failed for query='${query}': ${safeWarningMessage(error)}`);
+				const warning = `user search failed for query='${query}': ${safeWarningMessage(error)}`;
+				warnings.push(warning);
+				warningDetails.push(toWarningDetail(warning, error, { query, source: "user" }));
 			}
 		}
 
@@ -165,13 +196,16 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		}
 
 		if (options.includeDetails && options.detailsLimit > 0) {
-			scoredItems = await this.withDetails(scoredItems, options.detailsLimit, warnings);
+			scoredItems = await this.withDetails(scoredItems, options.detailsLimit, warnings, warningDetails);
 		}
 
 		return {
 			query,
 			items: scoredItems,
 			warnings,
+			warningDetails,
+			searchAttemptCount,
+			searchSuccessCount,
 		};
 	}
 
@@ -204,7 +238,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			readonly failureMessage: string;
 		}[],
 	): Promise<readonly Record<string, unknown>[]> {
-		let lastStatusCode: number | undefined;
+		const fitatuApiErrors = [];
 
 		for (const variant of variants) {
 			const response = await this.fetchFitatuApi({
@@ -218,11 +252,14 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				return extractRows(await parseJson(response));
 			}
 
-			lastStatusCode = response.status;
+			fitatuApiErrors.push(
+				await createFitatuApiErrorDetails(response, { method: "GET", path: variant.path }),
+			);
 		}
 
 		throw new FoodSearchError(variants[0]?.failureMessage ?? "Fitatu food search request failed", {
-			statusCode: lastStatusCode,
+			statusCode: fitatuApiErrors.at(-1)?.statusCode,
+			fitatuApiErrors,
 		});
 	}
 
@@ -230,6 +267,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		items: readonly NormalizedSearchItem[],
 		limit: number,
 		warnings: string[],
+		warningDetails: FoodSearchWarningDetail[],
 	): Promise<NormalizedSearchItem[]> {
 		const detailed: NormalizedSearchItem[] = [];
 
@@ -246,7 +284,9 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				if (error instanceof FitatuAuthError) {
 					throw error;
 				}
-				warnings.push(`${item.source} details failed for foodId=${item.foodId}: ${safeWarningMessage(error)}`);
+				const warning = `${item.source} details failed for foodId=${item.foodId}: ${safeWarningMessage(error)}`;
+				warnings.push(warning);
+				warningDetails.push(toWarningDetail(warning, error, { source: item.source, foodId: item.foodId }));
 				detailed.push(item);
 			}
 		}
@@ -262,7 +302,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			`/v3/products/${encodedProductId}`,
 			`/recipes/${encodedProductId}`,
 		];
-		let lastStatusCode: number | undefined;
+		const fitatuApiErrors = [];
 
 		for (const path of paths) {
 			const response = await this.fetchFitatuApi({
@@ -275,10 +315,13 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				return parseJsonObject(response);
 			}
 
-			lastStatusCode = response.status;
+			fitatuApiErrors.push(await createFitatuApiErrorDetails(response, { method: "GET", path }));
 		}
 
-		throw new FoodSearchError("Fitatu product details request failed", { statusCode: lastStatusCode });
+		throw new FoodSearchError("Fitatu product details request failed", {
+			statusCode: fitatuApiErrors.at(-1)?.statusCode,
+			fitatuApiErrors,
+		});
 	}
 
 	private normalizeRows(rows: readonly Record<string, unknown>[], source: FoodSearchSource): NormalizedSearchItem[] {
@@ -774,10 +817,34 @@ function isNonEmptyString(value: string | null): value is string {
 	return typeof value === "string" && value.length > 0;
 }
 
+function toWarningDetail(
+	message: string,
+	error: unknown,
+	context: {
+		readonly query?: string;
+		readonly source?: FoodSearchSource;
+		readonly foodId?: string;
+	},
+): FoodSearchWarningDetail {
+	const fitatuApiErrors = getFitatuApiErrors(error);
+	return {
+		message,
+		errorName: error instanceof Error ? error.name : "UnknownError",
+		...context,
+		...(fitatuApiErrors.length === 1 ? { fitatuApiError: fitatuApiErrors[0] } : {}),
+		...(fitatuApiErrors.length > 1 ? { fitatuApiErrors } : {}),
+	};
+}
+
 function safeWarningMessage(error: unknown): string {
-	if (error instanceof FoodSearchError && error.statusCode) {
-		return "Fitatu request failed";
+	const message = error instanceof Error ? error.message : "unknown error";
+	const fitatuApiErrors = getFitatuApiErrors(error);
+	const firstFitatuApiError = fitatuApiErrors[0];
+	if (!firstFitatuApiError) {
+		return message;
 	}
 
-	return error instanceof Error ? error.message : "unknown error";
+	const statusText = firstFitatuApiError.statusText ? ` ${firstFitatuApiError.statusText}` : "";
+	const upstreamMessage = firstFitatuApiError.upstreamMessage ? `: ${firstFitatuApiError.upstreamMessage}` : "";
+	return `${message} (HTTP ${firstFitatuApiError.statusCode}${statusText}${upstreamMessage})`;
 }

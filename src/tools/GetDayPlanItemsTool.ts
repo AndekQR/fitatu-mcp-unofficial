@@ -1,10 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { FitatuAuthError } from "../api/auth/FitatuAuthError.ts";
 import { DayPlanClient } from "../api/dayPlan/DayPlanClient.ts";
-import { DayPlanError } from "../api/dayPlan/DayPlanError.ts";
-import { createErrorResult, createTextResult } from "../lib/utils.ts";
-import { logger } from "../logger.ts";
+import { createTextResult } from "../lib/utils.ts";
+import { createToolErrorResult } from "./ToolErrorResult.ts";
 
 const dayPlanItemSchema = z.object({
 	itemId: z.string().nullable(),
@@ -80,51 +78,9 @@ export class GetDayPlanItemsTool {
 						meals: dayPlan.meals,
 					});
 				} catch (error) {
-					return this.createSafeErrorResult(error);
+					return createToolErrorResult(this.name, "Unable to fetch Fitatu day plan items.", error);
 				}
 			},
 		);
-	}
-
-	private createSafeErrorResult(error: unknown) {
-		const safeError = this.toSafeError(error);
-
-		logger.error(
-			{
-				toolName: this.name,
-				errorName: safeError.errorName,
-				statusCode: safeError.statusCode,
-			},
-			"Tool execution failed",
-		);
-
-		return createErrorResult(safeError.message);
-	}
-
-	private toSafeError(error: unknown): {
-		errorName: string;
-		message: string;
-		statusCode?: number;
-	} {
-		if (error instanceof FitatuAuthError) {
-			return {
-				errorName: error.name,
-				message: "Fitatu authentication failed.",
-				statusCode: error.statusCode,
-			};
-		}
-
-		if (error instanceof DayPlanError) {
-			return {
-				errorName: error.name,
-				message: error.statusCode ? "Fitatu day plan request failed." : error.message,
-				statusCode: error.statusCode,
-			};
-		}
-
-		return {
-			errorName: error instanceof Error ? error.name : "UnknownError",
-			message: "Unable to fetch Fitatu day plan items.",
-		};
 	}
 }

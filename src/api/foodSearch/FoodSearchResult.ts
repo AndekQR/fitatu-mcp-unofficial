@@ -1,3 +1,5 @@
+import type { FitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
+
 export type FoodSearchSource = "public" | "user";
 export type FoodSearchStatus = "ok";
 
@@ -22,7 +24,18 @@ export interface FoodSearchResult {
 	readonly count: number;
 	readonly items: readonly FoodSearchItem[];
 	readonly warnings: readonly string[];
+	readonly warningDetails: readonly FoodSearchWarningDetail[];
 	readonly message: string;
+}
+
+export interface FoodSearchWarningDetail {
+	readonly message: string;
+	readonly errorName: string;
+	readonly query?: string;
+	readonly source?: FoodSearchSource;
+	readonly foodId?: string;
+	readonly fitatuApiError?: FitatuApiErrorDetails;
+	readonly fitatuApiErrors?: readonly FitatuApiErrorDetails[];
 }
 
 export interface FoodSearchItem {

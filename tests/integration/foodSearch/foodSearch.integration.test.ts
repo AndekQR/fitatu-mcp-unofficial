@@ -1,10 +1,15 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
+import type { FitatuApiErrorDetails } from "../../../src/api/fitatuApiClientBase/FitatuApiError.ts";
 import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
+import { FoodSearchError } from "../../../src/api/foodSearch/FoodSearchError.ts";
 import type {
 	FoodSearchItem,
 	FoodSearchResult,
 	FoodSearchSource,
 } from "../../../src/api/foodSearch/FoodSearchResult.ts";
+import { SearchFoodTool } from "../../../src/tools/SearchFoodTool.ts";
 
 const foodSearchClient = FoodSearchClient.getInstance();
 const DEFAULT_DATE = "2026-06-15";
@@ -163,6 +168,56 @@ describe.sequential("Fitatu food search integration", () => {
 		expect(result.items.length).toBeGreaterThan(0);
 		expect(result.items.every((item) => item.source === "public")).toBe(true);
 	});
+
+	it("returns a structured MCP error when all requested food search requests fail", async () => {
+		const fitatuApiErrors: readonly FitatuApiErrorDetails[] = [
+			{
+				statusCode: 503,
+				statusText: "Service Unavailable",
+				method: "GET",
+				path: "/search/new/food",
+				upstreamMessage: "temporary outage",
+				upstreamCode: "temporarily_unavailable",
+				responseSnippet: "{\"message\":\"temporary outage\"}",
+			},
+			{
+				statusCode: 503,
+				statusText: "Service Unavailable",
+				method: "GET",
+				path: "/search/food/user/123",
+				upstreamMessage: "temporary outage",
+				upstreamCode: "temporarily_unavailable",
+				responseSnippet: "{\"message\":\"temporary outage\"}",
+			},
+		];
+		const fakeFoodSearchClient = {
+			search: async () => {
+				throw new FoodSearchError("All Fitatu food search requests failed", {
+					statusCode: 503,
+					fitatuApiErrors,
+				});
+			},
+		} as unknown as FoodSearchClient;
+		const tool = new SearchFoodTool(fakeFoodSearchClient);
+		const handler = registerToolForTest(tool);
+
+		const result = await handler({ query: "pomidory koktajlowe" });
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toEqual({
+			status: "error",
+			toolName: "search_food",
+			errorName: "FoodSearchError",
+			message: "All Fitatu food search requests failed",
+			fitatuApiErrors,
+		});
+		expect(result.content).toEqual([
+			{
+				type: "text",
+				text: JSON.stringify(result.structuredContent, null, 2),
+			},
+		]);
+	});
 });
 
 function expectSearchResult(
@@ -180,6 +235,7 @@ function expectSearchResult(
 	expect(result.count).toBe(result.items.length);
 	expect(result.message).toBe("Food search completed");
 	expect(Array.isArray(result.warnings)).toBe(true);
+	expect(Array.isArray(result.warningDetails)).toBe(true);
 	expect(result.warnings.filter(isSearchRequestFailureWarning)).toHaveLength(0);
 
 	result.items.forEach((item, index) => {
@@ -208,4 +264,25 @@ function expectSearchItem(
 
 function isSearchRequestFailureWarning(warning: string): boolean {
 	return warning.includes("public search failed") || warning.includes("user search failed");
+}
+
+function registerToolForTest(tool: SearchFoodTool): (input: { readonly query: string }) => Promise<CallToolResult> {
+	let handler: ((input: { readonly query: string }) => Promise<CallToolResult>) | undefined;
+	const server = {
+		registerTool: (
+			_name: string,
+			_config: unknown,
+			callback: (input: { readonly query: string }) => Promise<CallToolResult>,
+		) => {
+			handler = callback;
+		},
+	} as unknown as McpServer;
+
+	tool.register(server);
+
+	if (!handler) {
+		throw new Error("SearchFoodTool did not register a handler");
+	}
+
+	return handler;
 }

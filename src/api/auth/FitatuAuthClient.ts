@@ -1,5 +1,6 @@
 import { getFitatuPassword, getFitatuUsername } from "../../config.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
+import { createFitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuAuthError } from "./FitatuAuthError.ts";
 import type { FitatuAuthClientOptions } from "./FitatuAuthClientOptions.ts";
 import type { FitatuAuthSession } from "./FitatuAuthSession.ts";
@@ -53,8 +54,10 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 		});
 
 		if (!response.ok) {
+			const fitatuApiError = await createFitatuApiErrorDetails(response, { method: "POST", path: "/login" });
 			throw new FitatuAuthError("Fitatu login failed", {
 				statusCode: response.status,
+				fitatuApiError,
 			});
 		}
 

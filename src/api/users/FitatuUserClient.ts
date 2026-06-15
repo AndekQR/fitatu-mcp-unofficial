@@ -1,5 +1,6 @@
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
+import { createFitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuUserError } from "./FitatuUserError.ts";
 import type { FitatuUserClientOptions } from "./FitatuUserClientOptions.ts";
 import { FitatuUserProfile } from "./FitatuUserProfile.ts";
@@ -34,6 +35,7 @@ export class FitatuUserClient extends FitatuApiClientBase {
 
 	public async getUser(userId: string): Promise<FitatuUserProfile> {
 		const normalizedUserId = normalizeUserId(userId);
+		const path = `/users/${encodeURIComponent(normalizedUserId)}`;
 
 		const cachedUser = this.users.get(normalizedUserId);
 		if (cachedUser) {
@@ -42,12 +44,14 @@ export class FitatuUserClient extends FitatuApiClientBase {
 
 		const response = await this.fetchFitatuApi({
 			method: "GET",
-			path: `/users/${encodeURIComponent(normalizedUserId)}`,
+			path,
 		});
 
 		if (!response.ok) {
+			const fitatuApiError = await createFitatuApiErrorDetails(response, { method: "GET", path });
 			throw new FitatuUserError("Fitatu user request failed", {
 				statusCode: response.status,
+				fitatuApiError,
 			});
 		}
 

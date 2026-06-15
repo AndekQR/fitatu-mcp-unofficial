@@ -1,10 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { FitatuAuthError } from "../api/auth/FitatuAuthError.ts";
 import { FoodSearchClient } from "../api/foodSearch/FoodSearchClient.ts";
-import { FoodSearchError } from "../api/foodSearch/FoodSearchError.ts";
-import { createErrorResult, createTextResult } from "../lib/utils.ts";
-import { logger } from "../logger.ts";
+import { createTextResult } from "../lib/utils.ts";
+import { createToolErrorResult } from "./ToolErrorResult.ts";
 
 const nullableNumberSchema = z.number().nullable();
 const nullableStringSchema = z.string().nullable();
@@ -27,6 +25,26 @@ const measureOutputSchema = z.object({
 	weightG: nullableNumberSchema,
 	unit: nullableStringSchema,
 	energyKcal: nullableNumberSchema,
+});
+
+const fitatuApiErrorOutputSchema = z.object({
+	statusCode: z.number().int(),
+	statusText: nullableStringSchema,
+	method: z.string(),
+	path: z.string(),
+	upstreamMessage: nullableStringSchema,
+	upstreamCode: z.union([z.string(), z.number()]).nullable(),
+	responseSnippet: nullableStringSchema,
+});
+
+const warningDetailOutputSchema = z.object({
+	message: z.string(),
+	errorName: z.string(),
+	query: z.string().optional(),
+	source: z.enum(["public", "user"]).optional(),
+	foodId: z.string().optional(),
+	fitatuApiError: fitatuApiErrorOutputSchema.optional(),
+	fitatuApiErrors: z.array(fitatuApiErrorOutputSchema).optional(),
 });
 
 const foodSearchOutputSchema = {
@@ -62,6 +80,7 @@ const foodSearchOutputSchema = {
 		}),
 	),
 	warnings: z.array(z.string()),
+	warningDetails: z.array(warningDetailOutputSchema),
 	message: z.string(),
 };
 
@@ -111,51 +130,9 @@ export class SearchFoodTool {
 					const result = await this.foodSearchClient.search(input);
 					return createTextResult(result);
 				} catch (error) {
-					return this.createSafeErrorResult(error);
+					return createToolErrorResult(this.name, "Unable to search Fitatu food.", error);
 				}
 			},
 		);
-	}
-
-	private createSafeErrorResult(error: unknown) {
-		const safeError = this.toSafeError(error);
-
-		logger.error(
-			{
-				toolName: this.name,
-				errorName: safeError.errorName,
-				statusCode: safeError.statusCode,
-			},
-			"Tool execution failed",
-		);
-
-		return createErrorResult(safeError.message);
-	}
-
-	private toSafeError(error: unknown): {
-		errorName: string;
-		message: string;
-		statusCode?: number;
-	} {
-		if (error instanceof FitatuAuthError) {
-			return {
-				errorName: error.name,
-				message: "Fitatu authentication failed.",
-				statusCode: error.statusCode,
-			};
-		}
-
-		if (error instanceof FoodSearchError) {
-			return {
-				errorName: error.name,
-				message: error.statusCode ? "Fitatu food search request failed." : error.message,
-				statusCode: error.statusCode,
-			};
-		}
-
-		return {
-			errorName: error instanceof Error ? error.name : "UnknownError",
-			message: "Unable to search Fitatu food.",
-		};
 	}
 }

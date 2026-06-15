@@ -1,11 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { FitatuAuthError } from "../api/auth/FitatuAuthError.ts";
 import { FitatuUserClient } from "../api/users/FitatuUserClient.ts";
-import { FitatuUserError } from "../api/users/FitatuUserError.ts";
 import type { FitatuUserProfile } from "../api/users/FitatuUserProfile.ts";
-import { createErrorResult, createTextResult } from "../lib/utils.ts";
-import { logger } from "../logger.ts";
+import { createTextResult } from "../lib/utils.ts";
+import { createToolErrorResult } from "./ToolErrorResult.ts";
 
 const nullableString = z.string().nullable();
 const nullableBoolean = z.boolean().nullable();
@@ -61,7 +59,7 @@ export class GetCurrentUserTool {
 						user: this.toSafeCurrentUser(user),
 					});
 				} catch (error) {
-					return this.createSafeErrorResult(error);
+					return createToolErrorResult(this.name, "Unable to fetch the current Fitatu user.", error);
 				}
 			},
 		);
@@ -82,48 +80,6 @@ export class GetCurrentUserTool {
 			demo: user.demo ?? null,
 			hasDietSettings: user.hasDietSettings ?? null,
 			hasUserSettings: user.hasUserSettings ?? null,
-		};
-	}
-
-	private createSafeErrorResult(error: unknown) {
-		const safeError = this.toSafeError(error);
-
-		logger.error(
-			{
-				toolName: this.name,
-				errorName: safeError.errorName,
-				statusCode: safeError.statusCode,
-			},
-			"Tool execution failed",
-		);
-
-		return createErrorResult(safeError.message);
-	}
-
-	private toSafeError(error: unknown): {
-		errorName: string;
-		message: string;
-		statusCode?: number;
-	} {
-		if (error instanceof FitatuAuthError) {
-			return {
-				errorName: error.name,
-				message: "Fitatu authentication failed.",
-				statusCode: error.statusCode,
-			};
-		}
-
-		if (error instanceof FitatuUserError) {
-			return {
-				errorName: error.name,
-				message: "Fitatu user request failed.",
-				statusCode: error.statusCode,
-			};
-		}
-
-		return {
-			errorName: error instanceof Error ? error.name : "UnknownError",
-			message: "Unable to fetch the current Fitatu user.",
 		};
 	}
 }

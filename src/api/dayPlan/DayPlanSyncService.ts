@@ -1,4 +1,5 @@
 import type { FitatuApiRequestOptions } from "../fitatuApiClientBase/FitatuApiRequestOptions.ts";
+import { createFitatuApiErrorDetails, createFitatuApiErrorDetailsFromData } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { asRecord, getApiProblemMessage, isRecord, parseOptionalJson } from "./DayPlanApiResponse.ts";
 import { DayPlanError } from "./DayPlanError.ts";
 import type { GetDayPlanOptions } from "./DayPlanClientTypes.ts";
@@ -24,16 +25,19 @@ export class DayPlanSyncService {
 	}
 
 	public async getDayPlanData(options: GetDayPlanOptions & { readonly userId: string }): Promise<unknown> {
+		const path = `/diet-and-activity-plan/${encodeURIComponent(options.userId)}/day/${options.date}`;
 		const response = await this.transport.fetchFitatuApi({
 			method: "GET",
-			path: `/diet-and-activity-plan/${encodeURIComponent(options.userId)}/day/${options.date}`,
+			path,
 			headers: { accept: V3_ACCEPT_HEADER },
 			query: options.withRating === true ? { withRating: true } : undefined,
 		});
 
 		if (!response.ok) {
+			const fitatuApiError = await createFitatuApiErrorDetails(response, { method: "GET", path });
 			throw new DayPlanError("Fitatu day plan request failed", {
 				statusCode: response.status,
+				fitatuApiError,
 			});
 		}
 
@@ -89,13 +93,26 @@ export class DayPlanSyncService {
 		});
 
 		if (!response.ok) {
-			throw new DayPlanError(options.failureMessage, { statusCode: response.status });
+			const fitatuApiError = await createFitatuApiErrorDetails(response, {
+				method: options.method,
+				path: options.path,
+			});
+			throw new DayPlanError(options.failureMessage, { statusCode: response.status, fitatuApiError });
 		}
 
 		const data = await parseOptionalJson(response);
 		const apiProblem = getApiProblemMessage(data);
 		if (apiProblem) {
-			throw new DayPlanError(apiProblem, { statusCode: response.status });
+			throw new DayPlanError(apiProblem, {
+				statusCode: response.status,
+				fitatuApiError: createFitatuApiErrorDetailsFromData({
+					data,
+					method: options.method,
+					path: options.path,
+					statusCode: response.status,
+					statusText: response.statusText || null,
+				}),
+			});
 		}
 
 		return data;

@@ -23,15 +23,20 @@ export function createTextResult(data: unknown): CallToolResult {
 	};
 }
 
-export function createErrorResult(message: string): CallToolResult {
+export function createErrorResult(data: unknown): CallToolResult {
+	const safeData = data === undefined ? null : data;
+	const plainData = toJsonValue(safeData);
+	const structuredContent = isRecord(plainData) ? plainData : undefined;
+
 	return {
 		isError: true,
 		content: [
 			{
 				type: "text",
-				text: message,
+				text: typeof plainData === "string" ? plainData : JSON.stringify(plainData, null, 2),
 			},
 		],
+		...(structuredContent ? { structuredContent } : {}),
 	};
 }
 

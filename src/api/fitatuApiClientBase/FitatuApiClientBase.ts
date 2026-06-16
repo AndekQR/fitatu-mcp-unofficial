@@ -27,6 +27,17 @@ export abstract class FitatuApiClientBase {
 	}
 
 	protected async fetchFitatuApi(options: FitatuApiRequestOptions): Promise<Response> {
+		const response = await this.fetchFitatuApiOnce(options);
+
+		if (response.status !== 401 || !this.canRefreshAuthentication()) {
+			return response;
+		}
+
+		await this.clearAuthenticationContext();
+		return this.fetchFitatuApiOnce(options);
+	}
+
+	private async fetchFitatuApiOnce(options: FitatuApiRequestOptions): Promise<Response> {
 		const context = await this.createRequestContext(options);
 
 		return this.fetchFn(context.url, {
@@ -83,6 +94,14 @@ export abstract class FitatuApiClientBase {
 		} catch {
 			return undefined;
 		}
+	}
+
+	private canRefreshAuthentication(): boolean {
+		return Boolean(this.sessionProvider?.clearSession || this.currentUserProvider?.clearUserCache);
+	}
+
+	private async clearAuthenticationContext(): Promise<void> {
+		await Promise.all([this.sessionProvider?.clearSession?.(), this.currentUserProvider?.clearUserCache?.()]);
 	}
 
 	private resolveBaseUrl(user?: FitatuUserProfile): string {

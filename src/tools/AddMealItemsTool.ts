@@ -26,9 +26,20 @@ export class AddMealItemsTool {
 				description:
 					"Adds one or more products or recipes to an existing Fitatu meal for a YYYY-MM-DD date. Requires productId/foodId or recipeId and measureId. Fitatu applies this mutation asynchronously; an immediate get_day_plan_items call may still return the previous day plan state.",
 				inputSchema: {
-					date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format"),
-					mealKey: z.string().min(1),
-					items: z.array(mealItemInputSchema).min(1),
+					date: z
+						.string()
+						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
+						.describe("Target day in YYYY-MM-DD format where the meal items should be added."),
+					mealKey: z
+						.string()
+						.min(1)
+						.describe(
+							"Fitatu meal key to add items into. Use mealKey values returned by get_day_plan_items.",
+						),
+					items: z
+						.array(mealItemInputSchema)
+						.min(1)
+						.describe("One or more products or recipes to add. Batch multiple meal items in one call."),
 				},
 				outputSchema: mealItemMutationOutputSchema,
 				annotations: {

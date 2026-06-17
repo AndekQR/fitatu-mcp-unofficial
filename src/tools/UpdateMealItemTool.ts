@@ -23,12 +23,29 @@ export class UpdateMealItemTool {
 				description:
 					"Updates one existing Fitatu meal item quantity, measure, or eaten flag for a YYYY-MM-DD date. Fitatu applies this mutation asynchronously; an immediate get_day_plan_items call may still return the previous day plan state.",
 				inputSchema: {
-					date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format"),
-					mealKey: z.string().min(1),
-					itemId: z.string().min(1),
-					measureQuantity: z.number().positive().optional(),
-					measureId: idSchema.optional(),
-					eaten: z.boolean().optional(),
+					date: z
+						.string()
+						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
+						.describe("Day containing the item to update, in YYYY-MM-DD format."),
+					mealKey: z
+						.string()
+						.min(1)
+						.describe("Meal key containing the item. Use mealKey values returned by get_day_plan_items."),
+					itemId: z
+						.string()
+						.min(1)
+						.describe("Meal item id to update. Use itemId returned by get_day_plan_items."),
+					measureQuantity: z
+						.number()
+						.positive()
+						.optional()
+						.describe("New positive quantity for the item's current or selected measure."),
+					measureId: idSchema
+						.optional()
+						.describe(
+							"New measure id for the item. Use measureId values returned by search_food when changing measures.",
+						),
+					eaten: z.boolean().optional().describe("Whether Fitatu should mark the item as eaten."),
 				},
 				outputSchema: mealItemMutationOutputSchema,
 				annotations: {

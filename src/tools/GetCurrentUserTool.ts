@@ -9,21 +9,23 @@ const nullableString = z.string().nullable();
 const nullableBoolean = z.boolean().nullable();
 
 const currentUserOutputSchema = {
-	user: z.object({
-		id: nullableString,
-		username: nullableString,
-		nickname: nullableString,
-		locale: nullableString,
-		storageLocale: nullableString,
-		searchLocale: nullableString,
-		timezone: nullableString,
-		weightUnit: nullableString,
-		sizeUnit: nullableString,
-		enabled: nullableBoolean,
-		demo: nullableBoolean,
-		hasDietSettings: nullableBoolean,
-		hasUserSettings: nullableBoolean,
-	}),
+	user: z
+		.object({
+			id: nullableString.describe("Authenticated Fitatu user id."),
+			username: nullableString.describe("Fitatu username or email when available."),
+			nickname: nullableString.describe("Fitatu display nickname when available."),
+			locale: nullableString.describe("User interface locale configured in Fitatu."),
+			storageLocale: nullableString.describe("Fitatu storage locale used for account data."),
+			searchLocale: nullableString.describe("Preferred locale for Fitatu search results."),
+			timezone: nullableString.describe("User timezone configured in Fitatu."),
+			weightUnit: nullableString.describe("Preferred weight unit configured in Fitatu."),
+			sizeUnit: nullableString.describe("Preferred body size unit configured in Fitatu."),
+			enabled: nullableBoolean.describe("Whether the Fitatu account is enabled."),
+			demo: nullableBoolean.describe("Whether the Fitatu account is marked as a demo account."),
+			hasDietSettings: nullableBoolean.describe("Whether the user has diet settings configured."),
+			hasUserSettings: nullableBoolean.describe("Whether the user has general settings configured."),
+		})
+		.describe("Safe subset of the authenticated Fitatu user profile."),
 };
 
 type SafeCurrentUser = z.infer<typeof currentUserOutputSchema.user>;

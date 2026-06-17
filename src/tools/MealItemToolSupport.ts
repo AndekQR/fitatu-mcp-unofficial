@@ -6,49 +6,108 @@ const idSchema = z.union([z.string().min(1), z.number().finite()]);
 const nullableIdSchema = z.union([z.string(), z.number()]).nullable();
 
 export const mealItemInputSchema = z.object({
-	foodId: idSchema.optional(),
-	food_id: idSchema.optional(),
-	productId: idSchema.optional(),
-	product_id: idSchema.optional(),
-	recipeId: idSchema.optional(),
-	recipe_id: idSchema.optional(),
-	foodType: z.string().min(1).optional(),
-	food_type: z.string().min(1).optional(),
-	measureId: idSchema.optional(),
-	measure_id: idSchema.optional(),
-	measureQuantity: z.number().positive().optional(),
-	measure_quantity: z.number().positive().optional(),
-	ingredientsServing: z.number().positive().nullable().optional(),
-	ingredients_serving: z.number().positive().nullable().optional(),
-	eaten: z.boolean().optional(),
+	foodId: idSchema
+		.optional()
+		.describe("Fitatu food id returned by search_food. Provide foodId or productId for product items."),
+	food_id: idSchema
+		.optional()
+		.describe("Snake_case alias for foodId. Prefer foodId unless the caller already uses snake_case."),
+	productId: idSchema
+		.optional()
+		.describe("Fitatu product id returned by search_food. This is usually the same value as foodId."),
+	product_id: idSchema
+		.optional()
+		.describe("Snake_case alias for productId. Prefer productId unless the caller already uses snake_case."),
+	recipeId: idSchema.optional().describe("Fitatu recipe id when adding a recipe instead of a product."),
+	recipe_id: idSchema
+		.optional()
+		.describe("Snake_case alias for recipeId. Prefer recipeId unless the caller already uses snake_case."),
+	foodType: z
+		.string()
+		.min(1)
+		.optional()
+		.describe("Fitatu food type returned by search_food, for example PRODUCT or CUSTOM_ITEM."),
+	food_type: z
+		.string()
+		.min(1)
+		.optional()
+		.describe("Snake_case alias for foodType. Prefer foodType unless the caller already uses snake_case."),
+	measureId: idSchema
+		.optional()
+		.describe("Measure id to use for this item. Prefer a measureId returned by search_food."),
+	measure_id: idSchema
+		.optional()
+		.describe("Snake_case alias for measureId. Prefer measureId unless the caller already uses snake_case."),
+	measureQuantity: z
+		.number()
+		.positive()
+		.optional()
+		.describe("Positive quantity of the selected measure to add, for example 1 for one serving."),
+	measure_quantity: z
+		.number()
+		.positive()
+		.optional()
+		.describe(
+			"Snake_case alias for measureQuantity. Prefer measureQuantity unless the caller already uses snake_case.",
+		),
+	ingredientsServing: z
+		.number()
+		.positive()
+		.nullable()
+		.optional()
+		.describe("Optional positive recipe serving multiplier. Use null or omit for ordinary products."),
+	ingredients_serving: z
+		.number()
+		.positive()
+		.nullable()
+		.optional()
+		.describe(
+			"Snake_case alias for ingredientsServing. Prefer ingredientsServing unless the caller already uses snake_case.",
+		),
+	eaten: z.boolean().optional().describe("Whether Fitatu should mark the added item as eaten."),
 });
 
 export const mealItemMutationOutputSchema = {
-	status: z.literal("accepted"),
-	operation: z.enum(["add", "update", "remove", "move"]),
-	message: z.string(),
-	targetDate: z.string(),
-	mealKey: z.string().nullable(),
-	operationCount: z.number().int(),
+	status: z
+		.literal("accepted")
+		.describe("Mutation request status. Accepted means Fitatu accepted the asynchronous change."),
+	operation: z.enum(["add", "update", "remove", "move"]).describe("Meal item mutation operation that was requested."),
+	message: z.string().describe("Human-readable summary of the mutation result."),
+	targetDate: z
+		.string()
+		.describe(
+			"Primary YYYY-MM-DD date for the mutation. For move operations, this is the source date; inspect acceptedItems for the destination meal.",
+		),
+	mealKey: z
+		.string()
+		.nullable()
+		.describe(
+			"Primary Fitatu meal key for the mutation, or null when not applicable. For move operations, this is the source meal key; inspect acceptedItems for the destination meal.",
+		),
+	operationCount: z.number().int().describe("Number of meal items included in the accepted mutation."),
 	acceptedItems: z.array(
 		z.object({
-			index: z.number().int(),
-			itemId: z.string(),
-			productId: nullableIdSchema,
-			recipeId: nullableIdSchema,
-			foodType: z.string(),
-			mealKey: z.string(),
+			index: z.number().int().describe("Zero-based index of the accepted item in the request."),
+			itemId: z.string().describe("Fitatu meal item id accepted by the mutation."),
+			productId: nullableIdSchema.describe("Product id for the accepted item, or null for non-product items."),
+			recipeId: nullableIdSchema.describe("Recipe id for the accepted item, or null for non-recipe items."),
+			foodType: z.string().describe("Fitatu food type for the accepted item."),
+			mealKey: z.string().describe("Meal key containing the accepted item."),
 		}),
 	),
-	createdItemIds: z.array(z.string()),
-	updatedItemIds: z.array(z.string()),
-	deletedItemIds: z.array(z.string()),
-	oldItemId: z.string().nullable(),
-	newItemId: z.string().nullable(),
-	itemIdChanged: z.boolean(),
+	createdItemIds: z.array(z.string()).describe("Meal item ids created by the accepted mutation."),
+	updatedItemIds: z.array(z.string()).describe("Meal item ids updated by the accepted mutation."),
+	deletedItemIds: z.array(z.string()).describe("Meal item ids deleted by the accepted mutation."),
+	oldItemId: z.string().nullable().describe("Original item id when an operation replaced or moved an item."),
+	newItemId: z.string().nullable().describe("New item id when Fitatu returned a replacement id."),
+	itemIdChanged: z.boolean().describe("Whether Fitatu changed the item id as part of the operation."),
 };
 
-export const itemKindSchema = z.enum(["auto", "normal_item", "custom_add_item", "custom_recipe_item"]);
+export const itemKindSchema = z
+	.enum(["auto", "normal_item", "custom_add_item", "custom_recipe_item"])
+	.describe(
+		"Fitatu item kind used when removing an item. Use auto unless a previous response identifies a specific kind.",
+	);
 
 export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): MealItemInput {
 	return {

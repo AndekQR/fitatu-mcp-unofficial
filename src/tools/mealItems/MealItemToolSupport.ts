@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { MealItemInput, MealItemKind } from "../api/dayPlan/MealItemMutation.ts";
-import { createToolErrorResult } from "./ToolErrorResult.ts";
+import type { MealItemInput, MealItemKind } from "../../api/dayPlan/MealItemMutation.ts";
+import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
 const idSchema = z.union([z.string().min(1), z.number().finite()]);
 const nullableIdSchema = z.union([z.string(), z.number()]).nullable();

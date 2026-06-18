@@ -9,7 +9,7 @@ import type {
 	FoodSearchResult,
 	FoodSearchSource,
 } from "../../../src/api/foodSearch/FoodSearchResult.ts";
-import { SearchFoodTool } from "../../../src/tools/SearchFoodTool.ts";
+import { SearchFoodTool } from "../../../src/tools/searchFood/SearchFoodTool.ts";
 
 const foodSearchClient = FoodSearchClient.getInstance();
 const DEFAULT_DATE = "2026-06-15";
@@ -178,7 +178,7 @@ describe.sequential("Fitatu food search integration", () => {
 				path: "/search/new/food",
 				upstreamMessage: "temporary outage",
 				upstreamCode: "temporarily_unavailable",
-				responseSnippet: "{\"message\":\"temporary outage\"}",
+				responseSnippet: '{"message":"temporary outage"}',
 			},
 			{
 				statusCode: 503,
@@ -187,7 +187,7 @@ describe.sequential("Fitatu food search integration", () => {
 				path: "/search/food/user/123",
 				upstreamMessage: "temporary outage",
 				upstreamCode: "temporarily_unavailable",
-				responseSnippet: "{\"message\":\"temporary outage\"}",
+				responseSnippet: '{"message":"temporary outage"}',
 			},
 		];
 		const fakeFoodSearchClient = {
@@ -265,7 +265,9 @@ function isSearchRequestFailureWarning(warning: string): boolean {
 	return warning.includes("public search failed") || warning.includes("user search failed");
 }
 
-function registerToolForTest(tool: SearchFoodTool): (input: { readonly queries: readonly string[] }) => Promise<CallToolResult> {
+function registerToolForTest(
+	tool: SearchFoodTool,
+): (input: { readonly queries: readonly string[] }) => Promise<CallToolResult> {
 	let handler: ((input: { readonly queries: readonly string[] }) => Promise<CallToolResult>) | undefined;
 	const server = {
 		registerTool: (

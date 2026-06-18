@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DayPlanClient } from "../api/dayPlan/DayPlanClient.ts";
-import { createTextResult } from "../lib/utils.ts";
-import { createToolErrorResult } from "./ToolErrorResult.ts";
+import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
+import { createTextResult } from "../../lib/utils.ts";
+import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
 const dayPlanItemSchema = z.object({
 	itemId: z.string().nullable().describe("Fitatu meal item id used for update, remove, and move operations."),

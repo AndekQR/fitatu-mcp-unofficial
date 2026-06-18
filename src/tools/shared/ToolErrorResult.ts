@@ -1,17 +1,13 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { FitatuAuthError } from "../api/auth/FitatuAuthError.ts";
-import { DayPlanError } from "../api/dayPlan/DayPlanError.ts";
-import { getFitatuApiErrors, isErrorWithFitatuApiDetails } from "../api/fitatuApiClientBase/FitatuApiError.ts";
-import { FoodSearchError } from "../api/foodSearch/FoodSearchError.ts";
-import { FitatuUserError } from "../api/users/FitatuUserError.ts";
-import { createErrorResult } from "../lib/utils.ts";
-import { logger } from "../logger.ts";
+import { FitatuAuthError } from "../../api/auth/FitatuAuthError.ts";
+import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
+import { getFitatuApiErrors, isErrorWithFitatuApiDetails } from "../../api/fitatuApiClientBase/FitatuApiError.ts";
+import { FoodSearchError } from "../../api/foodSearch/FoodSearchError.ts";
+import { FitatuUserError } from "../../api/users/FitatuUserError.ts";
+import { createErrorResult } from "../../lib/utils.ts";
+import { logger } from "../../logger.ts";
 
-export function createToolErrorResult(
-	toolName: string,
-	fallbackMessage: string,
-	error: unknown,
-): CallToolResult {
+export function createToolErrorResult(toolName: string, fallbackMessage: string, error: unknown): CallToolResult {
 	const errorResponse = toToolErrorResponse(toolName, fallbackMessage, error);
 
 	logger.error(

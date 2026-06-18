@@ -18,7 +18,7 @@ import type {
 const V3_ACCEPT_HEADER = "application/json; version=v3";
 const DEFAULT_ACCEPT_HEADER = "application/json";
 const DEFAULT_LOCALE = "pl_PL";
-const DEFAULT_LIMIT = 10;
+const DEFAULT_LIMIT = 3;
 const DEFAULT_DETAILS_LIMIT = 3;
 
 interface NormalizedSearchItem {
@@ -251,9 +251,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				return extractRows(await parseJson(response));
 			}
 
-			fitatuApiErrors.push(
-				await createFitatuApiErrorDetails(response, { method: "GET", path: variant.path }),
-			);
+			fitatuApiErrors.push(await createFitatuApiErrorDetails(response, { method: "GET", path: variant.path }));
 		}
 
 		throw new FoodSearchError(variants[0]?.failureMessage ?? "Fitatu food search request failed", {
@@ -441,7 +439,7 @@ function normalizeOptions(options: FoodSearchOptions): NormalizedOptions {
 		limit,
 		includeUserFood,
 		includePublicFood,
-		includeDetails: options.includeDetails ?? true,
+		includeDetails: options.includeDetails ?? false,
 		detailsLimit,
 	};
 }

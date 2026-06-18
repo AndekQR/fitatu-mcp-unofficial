@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DayPlanClient } from "../api/dayPlan/DayPlanClient.ts";
-import { createTextResult } from "../lib/utils.ts";
+import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
+import { createTextResult } from "../../lib/utils.ts";
 import {
 	createSafeMealItemErrorResult,
 	itemKindSchema,

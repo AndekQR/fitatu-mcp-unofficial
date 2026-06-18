@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DayPlanClient } from "../api/dayPlan/DayPlanClient.ts";
-import { createTextResult } from "../lib/utils.ts";
+import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
+import { createTextResult } from "../../lib/utils.ts";
 import { createSafeMealItemErrorResult, mealItemMutationOutputSchema } from "./MealItemToolSupport.ts";
 
 export class MoveMealItemTool {
@@ -40,7 +40,7 @@ export class MoveMealItemTool {
 						.regex(/^\d{4}-\d{2}-\d{2}$/, "toDate must use YYYY-MM-DD format")
 						.optional()
 						.describe(
-							"Destination day in YYYY-MM-DD format. Omit only when moving to a different meal on the same date.",
+							"Destination day in YYYY-MM-DD format. Omit when moving only to a different meal on the same date.",
 						),
 					toMealKey: z
 						.string()

@@ -5,13 +5,13 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "./logger.ts";
 import { getConfig } from "./config.ts";
-import { AddMealItemsTool } from "./tools/AddMealItemsTool.ts";
-import { GetCurrentUserTool } from "./tools/GetCurrentUserTool.ts";
-import { GetDayPlanItemsTool } from "./tools/GetDayPlanItemsTool.ts";
-import { MoveMealItemTool } from "./tools/MoveMealItemTool.ts";
-import { RemoveMealItemTool } from "./tools/RemoveMealItemTool.ts";
-import { SearchFoodTool } from "./tools/SearchFoodTool.ts";
-import { UpdateMealItemTool } from "./tools/UpdateMealItemTool.ts";
+import { AddMealItemsTool } from "./tools/addMealItems/AddMealItemsTool.ts";
+import { GetCurrentUserTool } from "./tools/currentUser/GetCurrentUserTool.ts";
+import { GetDayPlanItemsTool } from "./tools/dayPlanItems/GetDayPlanItemsTool.ts";
+import { MoveMealItemTool } from "./tools/mealItems/MoveMealItemTool.ts";
+import { RemoveMealItemTool } from "./tools/mealItems/RemoveMealItemTool.ts";
+import { UpdateMealItemTool } from "./tools/mealItems/UpdateMealItemTool.ts";
+import { SearchFoodTool } from "./tools/searchFood/SearchFoodTool.ts";
 
 const getServer = () => {
 	const config = getConfig();

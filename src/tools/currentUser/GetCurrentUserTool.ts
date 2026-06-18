@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { FitatuUserClient } from "../api/users/FitatuUserClient.ts";
-import type { FitatuUserProfile } from "../api/users/FitatuUserProfile.ts";
-import { createTextResult } from "../lib/utils.ts";
-import { createToolErrorResult } from "./ToolErrorResult.ts";
+import { FitatuUserClient } from "../../api/users/FitatuUserClient.ts";
+import type { FitatuUserProfile } from "../../api/users/FitatuUserProfile.ts";
+import { createTextResult } from "../../lib/utils.ts";
+import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
 const nullableString = z.string().nullable();
 const nullableBoolean = z.boolean().nullable();

@@ -136,21 +136,27 @@ Make sure your server is running (using `npm start` or `npm run dev`) before con
 
 ### search_food
 
-Searches Fitatu food catalogs using the v3 API contract and returns product ids, measure ids, compact nutrition fields, and available measures. Use this before
+Searches Fitatu food catalogs and returns product ids, measure ids, default weights, kcal, and available measures. Use this before
 `add_meal_items` when you need a `foodId`/`productId` and `measureId`.
+Fields without values and empty arrays are omitted from the MCP response instead of being returned as `null` or `[]`.
+
+The response groups candidates by input query in `results[]`. For each group, inspect `items` before searching again. Compare `displayName`/`name`, `brand`,
+`source`, `matchScore`, `verified`, `kcal`, the default `measureId`/`measureName`/`weightG`, and
+`measures[].measureId`/`measureName`/`weightG`/`energyKcal`. Choose the candidate whose name, brand, weight, kcal, and measure best match that query and the
+requested portion. Next, call `add_meal_items` with the selected `foodId` or `productId`, `foodType` when present, and the most appropriate `measureId`; use
+a measure from `measures[]` when the default measure is unsuitable.
 
 **Parameters:**
 
 - `queries` - required non-empty list of food phrases. Use one element for a single product, for example `["banan"]`.
-- `date` - optional `YYYY-MM-DD` context date for user foods. Defaults to today's local date.
 - `locale` - optional search locale. Defaults to `pl_PL`.
-- `limit` - optional result limit from 1 to 50. Defaults to `10`.
+- `limit` - optional result limit from 1 to 50. Defaults to `3`.
 - `includeUserFood` - optional flag for the authenticated user's catalog. Defaults to `true`.
 - `includePublicFood` - optional flag for the public catalog. Defaults to `true`.
-- `includeDetails` - optional flag to enrich top results with `/v3/products/{id}` measures. Defaults to `true`.
+- `includeDetails` - optional flag to enrich top results with product or recipe detail measures. Defaults to `false`.
 - `detailsLimit` - optional number of results to enrich from 0 to 50. Defaults to `3`.
 
-The tool never falls back to older product detail endpoints such as `/products/{id}` or `/v2/products/{id}`.
+When `includeDetails` is enabled, the client tries available product and recipe detail endpoints and returns safe warnings if detail enrichment fails.
 
 ## Customizing Your MCP Server
 

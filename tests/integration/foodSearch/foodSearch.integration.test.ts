@@ -18,7 +18,7 @@ const PUBLIC_SOURCE: readonly FoodSearchSource[] = ["public"];
 describe.sequential("Fitatu food search integration", () => {
 	it("searches a stable public product query", async () => {
 		const result = await foodSearchClient.search({
-			query: "banan",
+			queries: ["banan"],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
 			limit: 5,
@@ -91,7 +91,7 @@ describe.sequential("Fitatu food search integration", () => {
 		const query = "000000000000000000000000000000";
 
 		const result = await foodSearchClient.search({
-			query,
+			queries: [query],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
 			limit: 5,
@@ -113,7 +113,7 @@ describe.sequential("Fitatu food search integration", () => {
 		const query = "  żÓŁĆ ??? banan ###  ";
 
 		const result = await foodSearchClient.search({
-			query,
+			queries: [query],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
 			limit: 3,
@@ -131,7 +131,7 @@ describe.sequential("Fitatu food search integration", () => {
 
 	it("honors limit, locale, and disabled details parameters", async () => {
 		const result = await foodSearchClient.search({
-			query: "mleko",
+			queries: ["mleko"],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
 			limit: 2,
@@ -151,7 +151,7 @@ describe.sequential("Fitatu food search integration", () => {
 
 	it("searches only the public catalog when user food is disabled", async () => {
 		const result = await foodSearchClient.search({
-			query: "jablko",
+			queries: ["jablko"],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
 			limit: 5,
@@ -201,7 +201,7 @@ describe.sequential("Fitatu food search integration", () => {
 		const tool = new SearchFoodTool(fakeFoodSearchClient);
 		const handler = registerToolForTest(tool);
 
-		const result = await handler({ query: "pomidory koktajlowe" });
+		const result = await handler({ queries: ["pomidory koktajlowe"] });
 
 		expect(result.isError).toBe(true);
 		expect(result.structuredContent).toEqual({
@@ -229,7 +229,6 @@ function expectSearchResult(
 ): void {
 	expect(result.status).toBe("ok");
 	expect(result.date).toBe(DEFAULT_DATE);
-	expect(result.query).toBe(options.queries.length === 1 ? options.queries[0] : null);
 	expect(result.queries).toEqual(options.queries);
 	expect(result.queryCount).toBe(options.queries.length);
 	expect(result.count).toBe(result.items.length);
@@ -266,13 +265,13 @@ function isSearchRequestFailureWarning(warning: string): boolean {
 	return warning.includes("public search failed") || warning.includes("user search failed");
 }
 
-function registerToolForTest(tool: SearchFoodTool): (input: { readonly query: string }) => Promise<CallToolResult> {
-	let handler: ((input: { readonly query: string }) => Promise<CallToolResult>) | undefined;
+function registerToolForTest(tool: SearchFoodTool): (input: { readonly queries: readonly string[] }) => Promise<CallToolResult> {
+	let handler: ((input: { readonly queries: readonly string[] }) => Promise<CallToolResult>) | undefined;
 	const server = {
 		registerTool: (
 			_name: string,
 			_config: unknown,
-			callback: (input: { readonly query: string }) => Promise<CallToolResult>,
+			callback: (input: { readonly queries: readonly string[] }) => Promise<CallToolResult>,
 		) => {
 			handler = callback;
 		},

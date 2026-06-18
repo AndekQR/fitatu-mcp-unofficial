@@ -113,7 +113,6 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		return {
 			status: "ok",
 			date: normalized.date,
-			query: normalized.queries.length === 1 ? normalized.queries[0] : null,
 			queries: normalized.queries,
 			queryCount: normalized.queries.length,
 			count: items.length,
@@ -419,7 +418,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 }
 
 function normalizeOptions(options: FoodSearchOptions): NormalizedOptions {
-	const queries = normalizeQueries(options.query, options.queries);
+	const queries = normalizeQueries(options.queries);
 	const limit = options.limit ?? DEFAULT_LIMIT;
 	const detailsLimit = options.detailsLimit ?? DEFAULT_DETAILS_LIMIT;
 	const includeUserFood = options.includeUserFood ?? true;
@@ -447,25 +446,15 @@ function normalizeOptions(options: FoodSearchOptions): NormalizedOptions {
 	};
 }
 
-function normalizeQueries(query: string | undefined, queries: readonly string[] | undefined): readonly string[] {
-	const normalizedQueries = queries?.length === 0 ? undefined : queries;
-
-	if (
-		(query === undefined && normalizedQueries === undefined) ||
-		(query !== undefined && normalizedQueries !== undefined)
-	) {
-		throw new FoodSearchError("Provide exactly one of query or queries");
+function normalizeQueries(queries: readonly string[] | undefined): readonly string[] {
+	if (!queries) {
+		throw new FoodSearchError("queries is required");
 	}
-
-	if (query !== undefined) {
-		return [normalizeRequiredText(query, "query")];
-	}
-
-	if (!normalizedQueries || normalizedQueries.length === 0) {
+	if (queries.length === 0) {
 		throw new FoodSearchError("queries must not be empty");
 	}
 
-	return normalizedQueries.map((value) => normalizeRequiredText(value, "queries must not contain empty values"));
+	return queries.map((value) => normalizeRequiredText(value, "queries must not contain empty values"));
 }
 
 function normalizeDate(value: string): string {

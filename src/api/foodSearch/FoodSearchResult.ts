@@ -4,8 +4,7 @@ export type FoodSearchSource = "public" | "user";
 export type FoodSearchStatus = "ok";
 
 export interface FoodSearchOptions {
-	readonly query?: string;
-	readonly queries?: readonly string[];
+	readonly queries: readonly string[];
 	readonly date?: string;
 	readonly locale?: string;
 	readonly limit?: number;
@@ -18,7 +17,6 @@ export interface FoodSearchOptions {
 export interface FoodSearchResult {
 	readonly status: FoodSearchStatus;
 	readonly date: string;
-	readonly query: string | null;
 	readonly queries: readonly string[];
 	readonly queryCount: number;
 	readonly count: number;

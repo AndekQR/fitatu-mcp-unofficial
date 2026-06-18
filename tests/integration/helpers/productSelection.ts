@@ -37,7 +37,7 @@ export async function selectProductsByMeasure(options: {
 	for (const query of SEARCH_TERMS) {
 		attempts.push(query);
 		const result = await options.foodSearchClient.search({
-			query,
+			queries: [query],
 			date: options.date,
 			locale: "pl_PL",
 			limit: 10,

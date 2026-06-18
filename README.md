@@ -141,7 +141,7 @@ Searches Fitatu food catalogs using the v3 API contract and returns product ids,
 
 **Parameters:**
 
-- `query` or `queries` - provide exactly one. `query` is a single food phrase; `queries` is a non-empty list.
+- `queries` - required non-empty list of food phrases. Use one element for a single product, for example `["banan"]`.
 - `date` - optional `YYYY-MM-DD` context date for user foods. Defaults to today's local date.
 - `locale` - optional search locale. Defaults to `pl_PL`.
 - `limit` - optional result limit from 1 to 50. Defaults to `10`.

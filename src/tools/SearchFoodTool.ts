@@ -58,7 +58,6 @@ const warningDetailOutputSchema = z.object({
 const foodSearchOutputSchema = {
 	status: z.literal("ok").describe("Search status. ok means at least one requested source responded successfully."),
 	date: z.string().describe("YYYY-MM-DD date used for user food search context."),
-	query: nullableStringSchema.describe("Single query when query was used; null when multiple queries were used."),
 	queries: z.array(z.string()).describe("Normalized list of search queries processed by this call."),
 	queryCount: z.number().int().describe("Number of search queries processed by this call."),
 	count: z.number().int().describe("Total number of returned candidate items across all queries."),
@@ -105,17 +104,10 @@ const foodSearchOutputSchema = {
 };
 
 const inputSchema = {
-	query: z
-		.string()
-		.min(1)
-		.optional()
-		.describe("Single product search phrase. Use only when looking up one product; otherwise prefer queries."),
 	queries: z
 		.array(z.string().min(1))
-		.optional()
-		.describe(
-			"Multiple product search phrases. Prefer this for meal planning or adding multiple foods in one batch call.",
-		),
+		.min(1)
+		.describe("One or more product search phrases. Use a single-element array when looking up one product."),
 	date: z
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
@@ -170,7 +162,7 @@ export class SearchFoodTool {
 			{
 				title: "Search Fitatu Food",
 				description:
-					"Searches Fitatu food catalogs for product ids and measure ids. For multiple products, use one call with queries instead of separate calls per product. Provide exactly one of query or queries. Use returned foodId/productId and measureId values with add_meal_items. For meal planning or adding multiple meal items, start with one precise query per desired product and use limit 10-20 when you need enough candidates to choose from. Inspect returned candidates before searching again. Only run follow-up searches for products that remain unresolved, using improved or simplified query text. Avoid repeatedly searching many synonyms for the same product before inspecting the first batched result.",
+					"Searches Fitatu food catalogs for product ids and measure ids. Provide one or more product search phrases in queries; use a single-element array for one product. Use returned foodId/productId and measureId values with add_meal_items. For meal planning or adding multiple meal items, start with one precise query per desired product and use limit 10-20 when you need enough candidates to choose from. Inspect returned candidates before searching again. Only run follow-up searches for products that remain unresolved, using improved or simplified query text. Avoid repeatedly searching many synonyms for the same product before inspecting the first batched result.",
 				inputSchema,
 				outputSchema: foodSearchOutputSchema,
 				annotations: {

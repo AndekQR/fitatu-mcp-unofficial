@@ -10,9 +10,11 @@ export interface DayItemPayload {
 }
 
 export function toDayItemPayload(item: MealItemInput, mealKey: string, index: number): DayItemPayload {
-	const productId = item.productId ?? item.foodId ?? null;
-	const recipeId = item.recipeId ?? null;
-	const foodType = normalizeFoodType(item.foodType, recipeId);
+	const suppliedProductId = item.productId ?? item.foodId ?? null;
+	const foodType = normalizeFoodType(item.foodType, item.recipeId ?? null);
+	const isRecipe = foodType === "RECIPE";
+	const recipeId = item.recipeId ?? (isRecipe ? suppliedProductId : null);
+	const productId = isRecipe ? null : suppliedProductId;
 
 	if (!productId && !recipeId) {
 		throw new DayPlanError("foodId, productId, or recipeId is required");

@@ -68,12 +68,26 @@ export class DayPlanSyncService {
 	}
 
 	public async syncDays(userId: string, daysPayload: Record<string, unknown>, failureMessage: string): Promise<void> {
-		await this.fetchAcceptedJson({
-			method: "POST",
-			path: this.syncDaysPath(userId),
-			body: daysPayload,
-			failureMessage,
-		});
+		let lastNotFoundError: DayPlanError | undefined;
+
+		for (const path of this.syncDaysPaths(userId)) {
+			try {
+				await this.fetchAcceptedJson({
+					method: "POST",
+					path,
+					body: daysPayload,
+					failureMessage,
+				});
+				return;
+			} catch (error) {
+				if (!(error instanceof DayPlanError) || error.statusCode !== 404) {
+					throw error;
+				}
+				lastNotFoundError = error;
+			}
+		}
+
+		throw lastNotFoundError ?? new DayPlanError(failureMessage);
 	}
 
 	private async fetchAcceptedJson(options: {
@@ -118,8 +132,12 @@ export class DayPlanSyncService {
 		return data;
 	}
 
-	private syncDaysPath(userId: string): string {
+	private syncDaysPaths(userId: string): readonly string[] {
 		const encodedUserId = encodeURIComponent(userId);
-		return `/diet-plan/${encodedUserId}/days`;
+		return [
+			`/diet-plan/${encodedUserId}/days`,
+			`/v2/diet-plan/${encodedUserId}/days`,
+			`/v3/diet-plan/${encodedUserId}/days`,
+		];
 	}
 }

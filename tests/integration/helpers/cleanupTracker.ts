@@ -7,9 +7,13 @@ interface TrackedMealItem {
 }
 
 export class CleanupTracker {
-	private readonly items = new Map<string, TrackedMealItem>();
+	private readonly items;
+	private readonly dayPlanClient;
 
-	public constructor(private readonly dayPlanClient: DayPlanClient) {}
+	public constructor(dayPlanClient: DayPlanClient) {
+		this.dayPlanClient = dayPlanClient;
+		this.items = new Map<string, TrackedMealItem>();
+	}
 
 	public track(date: string, mealKey: string, itemId: string | null | undefined): void {
 		if (!itemId) {

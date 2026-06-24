@@ -47,12 +47,7 @@ export class MealItemMutationService {
 		const dayPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, date);
 		getMealItems(dayPayload.dietPlan, mealKey).push(...acceptedItems.map(({ payload }) => payload));
 
-		await this.dayPlanSyncService.syncSingleDay(
-			options.userId,
-			date,
-			dayPayload,
-			"Fitatu add meal items request failed",
-		);
+		await this.dayPlanSyncService.syncSingleDay(options.userId, date, dayPayload);
 
 		return {
 			status: "accepted",
@@ -99,12 +94,7 @@ export class MealItemMutationService {
 		}
 		target.item.updatedAt = nowTimestamp();
 
-		await this.dayPlanSyncService.syncSingleDay(
-			options.userId,
-			date,
-			dayPayload,
-			"Fitatu update meal item request failed",
-		);
+		await this.dayPlanSyncService.syncSingleDay(options.userId, date, dayPayload);
 
 		return {
 			status: "accepted",
@@ -152,12 +142,7 @@ export class MealItemMutationService {
 			target.item.visible = false;
 		}
 
-		await this.dayPlanSyncService.syncSingleDay(
-			options.userId,
-			date,
-			dayPayload,
-			"Fitatu remove meal item request failed",
-		);
+		await this.dayPlanSyncService.syncSingleDay(options.userId, date, dayPayload);
 
 		return {
 			status: "accepted",
@@ -222,7 +207,7 @@ export class MealItemMutationService {
 			daysPayload[toDate] = targetPayload;
 		}
 
-		await this.dayPlanSyncService.syncDays(options.userId, daysPayload, "Fitatu move meal item request failed");
+		await this.dayPlanSyncService.syncDays(options.userId, daysPayload);
 
 		return {
 			status: "accepted",

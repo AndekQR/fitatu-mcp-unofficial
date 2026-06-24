@@ -5,65 +5,25 @@ import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
 import type { FoodSearchClientOptions } from "./FoodSearchClientOptions.ts";
 import { FoodSearchError } from "./FoodSearchError.ts";
-import type {
-	FoodMeasure,
-	FoodNutrition,
-	FoodSearchItem,
-	FoodSearchOptions,
-	FoodSearchResult,
-	FoodSearchSource,
-	FoodSearchWarningDetail,
-} from "./FoodSearchResult.ts";
+import type { FoodMeasure } from "./FoodMeasure.ts";
+import type { FoodNutrition } from "./FoodNutrition.ts";
+import type { FoodSearchItem } from "./FoodSearchItem.ts";
+import type { FoodSearchOptions } from "./FoodSearchOptions.ts";
+import type { FoodSearchQueryResult } from "./FoodSearchQueryResult.ts";
+import type { FoodSearchResult } from "./FoodSearchResult.ts";
+import type { FoodSearchSource } from "./FoodSearchSource.ts";
+import type { FoodSearchWarningDetail } from "./FoodSearchWarningDetail.ts";
+import type { NestedFirstValue } from "./NestedFirstValue.ts";
+import type { NormalizedFoodSearchItem } from "./NormalizedFoodSearchItem.ts";
+import type { NormalizedFoodSearchOptions } from "./NormalizedFoodSearchOptions.ts";
 
-const V3_ACCEPT_HEADER = "application/json; version=v3";
 const DEFAULT_ACCEPT_HEADER = "application/json";
 const DEFAULT_LOCALE = "pl_PL";
 const DEFAULT_LIMIT = 3;
 const DEFAULT_DETAILS_LIMIT = 3;
 
-interface NormalizedSearchItem {
-	readonly source: FoodSearchSource;
-	readonly foodId: string;
-	readonly foodType: string | null;
-	readonly name: string | null;
-	readonly brand: string | null;
-	readonly measureId: string | null;
-	readonly measureName: string | null;
-	readonly measureQuantity: number | null;
-	readonly weightG: number | null;
-	readonly kcal: number | null;
-	readonly nutritionPer100g: FoodNutrition;
-	readonly nutritionPerDefaultMeasure: FoodNutrition;
-	readonly verified: boolean | null;
-	readonly photoUrl: string | null;
-	readonly matchScore: number;
-	readonly measures: readonly FoodMeasure[];
-}
-
-interface SearchQueryResult {
-	readonly query: string;
-	readonly items: readonly NormalizedSearchItem[];
-	readonly warnings: readonly string[];
-	readonly warningDetails: readonly FoodSearchWarningDetail[];
-	readonly searchAttemptCount: number;
-	readonly searchSuccessCount: number;
-}
-
-interface NormalizedOptions {
-	readonly queries: readonly string[];
-	readonly date: string;
-	readonly locale: string;
-	readonly limit: number;
-	readonly includeUserFood: boolean;
-	readonly includePublicFood: boolean;
-	readonly includeDetails: boolean;
-	readonly detailsLimit: number;
-}
-
 export class FoodSearchClient extends FitatuApiClientBase {
-	private static instance: FoodSearchClient | undefined;
-
-	private constructor(options: FoodSearchClientOptions = {}) {
+	public constructor(options: FoodSearchClientOptions = {}) {
 		const sessionProvider = options.sessionProvider ?? FitatuAuthClient.getInstance();
 		const userClient = options.userClient ?? FitatuUserClient.getInstance({ sessionProvider });
 
@@ -74,20 +34,12 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		});
 	}
 
-	public static getInstance(options: FoodSearchClientOptions = {}): FoodSearchClient {
-		if (!FoodSearchClient.instance) {
-			FoodSearchClient.instance = new FoodSearchClient(options);
-		}
-
-		return FoodSearchClient.instance;
-	}
-
 	public async search(options: FoodSearchOptions): Promise<FoodSearchResult> {
 		const normalized = normalizeOptions(options);
 		const userId = normalized.includeUserFood
 			? normalizeRequiredText(await this.getContextUserId(), "Fitatu user id")
 			: undefined;
-		const results: SearchQueryResult[] = [];
+		const results: FoodSearchQueryResult[] = [];
 
 		for (const query of normalized.queries) {
 			results.push(await this.searchOne(query, normalized, userId));
@@ -111,7 +63,6 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		}
 
 		return {
-			status: "ok",
 			date: normalized.date,
 			queries: normalized.queries,
 			queryCount: normalized.queries.length,
@@ -119,18 +70,17 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			items,
 			warnings,
 			warningDetails,
-			message: "Food search completed",
 		};
 	}
 
 	private async searchOne(
 		query: string,
-		options: NormalizedOptions,
+		options: NormalizedFoodSearchOptions,
 		userId: string | undefined,
-	): Promise<SearchQueryResult> {
+	): Promise<FoodSearchQueryResult> {
 		const warnings: string[] = [];
 		const warningDetails: FoodSearchWarningDetail[] = [];
-		const items: NormalizedSearchItem[] = [];
+		const items: NormalizedFoodSearchItem[] = [];
 		let searchAttemptCount = 0;
 		let searchSuccessCount = 0;
 
@@ -216,7 +166,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		return this.fetchRowsFromFirstSuccessfulVariant([
 			{
 				path: options.path,
-				headers: { accept: V3_ACCEPT_HEADER },
+				headers: { accept: this.V3_ACCEPT_HEADER },
 				query: options.query,
 				failureMessage: options.failureMessage,
 			},
@@ -261,12 +211,12 @@ export class FoodSearchClient extends FitatuApiClientBase {
 	}
 
 	private async withDetails(
-		items: readonly NormalizedSearchItem[],
+		items: readonly NormalizedFoodSearchItem[],
 		limit: number,
 		warnings: string[],
 		warningDetails: FoodSearchWarningDetail[],
-	): Promise<NormalizedSearchItem[]> {
-		const detailed: NormalizedSearchItem[] = [];
+	): Promise<NormalizedFoodSearchItem[]> {
+		const detailed: NormalizedFoodSearchItem[] = [];
 
 		for (const [index, item] of items.entries()) {
 			if (index >= limit) {
@@ -321,8 +271,11 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		});
 	}
 
-	private normalizeRows(rows: readonly Record<string, unknown>[], source: FoodSearchSource): NormalizedSearchItem[] {
-		const items: NormalizedSearchItem[] = [];
+	private normalizeRows(
+		rows: readonly Record<string, unknown>[],
+		source: FoodSearchSource,
+	): NormalizedFoodSearchItem[] {
+		const items: NormalizedFoodSearchItem[] = [];
 
 		for (const row of rows) {
 			const foodId = stringOrNull(firstValue(row, "foodId", "id", "productId"));
@@ -380,7 +333,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		return items;
 	}
 
-	private toOutputItems(results: readonly SearchQueryResult[]): FoodSearchItem[] {
+	private toOutputItems(results: readonly FoodSearchQueryResult[]): FoodSearchItem[] {
 		const output: FoodSearchItem[] = [];
 
 		for (const [queryIndex, result] of results.entries()) {
@@ -415,7 +368,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 	}
 }
 
-function normalizeOptions(options: FoodSearchOptions): NormalizedOptions {
+function normalizeOptions(options: FoodSearchOptions): NormalizedFoodSearchOptions {
 	const queries = normalizeQueries(options.queries);
 	const limit = options.limit ?? DEFAULT_LIMIT;
 	const detailsLimit = options.detailsLimit ?? DEFAULT_DETAILS_LIMIT;
@@ -512,7 +465,7 @@ function extractRows(data: unknown): readonly Record<string, unknown>[] {
 	return rows?.filter(isRecord) ?? [];
 }
 
-function mergeDetails(item: NormalizedSearchItem, details: Record<string, unknown>): NormalizedSearchItem {
+function mergeDetails(item: NormalizedFoodSearchItem, details: Record<string, unknown>): NormalizedFoodSearchItem {
 	const detailsNutrition = nutritionFromRecord(details);
 	const measures = normalizeMeasures(details);
 
@@ -570,9 +523,9 @@ function normalizeMeasures(details: Record<string, unknown>): readonly FoodMeasu
 	return deduplicateMeasures(measures);
 }
 
-function deduplicateItems(items: readonly NormalizedSearchItem[]): NormalizedSearchItem[] {
+function deduplicateItems(items: readonly NormalizedFoodSearchItem[]): NormalizedFoodSearchItem[] {
 	const seen = new Set<string>();
-	const deduplicated: NormalizedSearchItem[] = [];
+	const deduplicated: NormalizedFoodSearchItem[] = [];
 
 	for (const item of items) {
 		const key = `${item.source}:${item.foodId}`;
@@ -641,7 +594,7 @@ function mergeNutrition(primary: FoodNutrition, fallback: FoodNutrition): FoodNu
 	};
 }
 
-function matchScore(query: string, item: NormalizedSearchItem): number {
+function matchScore(query: string, item: NormalizedFoodSearchItem): number {
 	const queryTokens = tokens(query);
 	if (queryTokens.size === 0) {
 		return 0;
@@ -673,7 +626,7 @@ function tokens(value: string): Set<string> {
 	);
 }
 
-function displayName(item: NormalizedSearchItem): string {
+function displayName(item: NormalizedFoodSearchItem): string {
 	const parts: string[] = [];
 	const name = item.name ?? item.foodId;
 	const measure = formatMeasure(item);
@@ -692,7 +645,7 @@ function displayName(item: NormalizedSearchItem): string {
 	return parts.length > 0 ? `${name} - ${parts.join(", ")}` : name;
 }
 
-function formatMeasure(item: NormalizedSearchItem): string | undefined {
+function formatMeasure(item: NormalizedFoodSearchItem): string | undefined {
 	if (!item.measureName) {
 		return undefined;
 	}
@@ -703,7 +656,7 @@ function formatMeasure(item: NormalizedSearchItem): string | undefined {
 	return `${formatNumber(item.measureQuantity)} ${item.measureName}`;
 }
 
-function measureAlreadyDescribesWeight(item: NormalizedSearchItem): boolean {
+function measureAlreadyDescribesWeight(item: NormalizedFoodSearchItem): boolean {
 	if (item.measureQuantity === null || item.weightG === null || item.measureName === null) {
 		return false;
 	}
@@ -717,11 +670,6 @@ function measureAlreadyDescribesWeight(item: NormalizedSearchItem): boolean {
 function formatNumber(value: number): string {
 	return Number.isInteger(value) ? String(value) : String(value);
 }
-
-type NestedFirstValue = {
-	readonly record: Record<string, unknown> | undefined;
-	readonly keys: readonly string[];
-};
 
 function firstValue(record: Record<string, unknown>, ...keys: readonly (string | NestedFirstValue)[]): unknown {
 	for (const key of keys) {

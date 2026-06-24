@@ -1,16 +1,13 @@
 import type { FitatuAuthSession } from "../auth/FitatuAuthSession.ts";
 import type { FitatuUserProfile } from "../users/FitatuUserProfile.ts";
-import {
-	DEFAULT_APP_LOCALE,
-	DEFAULT_APP_TIMEZONE,
-	DEFAULT_FITATU_API_BASE_URL,
-	DEFAULT_FITATU_HEADERS,
-} from "./FitatuApiDefaults.ts";
+import { DEFAULT_APP_LOCALE, DEFAULT_APP_TIMEZONE, DEFAULT_FITATU_API_BASE_URL, DEFAULT_FITATU_HEADERS } from "./FitatuApiDefaults.ts";
 import type { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "./FitatuApiRequestOptions.ts";
 import type { FitatuRequestContext } from "./FitatuRequestContext.ts";
 
 export abstract class FitatuApiClientBase {
+	protected readonly V3_ACCEPT_HEADER = "application/json; version=v3";
+
 	protected readonly fetchFn: typeof fetch;
 
 	private readonly fallbackBaseUrl: string;
@@ -37,16 +34,6 @@ export abstract class FitatuApiClientBase {
 		return this.fetchFitatuApiOnce(options);
 	}
 
-	private async fetchFitatuApiOnce(options: FitatuApiRequestOptions): Promise<Response> {
-		const context = await this.createRequestContext(options);
-
-		return this.fetchFn(context.url, {
-			method: options.method,
-			headers: context.headers,
-			...(options.body !== undefined ? { body: options.body } : {}),
-		});
-	}
-
 	protected async getContextUserId(userId?: string): Promise<string | undefined> {
 		const [session, user] = await Promise.all([this.getProvidedSession(), this.getProvidedCurrentUser()]);
 
@@ -66,6 +53,16 @@ export abstract class FitatuApiClientBase {
 			},
 			...(user ? { user } : {}),
 		};
+	}
+
+	private async fetchFitatuApiOnce(options: FitatuApiRequestOptions): Promise<Response> {
+		const context = await this.createRequestContext(options);
+
+		return this.fetchFn(context.url, {
+			method: options.method,
+			headers: context.headers,
+			...(options.body !== undefined ? { body: options.body } : {}),
+		});
 	}
 
 	private resolveContextUserId(

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
-import { createTextResult } from "../../lib/utils.ts";
+import { createTextResult } from "../shared/ToolResult.ts";
+import { MealItemMutationService } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
 	mealItemInputSchema,
@@ -12,10 +12,10 @@ import {
 export class AddMealItemsTool {
 	public readonly name = "add_meal_items";
 
-	private readonly dayPlanClient: DayPlanClient;
+	private readonly mealItemMutationService: MealItemMutationService;
 
-	public constructor(dayPlanClient: DayPlanClient = DayPlanClient.getInstance()) {
-		this.dayPlanClient = dayPlanClient;
+	public constructor(mealItemMutationService: MealItemMutationService) {
+		this.mealItemMutationService = mealItemMutationService;
 	}
 
 	public register(server: McpServer): void {
@@ -52,7 +52,7 @@ export class AddMealItemsTool {
 			},
 			async ({ date, mealKey, items }) => {
 				try {
-					const result = await this.dayPlanClient.addMealItems({
+					const result = await this.mealItemMutationService.addMealItems({
 						date,
 						mealKey,
 						items: items.map(toMealItemInput),

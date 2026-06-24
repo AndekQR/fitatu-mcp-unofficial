@@ -12,6 +12,9 @@ import { MoveMealItemTool } from "./tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemTool } from "./tools/mealItems/RemoveMealItemTool.ts";
 import { UpdateMealItemTool } from "./tools/mealItems/UpdateMealItemTool.ts";
 import { SearchFoodTool } from "./tools/searchFood/SearchFoodTool.ts";
+import { ApplicationServices } from "./services/ApplicationServices.ts";
+
+const applicationServices = new ApplicationServices();
 
 const getServer = () => {
 	const config = getConfig();
@@ -20,13 +23,13 @@ const getServer = () => {
 		version: config.SERVER_VERSION,
 	});
 
-	new GetCurrentUserTool().register(server);
-	new GetDayPlanItemsTool().register(server);
-	new SearchFoodTool().register(server);
-	new AddMealItemsTool().register(server);
-	new UpdateMealItemTool().register(server);
-	new RemoveMealItemTool().register(server);
-	new MoveMealItemTool().register(server);
+	new GetCurrentUserTool(applicationServices.currentUserService).register(server);
+	new GetDayPlanItemsTool(applicationServices.dayPlanQueryService).register(server);
+	new SearchFoodTool(applicationServices.foodSearchService).register(server);
+	new AddMealItemsTool(applicationServices.mealItemMutationService).register(server);
+	new UpdateMealItemTool(applicationServices.mealItemMutationService).register(server);
+	new RemoveMealItemTool(applicationServices.mealItemMutationService).register(server);
+	new MoveMealItemTool(applicationServices.mealItemMutationService).register(server);
 
 	return server;
 };

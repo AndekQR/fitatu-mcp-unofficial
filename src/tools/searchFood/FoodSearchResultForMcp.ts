@@ -1,8 +1,7 @@
-import type { FoodSearchResult } from "../../api/foodSearch/FoodSearchResult.ts";
+import type { FoodSearchResult } from "../../services/foodSearch/FoodSearchTypes.ts";
 import { FoodSearchQueryResultForMcp } from "./FoodSearchQueryResultForMcp.ts";
 
 export class FoodSearchResultForMcp {
-	public readonly status: FoodSearchResult["status"];
 	public readonly queryCount: number;
 	public readonly resultCount: number;
 	public readonly results: readonly FoodSearchQueryResultForMcp[];
@@ -10,7 +9,6 @@ export class FoodSearchResultForMcp {
 	public readonly warningDetails: FoodSearchResult["warningDetails"];
 
 	public constructor(result: FoodSearchResult) {
-		this.status = result.status;
 		this.queryCount = result.queryCount;
 		this.resultCount = result.count;
 		this.results = result.queries.map(

@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { MealItemInput, MealItemKind } from "../../api/dayPlan/MealItemMutation.ts";
+import type { MealItemInput, MealItemKind } from "../../services/dayPlan/MealItemTypes.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
 const idSchema = z.union([z.string().min(1), z.number().finite()]);
-const nullableIdSchema = z.union([z.string(), z.number()]).nullable();
+const optionalIdSchema = z.union([z.string(), z.number()]).optional();
 
 export const mealItemInputSchema = z.object({
 	foodId: idSchema
@@ -80,26 +80,26 @@ export const mealItemMutationOutputSchema = {
 		),
 	mealKey: z
 		.string()
-		.nullable()
+		.optional()
 		.describe(
-			"Primary Fitatu meal key for the mutation, or null when not applicable. For move operations, this is the source meal key; inspect acceptedItems for the destination meal.",
+			"Primary Fitatu meal key for the mutation, when applicable. For move operations, this is the source meal key; inspect acceptedItems for the destination meal.",
 		),
 	operationCount: z.number().int().describe("Number of meal items included in the accepted mutation."),
 	acceptedItems: z.array(
 		z.object({
 			index: z.number().int().describe("Zero-based index of the accepted item in the request."),
 			itemId: z.string().describe("Fitatu meal item id accepted by the mutation."),
-			productId: nullableIdSchema.describe("Product id for the accepted item, or null for non-product items."),
-			recipeId: nullableIdSchema.describe("Recipe id for the accepted item, or null for non-recipe items."),
+			productId: optionalIdSchema.describe("Product id for the accepted product item, when applicable."),
+			recipeId: optionalIdSchema.describe("Recipe id for the accepted recipe item, when applicable."),
 			foodType: z.string().describe("Fitatu food type for the accepted item."),
 			mealKey: z.string().describe("Meal key containing the accepted item."),
 		}),
 	),
-	createdItemIds: z.array(z.string()).describe("Meal item ids created by the accepted mutation."),
-	updatedItemIds: z.array(z.string()).describe("Meal item ids updated by the accepted mutation."),
-	deletedItemIds: z.array(z.string()).describe("Meal item ids deleted by the accepted mutation."),
-	oldItemId: z.string().nullable().describe("Original item id when an operation replaced or moved an item."),
-	newItemId: z.string().nullable().describe("New item id when Fitatu returned a replacement id."),
+	createdItemIds: z.array(z.string()).optional().describe("Meal item ids created by the accepted mutation, when any."),
+	updatedItemIds: z.array(z.string()).optional().describe("Meal item ids updated by the accepted mutation, when any."),
+	deletedItemIds: z.array(z.string()).optional().describe("Meal item ids deleted by the accepted mutation, when any."),
+	oldItemId: z.string().optional().describe("Original item id when an operation replaced or moved an item."),
+	newItemId: z.string().optional().describe("New item id when Fitatu returned a replacement id."),
 	itemIdChanged: z.boolean().describe("Whether Fitatu changed the item id as part of the operation."),
 };
 

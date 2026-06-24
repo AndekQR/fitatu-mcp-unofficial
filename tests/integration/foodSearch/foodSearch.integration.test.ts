@@ -4,14 +4,12 @@ import { describe, expect, it } from "vitest";
 import type { FitatuApiErrorDetails } from "../../../src/api/fitatuApiClientBase/FitatuApiError.ts";
 import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
 import { FoodSearchError } from "../../../src/api/foodSearch/FoodSearchError.ts";
-import type {
-	FoodSearchItem,
-	FoodSearchResult,
-	FoodSearchSource,
-} from "../../../src/api/foodSearch/FoodSearchResult.ts";
+import type { FoodSearchItem } from "../../../src/api/foodSearch/FoodSearchItem.ts";
+import type { FoodSearchResult } from "../../../src/api/foodSearch/FoodSearchResult.ts";
+import type { FoodSearchSource } from "../../../src/api/foodSearch/FoodSearchSource.ts";
 import { SearchFoodTool } from "../../../src/tools/searchFood/SearchFoodTool.ts";
 
-const foodSearchClient = FoodSearchClient.getInstance();
+const foodSearchClient = new FoodSearchClient();
 const DEFAULT_DATE = "2026-06-15";
 const PUBLIC_SOURCE: readonly FoodSearchSource[] = ["public"];
 
@@ -227,12 +225,10 @@ function expectSearchResult(
 		readonly expectedSources: readonly FoodSearchSource[];
 	},
 ): void {
-	expect(result.status).toBe("ok");
 	expect(result.date).toBe(DEFAULT_DATE);
 	expect(result.queries).toEqual(options.queries);
 	expect(result.queryCount).toBe(options.queries.length);
 	expect(result.count).toBe(result.items.length);
-	expect(result.message).toBe("Food search completed");
 	expect(Array.isArray(result.warnings)).toBe(true);
 	expect(Array.isArray(result.warningDetails)).toBe(true);
 	expect(result.warnings.filter(isSearchRequestFailureWarning)).toHaveLength(0);

@@ -1,5 +1,6 @@
 import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
-import type { FoodMeasure, FoodSearchItem } from "../../../src/api/foodSearch/FoodSearchResult.ts";
+import type { FoodMeasure } from "../../../src/api/foodSearch/FoodMeasure.ts";
+import type { FoodSearchItem } from "../../../src/api/foodSearch/FoodSearchItem.ts";
 
 export interface SelectedMeasure {
 	readonly measureId: string;

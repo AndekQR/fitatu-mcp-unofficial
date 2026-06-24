@@ -5,7 +5,7 @@ import { CleanupTracker } from "../helpers/cleanupTracker.ts";
 import { findMealItem } from "../helpers/dayPlanAssertions.ts";
 import { getIntegrationTestDate } from "../helpers/testDates.ts";
 
-const dayPlanClient = DayPlanClient.getInstance();
+const dayPlanClient = new DayPlanClient();
 const cleanup = new CleanupTracker(dayPlanClient);
 const READ_AFTER_WRITE_ATTEMPTS = 20;
 const RECIPE_ID = "32519808";

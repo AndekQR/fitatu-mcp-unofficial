@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
-import { createTextResult } from "../../lib/utils.ts";
+import { createTextResult } from "../shared/ToolResult.ts";
+import { MealItemMutationService } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
 	itemKindSchema,
@@ -12,10 +12,10 @@ import {
 export class RemoveMealItemTool {
 	public readonly name = "remove_meal_item";
 
-	private readonly dayPlanClient: DayPlanClient;
+	private readonly mealItemMutationService: MealItemMutationService;
 
-	public constructor(dayPlanClient: DayPlanClient = DayPlanClient.getInstance()) {
-		this.dayPlanClient = dayPlanClient;
+	public constructor(mealItemMutationService: MealItemMutationService) {
+		this.mealItemMutationService = mealItemMutationService;
 	}
 
 	public register(server: McpServer): void {
@@ -51,7 +51,7 @@ export class RemoveMealItemTool {
 			},
 			async ({ date, mealKey, itemId, itemKind }) => {
 				try {
-					const result = await this.dayPlanClient.removeMealItem({
+					const result = await this.mealItemMutationService.removeMealItem({
 						date,
 						mealKey,
 						itemId,

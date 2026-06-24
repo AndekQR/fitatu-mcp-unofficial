@@ -114,7 +114,10 @@ function redactJsonValue(value: unknown): unknown {
 function redactText(value: string): string {
 	return value
 		.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
-		.replace(/("?(?:authorization|cookie|email|password|secret|token|user)[^":=]*"?\s*[:=]\s*)"[^"]*"/gi, "$1\"[REDACTED]\"");
+		.replace(
+			/("?(?:authorization|cookie|email|password|secret|token|user)[^":=]*"?\s*[:=]\s*)"[^"]*"/gi,
+			'$1"[REDACTED]"',
+		);
 }
 
 function firstNonEmptyStringFromData(data: unknown, ...keys: readonly string[]): string | null {

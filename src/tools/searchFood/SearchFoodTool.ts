@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
-import { createTextResult } from "../../lib/utils.ts";
+import { createTextResult } from "../shared/ToolResult.ts";
+import { FoodSearchService } from "../../services/foodSearch/FoodSearchService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { FoodSearchResultForMcp } from "./FoodSearchResultForMcp.ts";
 
@@ -42,7 +42,6 @@ const warningDetailOutputSchema = z.object({
 });
 
 const foodSearchOutputSchema = {
-	status: z.literal("ok").describe("Search status. ok means at least one requested source responded successfully."),
 	queryCount: z.number().int().describe("Number of search queries processed by this call."),
 	resultCount: z.number().int().describe("Total number of returned candidate items across all queries."),
 	results: z
@@ -159,10 +158,10 @@ const inputSchema = {
 export class SearchFoodTool {
 	public readonly name = "search_food";
 
-	private readonly foodSearchClient: FoodSearchClient;
+	private readonly foodSearchService: FoodSearchService;
 
-	public constructor(foodSearchClient: FoodSearchClient = FoodSearchClient.getInstance()) {
-		this.foodSearchClient = foodSearchClient;
+	public constructor(foodSearchService: FoodSearchService) {
+		this.foodSearchService = foodSearchService;
 	}
 
 	public register(server: McpServer): void {
@@ -184,10 +183,9 @@ export class SearchFoodTool {
 			},
 			async (input) => {
 				try {
-					const result = await this.foodSearchClient.search(input);
+					const result = await this.foodSearchService.search(input);
 					return createTextResult(new FoodSearchResultForMcp(result), {
 						keepEmptyArrayKeys: ["items"],
-						omitNullsAndEmptyArrays: true,
 					});
 				} catch (error) {
 					return createToolErrorResult(this.name, "Unable to search Fitatu food.", error);

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
-import { createTextResult } from "../../lib/utils.ts";
+import { createTextResult } from "../shared/ToolResult.ts";
+import { MealItemMutationService } from "../../services/dayPlan/MealItemMutationService.ts";
 import { createSafeMealItemErrorResult, mealItemMutationOutputSchema } from "./MealItemToolSupport.ts";
 
 const idSchema = z.union([z.string().min(1), z.number().finite()]);
@@ -9,10 +9,10 @@ const idSchema = z.union([z.string().min(1), z.number().finite()]);
 export class UpdateMealItemTool {
 	public readonly name = "update_meal_item";
 
-	private readonly dayPlanClient: DayPlanClient;
+	private readonly mealItemMutationService: MealItemMutationService;
 
-	public constructor(dayPlanClient: DayPlanClient = DayPlanClient.getInstance()) {
-		this.dayPlanClient = dayPlanClient;
+	public constructor(mealItemMutationService: MealItemMutationService) {
+		this.mealItemMutationService = mealItemMutationService;
 	}
 
 	public register(server: McpServer): void {
@@ -58,7 +58,7 @@ export class UpdateMealItemTool {
 			},
 			async ({ date, mealKey, itemId, measureQuantity, measureId, eaten }) => {
 				try {
-					const result = await this.dayPlanClient.updateMealItem({
+					const result = await this.mealItemMutationService.updateMealItem({
 						date,
 						mealKey,
 						itemId,

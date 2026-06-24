@@ -1,29 +1,29 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { FitatuUserClient } from "../../api/users/FitatuUserClient.ts";
-import type { FitatuUserProfile } from "../../api/users/FitatuUserProfile.ts";
-import { createTextResult } from "../../lib/utils.ts";
+import { createTextResult } from "../shared/ToolResult.ts";
+import { CurrentUserService } from "../../services/currentUser/CurrentUserService.ts";
+import type { FitatuUserProfile } from "../../services/currentUser/CurrentUserTypes.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
-const nullableString = z.string().nullable();
-const nullableBoolean = z.boolean().nullable();
+const optionalString = z.string().optional();
+const optionalBoolean = z.boolean().optional();
 
 const currentUserOutputSchema = {
 	user: z
 		.object({
-			id: nullableString.describe("Authenticated Fitatu user id."),
-			username: nullableString.describe("Fitatu username or email when available."),
-			nickname: nullableString.describe("Fitatu display nickname when available."),
-			locale: nullableString.describe("User interface locale configured in Fitatu."),
-			storageLocale: nullableString.describe("Fitatu storage locale used for account data."),
-			searchLocale: nullableString.describe("Preferred locale for Fitatu search results."),
-			timezone: nullableString.describe("User timezone configured in Fitatu."),
-			weightUnit: nullableString.describe("Preferred weight unit configured in Fitatu."),
-			sizeUnit: nullableString.describe("Preferred body size unit configured in Fitatu."),
-			enabled: nullableBoolean.describe("Whether the Fitatu account is enabled."),
-			demo: nullableBoolean.describe("Whether the Fitatu account is marked as a demo account."),
-			hasDietSettings: nullableBoolean.describe("Whether the user has diet settings configured."),
-			hasUserSettings: nullableBoolean.describe("Whether the user has general settings configured."),
+			id: optionalString.describe("Authenticated Fitatu user id, when available."),
+			username: optionalString.describe("Fitatu username or email when available."),
+			nickname: optionalString.describe("Fitatu display nickname when available."),
+			locale: optionalString.describe("User interface locale configured in Fitatu, when available."),
+			storageLocale: optionalString.describe("Fitatu storage locale used for account data, when available."),
+			searchLocale: optionalString.describe("Preferred locale for Fitatu search results, when available."),
+			timezone: optionalString.describe("User timezone configured in Fitatu, when available."),
+			weightUnit: optionalString.describe("Preferred weight unit configured in Fitatu, when available."),
+			sizeUnit: optionalString.describe("Preferred body size unit configured in Fitatu, when available."),
+			enabled: optionalBoolean.describe("Whether the Fitatu account is enabled, when available."),
+			demo: optionalBoolean.describe("Whether the Fitatu account is marked as a demo account, when available."),
+			hasDietSettings: optionalBoolean.describe("Whether the user has diet settings configured, when available."),
+			hasUserSettings: optionalBoolean.describe("Whether the user has general settings configured, when available."),
 		})
 		.describe("Safe subset of the authenticated Fitatu user profile."),
 };
@@ -33,10 +33,10 @@ type SafeCurrentUser = z.infer<typeof currentUserOutputSchema.user>;
 export class GetCurrentUserTool {
 	public readonly name = "get_current_user";
 
-	private readonly userClient: FitatuUserClient;
+	private readonly currentUserService: CurrentUserService;
 
-	public constructor(userClient: FitatuUserClient = FitatuUserClient.getInstance()) {
-		this.userClient = userClient;
+	public constructor(currentUserService: CurrentUserService) {
+		this.currentUserService = currentUserService;
 	}
 
 	public register(server: McpServer): void {
@@ -56,7 +56,7 @@ export class GetCurrentUserTool {
 			},
 			async () => {
 				try {
-					const user = await this.userClient.getAuthenticatedUser();
+					const user = await this.currentUserService.getCurrentUser();
 					return createTextResult({
 						user: this.toSafeCurrentUser(user),
 					});
@@ -69,19 +69,19 @@ export class GetCurrentUserTool {
 
 	private toSafeCurrentUser(user: FitatuUserProfile): SafeCurrentUser {
 		return {
-			id: user.id ?? null,
-			username: user.username ?? null,
-			nickname: user.nickname ?? null,
-			locale: user.locale ?? null,
-			storageLocale: user.storageLocale ?? null,
-			searchLocale: user.searchLocale ?? null,
-			timezone: user.timezone ?? null,
-			weightUnit: user.weightUnit ?? null,
-			sizeUnit: user.sizeUnit ?? null,
-			enabled: user.enabled ?? null,
-			demo: user.demo ?? null,
-			hasDietSettings: user.hasDietSettings ?? null,
-			hasUserSettings: user.hasUserSettings ?? null,
+			id: user.id ?? undefined,
+			username: user.username ?? undefined,
+			nickname: user.nickname ?? undefined,
+			locale: user.locale ?? undefined,
+			storageLocale: user.storageLocale ?? undefined,
+			searchLocale: user.searchLocale ?? undefined,
+			timezone: user.timezone ?? undefined,
+			weightUnit: user.weightUnit ?? undefined,
+			sizeUnit: user.sizeUnit ?? undefined,
+			enabled: user.enabled ?? undefined,
+			demo: user.demo ?? undefined,
+			hasDietSettings: user.hasDietSettings ?? undefined,
+			hasUserSettings: user.hasUserSettings ?? undefined,
 		};
 	}
 }

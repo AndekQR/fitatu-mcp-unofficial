@@ -8,8 +8,8 @@ import { expectMealItem, expectNoMealItem, findMealItem } from "../helpers/dayPl
 import { searchMultipleQueries, selectProductsByMeasure } from "../helpers/productSelection.ts";
 import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 
-const dayPlanClient = DayPlanClient.getInstance();
-const foodSearchClient = FoodSearchClient.getInstance();
+const dayPlanClient = new DayPlanClient();
+const foodSearchClient = new FoodSearchClient();
 const cleanup = new CleanupTracker(dayPlanClient);
 const READ_AFTER_WRITE_ATTEMPTS = 20;
 

@@ -1,4 +1,4 @@
-import type { FitatuApiErrorOptions, FitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
+import type { FitatuApiErrorDetails, FitatuApiErrorOptions } from "../fitatuApiClientBase/FitatuApiError.ts";
 
 export class FoodSearchError extends Error {
 	public readonly statusCode?: number;

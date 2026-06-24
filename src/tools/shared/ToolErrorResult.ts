@@ -4,7 +4,7 @@ import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
 import { getFitatuApiErrors, isErrorWithFitatuApiDetails } from "../../api/fitatuApiClientBase/FitatuApiError.ts";
 import { FoodSearchError } from "../../api/foodSearch/FoodSearchError.ts";
 import { FitatuUserError } from "../../api/users/FitatuUserError.ts";
-import { createErrorResult } from "../../lib/utils.ts";
+import { createErrorResult } from "./ToolResult.ts";
 import { logger } from "../../logger.ts";
 
 export function createToolErrorResult(toolName: string, fallbackMessage: string, error: unknown): CallToolResult {

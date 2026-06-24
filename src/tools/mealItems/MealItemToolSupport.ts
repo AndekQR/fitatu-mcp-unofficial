@@ -95,9 +95,18 @@ export const mealItemMutationOutputSchema = {
 			mealKey: z.string().describe("Meal key containing the accepted item."),
 		}),
 	),
-	createdItemIds: z.array(z.string()).optional().describe("Meal item ids created by the accepted mutation, when any."),
-	updatedItemIds: z.array(z.string()).optional().describe("Meal item ids updated by the accepted mutation, when any."),
-	deletedItemIds: z.array(z.string()).optional().describe("Meal item ids deleted by the accepted mutation, when any."),
+	createdItemIds: z
+		.array(z.string())
+		.optional()
+		.describe("Meal item ids created by the accepted mutation, when any."),
+	updatedItemIds: z
+		.array(z.string())
+		.optional()
+		.describe("Meal item ids updated by the accepted mutation, when any."),
+	deletedItemIds: z
+		.array(z.string())
+		.optional()
+		.describe("Meal item ids deleted by the accepted mutation, when any."),
 	oldItemId: z.string().optional().describe("Original item id when an operation replaced or moved an item."),
 	newItemId: z.string().optional().describe("New item id when Fitatu returned a replacement id."),
 	itemIdChanged: z.boolean().describe("Whether Fitatu changed the item id as part of the operation."),

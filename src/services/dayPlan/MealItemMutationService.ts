@@ -8,7 +8,6 @@ import type {
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutation.ts";
 
 export class MealItemMutationService {
-
 	private readonly dayPlanClient;
 
 	public constructor(dayPlanClient: DayPlanClient) {

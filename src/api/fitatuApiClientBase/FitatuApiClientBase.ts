@@ -1,6 +1,11 @@
 import type { FitatuAuthSession } from "../auth/FitatuAuthSession.ts";
 import type { FitatuUserProfile } from "../users/FitatuUserProfile.ts";
-import { DEFAULT_APP_LOCALE, DEFAULT_APP_TIMEZONE, DEFAULT_FITATU_API_BASE_URL, DEFAULT_FITATU_HEADERS } from "./FitatuApiDefaults.ts";
+import {
+	DEFAULT_APP_LOCALE,
+	DEFAULT_APP_TIMEZONE,
+	DEFAULT_FITATU_API_BASE_URL,
+	DEFAULT_FITATU_HEADERS,
+} from "./FitatuApiDefaults.ts";
 import type { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "./FitatuApiRequestOptions.ts";
 import type { FitatuRequestContext } from "./FitatuRequestContext.ts";

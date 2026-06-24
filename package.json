@@ -1,7 +1,8 @@
 {
-	"name": "mcp-typescript-template",
+	"name": "fitatu-mcp",
 	"version": "1.0.0",
-	"description": "TypeScript template for building MCP servers",
+	"description": "Model Context Protocol server for Fitatu",
+	"private": true,
 	"type": "module",
 	"main": "dist/index.js",
 	"scripts": {
@@ -17,13 +18,13 @@
 		"format:check": "prettier --check src/**/*.ts"
 	},
 	"keywords": [
+		"fitatu",
 		"mcp",
+		"model-context-protocol",
 		"typescript",
-		"template",
-		"vite",
-		"server"
+		"nutrition"
 	],
-	"author": "",
+	"author": "AndekQR",
 	"license": "MIT",
 	"engines": {
 		"node": ">=22.18.0"

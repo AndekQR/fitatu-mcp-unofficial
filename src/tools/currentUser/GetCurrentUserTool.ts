@@ -23,7 +23,9 @@ const currentUserOutputSchema = {
 			enabled: optionalBoolean.describe("Whether the Fitatu account is enabled, when available."),
 			demo: optionalBoolean.describe("Whether the Fitatu account is marked as a demo account, when available."),
 			hasDietSettings: optionalBoolean.describe("Whether the user has diet settings configured, when available."),
-			hasUserSettings: optionalBoolean.describe("Whether the user has general settings configured, when available."),
+			hasUserSettings: optionalBoolean.describe(
+				"Whether the user has general settings configured, when available.",
+			),
 		})
 		.describe("Safe subset of the authenticated Fitatu user profile."),
 };

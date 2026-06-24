@@ -3,7 +3,6 @@ import type { DayPlan } from "../../api/dayPlan/DayPlan.ts";
 import type { GetDayPlanOptions } from "../../api/dayPlan/DayPlanClientTypes.ts";
 
 export class DayPlanQueryService {
-
 	private readonly dayPlanClient;
 
 	public constructor(dayPlanClient: DayPlanClient) {

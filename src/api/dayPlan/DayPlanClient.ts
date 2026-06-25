@@ -20,19 +20,19 @@ export class DayPlanClient extends FitatuApiClientBase {
 	private readonly mealItemMutationService: MealItemMutationService;
 
 	public constructor(options: DayPlanClientOptions = {}) {
-		const sessionProvider = options.sessionProvider ?? FitatuAuthClient.getInstance();
-		const userClient = options.userClient ?? FitatuUserClient.getInstance({ sessionProvider });
+		const authClient = options.authClient ?? FitatuAuthClient.getInstance();
+		const userClient = options.userClient ?? FitatuUserClient.getInstance({ authClient });
 
 		super({
 			...options,
-			sessionProvider,
-			currentUserProvider: options.currentUserProvider ?? userClient,
+			authClient,
+			userClient,
 		});
 
 		this.dayPlanSyncService = new DayPlanSyncService({
 			...options,
-			sessionProvider,
-			currentUserProvider: options.currentUserProvider ?? userClient,
+			authClient,
+			userClient,
 		});
 		this.mealItemMutationService = new MealItemMutationService(this.dayPlanSyncService);
 	}

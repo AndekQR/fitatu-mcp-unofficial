@@ -19,9 +19,9 @@ export class ApplicationServices {
 
 	public constructor() {
 		const authClient = FitatuAuthClient.getInstance();
-		const userClient = FitatuUserClient.getInstance({ sessionProvider: authClient });
-		const dayPlanClient = new DayPlanClient({ sessionProvider: authClient, userClient });
-		const foodSearchClient = new FoodSearchClient({ sessionProvider: authClient, userClient });
+		const userClient = FitatuUserClient.getInstance({ authClient });
+		const dayPlanClient = new DayPlanClient({ authClient, userClient });
+		const foodSearchClient = new FoodSearchClient({ authClient, userClient });
 
 		this.currentUserService = new CurrentUserService(userClient);
 		this.dayPlanQueryService = new DayPlanQueryService(dayPlanClient);

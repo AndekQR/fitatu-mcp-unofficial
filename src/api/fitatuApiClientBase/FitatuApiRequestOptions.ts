@@ -7,4 +7,5 @@ export interface FitatuApiRequestOptions {
 	>;
 	readonly headers?: Record<string, string | null | undefined>;
 	readonly body?: string | null;
+	readonly allowAuthenticationRefresh?: boolean;
 }

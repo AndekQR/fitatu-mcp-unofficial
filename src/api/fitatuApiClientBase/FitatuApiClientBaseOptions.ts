@@ -1,19 +1,16 @@
-import type { FitatuAuthSession } from "../auth/FitatuAuthSession.ts";
-import type { FitatuUserProfile } from "../users/FitatuUserProfile.ts";
+import type { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
+import type { FitatuUserClient } from "../users/FitatuUserClient.ts";
 
-export interface FitatuSessionProvider {
-	getSession(): Promise<FitatuAuthSession>;
-	clearSession?(): void | Promise<void>;
-}
+export class FitatuApiClientBaseOptions {
+	public readonly baseUrl?: string;
+	public readonly fetchFn?: typeof fetch;
+	public readonly authClient?: FitatuAuthClient;
+	public readonly userClient?: FitatuUserClient;
 
-export interface FitatuCurrentUserProvider {
-	getCurrentUser(): Promise<FitatuUserProfile | undefined>;
-	clearUserCache?(): void | Promise<void>;
-}
-
-export interface FitatuApiClientBaseOptions {
-	readonly baseUrl?: string;
-	readonly fetchFn?: typeof fetch;
-	readonly sessionProvider?: FitatuSessionProvider;
-	readonly currentUserProvider?: FitatuCurrentUserProvider;
+	public constructor(options: Partial<FitatuApiClientBaseOptions> = {}) {
+		this.baseUrl = options.baseUrl;
+		this.fetchFn = options.fetchFn;
+		this.authClient = options.authClient;
+		this.userClient = options.userClient;
+	}
 }

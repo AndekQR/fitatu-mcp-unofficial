@@ -13,7 +13,7 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	private constructor(options: FitatuUserClientOptions = {}) {
 		super({
 			...options,
-			sessionProvider: options.sessionProvider ?? FitatuAuthClient.getInstance(),
+			authClient: options.authClient ?? FitatuAuthClient.getInstance(),
 		});
 	}
 

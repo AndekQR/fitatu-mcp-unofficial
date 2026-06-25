@@ -6,7 +6,7 @@ import {
 	DEFAULT_FITATU_API_BASE_URL,
 	DEFAULT_FITATU_HEADERS,
 } from "./FitatuApiDefaults.ts";
-import type { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts";
+import { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "./FitatuApiRequestOptions.ts";
 import type { FitatuRequestContext } from "./FitatuRequestContext.ts";
 
@@ -17,25 +17,26 @@ export abstract class FitatuApiClientBase {
 
 	private readonly fallbackBaseUrl: string;
 	private readonly hasExplicitBaseUrl: boolean;
-	private readonly sessionProvider: FitatuApiClientBaseOptions["sessionProvider"];
-	private readonly currentUserProvider: FitatuApiClientBaseOptions["currentUserProvider"];
+	private readonly authClient: FitatuApiClientBaseOptions["authClient"];
+	private readonly userClient: FitatuApiClientBaseOptions["userClient"];
 
 	protected constructor(options: FitatuApiClientBaseOptions = {}) {
-		this.fallbackBaseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_FITATU_API_BASE_URL);
-		this.hasExplicitBaseUrl = Boolean(options.baseUrl);
-		this.fetchFn = options.fetchFn ?? fetch;
-		this.sessionProvider = options.sessionProvider;
-		this.currentUserProvider = options.currentUserProvider;
+		const resolvedOptions = new FitatuApiClientBaseOptions(options);
+		this.fallbackBaseUrl = normalizeBaseUrl(resolvedOptions.baseUrl ?? DEFAULT_FITATU_API_BASE_URL);
+		this.hasExplicitBaseUrl = Boolean(resolvedOptions.baseUrl);
+		this.fetchFn = resolvedOptions.fetchFn ?? fetch;
+		this.authClient = resolvedOptions.authClient;
+		this.userClient = resolvedOptions.userClient;
 	}
 
 	protected async fetchFitatuApi(options: FitatuApiRequestOptions): Promise<Response> {
 		const response = await this.fetchFitatuApiOnce(options);
 
-		if (response.status !== 401 || !this.canRefreshAuthentication()) {
+		if (response.status !== 401 || !this.canRefreshAuthentication(options)) {
 			return response;
 		}
 
-		await this.clearAuthenticationContext();
+		await this.refreshAuthenticationContext();
 		return this.fetchFitatuApiOnce(options);
 	}
 
@@ -79,31 +80,32 @@ export abstract class FitatuApiClientBase {
 	}
 
 	private async getProvidedSession(): Promise<FitatuAuthSession | undefined> {
-		if (!this.sessionProvider) {
+		if (!this.authClient) {
 			return undefined;
 		}
 
-		return this.sessionProvider.getSession();
+		return this.authClient.getSession();
 	}
 
 	private async getProvidedCurrentUser(): Promise<FitatuUserProfile | undefined> {
-		if (!this.currentUserProvider) {
+		if (!this.userClient) {
 			return undefined;
 		}
 
 		try {
-			return await this.currentUserProvider.getCurrentUser();
+			return await this.userClient.getCurrentUser();
 		} catch {
 			return undefined;
 		}
 	}
 
-	private canRefreshAuthentication(): boolean {
-		return Boolean(this.sessionProvider?.clearSession || this.currentUserProvider?.clearUserCache);
+	private canRefreshAuthentication(options: FitatuApiRequestOptions): boolean {
+		return options.allowAuthenticationRefresh !== false && Boolean(this.authClient);
 	}
 
-	private async clearAuthenticationContext(): Promise<void> {
-		await Promise.all([this.sessionProvider?.clearSession?.(), this.currentUserProvider?.clearUserCache?.()]);
+	private async refreshAuthenticationContext(): Promise<void> {
+		await this.authClient?.refreshSession();
+		await this.userClient?.clearUserCache();
 	}
 
 	private resolveBaseUrl(user?: FitatuUserProfile): string {

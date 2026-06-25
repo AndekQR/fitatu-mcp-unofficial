@@ -24,13 +24,13 @@ const DEFAULT_DETAILS_LIMIT = 3;
 
 export class FoodSearchClient extends FitatuApiClientBase {
 	public constructor(options: FoodSearchClientOptions = {}) {
-		const sessionProvider = options.sessionProvider ?? FitatuAuthClient.getInstance();
-		const userClient = options.userClient ?? FitatuUserClient.getInstance({ sessionProvider });
+		const authClient = options.authClient ?? FitatuAuthClient.getInstance();
+		const userClient = options.userClient ?? FitatuUserClient.getInstance({ authClient });
 
 		super({
 			...options,
-			sessionProvider,
-			currentUserProvider: options.currentUserProvider ?? userClient,
+			authClient,
+			userClient,
 		});
 	}
 

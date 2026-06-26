@@ -1,263 +1,198 @@
-# MCP TypeScript Template
+![Fitatu MCP Unofficial logo](./fitatu_mcp_logo.png)
 
-A TypeScript template for building remote Model Context Protocol (MCP) servers with modern tooling and best practices while leveraging
-the [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk).
+# Fitatu MCP Unofficial
+
+Unofficial Model Context Protocol (MCP) server for Fitatu. It exposes selected Fitatu account operations as typed MCP tools so an MCP client can inspect and update your own meal plan.
+
+> [!IMPORTANT]
+> This project is not affiliated with, endorsed by, or sponsored by Fitatu. Fitatu credentials and account data are sensitive. Use this server only with your own account.
 
 ## Features
 
-This template provides:
+- Streamable HTTP MCP endpoint at `/mcp`.
+- Fitatu authentication through local environment variables.
+- Safe profile and day-plan read tools.
+- Food search with product and measure identifiers for follow-up mutations.
+- Meal item add, update, move, and remove tools.
+- Docker workflow for local/private deployment.
 
-- **TypeScript** - Full TypeScript support with strict configuration
-- **Vite** - Fast build system with ES modules output
-- **Express** - Fast, unopinionated web framework for HTTP server
-- **ESLint + Prettier** - Code quality and formatting
-- **Docker** - Containerization support
-- **Example Tool** - Simple echo tool to demonstrate MCP tool implementation
+## Requirements
 
-## Getting Started
+- Node.js `>=22.18.0`
+- npm
+- A Fitatu account
 
-The easiest way to get started is using `degit`:
+## Quick Start
 
-1. **Create a new project from this template**
-
-   ```bash
-   npx degit nickytonline/mcp-typescript-template my-mcp-server
-   cd my-mcp-server
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Build the project**
-
-   ```bash
-   npm run build
-   ```
-
-4. **Start the server**
-   ```bash
-   npm start
-   ```
-
-The server will be available at `http://localhost:3000` for MCP connections.
-
-### Alternative: Using GitHub Template
-
-You can also click the "Use this template" button on GitHub to create a new repository, then clone it:
+Install dependencies:
 
 ```bash
-git clone <your-repo-url>
-cd my-mcp-server
 npm install
 ```
 
-## Configuration
-
-Runtime configuration is read from environment variables through `process.env` and validated at startup.
-
-For local development, copy the example file and fill in your own Fitatu credentials:
+Create local configuration:
 
 ```bash
 cp .env.example .env
 ```
 
-Required Fitatu variables:
-
-- `FITATU_EMAIL` - required Fitatu account email address. Sensitive.
-- `FITATU_PASSWORD` - required Fitatu account password. Sensitive.
-
-Do not commit `.env`. The repository keeps `.env.example` as documentation only.
-
-Fitatu credentials are runtime secrets. Do not access them through `import.meta.env` or expose them in MCP responses, logs, tests, or fixtures.
-
-## Development
-
-### Watch mode for development (with hot reloading)
+Fill in `FITATU_EMAIL` and `FITATU_PASSWORD` in `.env`, then start the development server:
 
 ```bash
 npm run dev
 ```
 
-### Build the project
+The MCP endpoint is available at:
+
+```text
+http://localhost:3000/mcp
+```
+
+## MCP Client Setup
+
+If your MCP client supports remote Streamable HTTP servers, use this endpoint directly:
+
+```text
+http://localhost:3000/mcp
+```
+
+For clients that launch MCP servers through a command, use `mcp-remote`:
+
+```json
+{
+  "mcpServers": {
+    "fitatu": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://localhost:3000/mcp"]
+    }
+  }
+}
+```
+
+When using a public tunnel, replace the local URL with the tunnel URL and keep the `/mcp` path.
+
+## Available Tools
+
+| Tool | Purpose | Mutates Fitatu data |
+| --- | --- | --- |
+| `get_current_user` | Returns a safe subset of the authenticated Fitatu user profile. | No |
+| `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date. | No |
+| `search_food` | Searches Fitatu food catalogs for product, recipe, and measure identifiers. | No |
+| `add_meal_items` | Adds one or more products or recipes to a meal. | Yes |
+| `update_meal_item` | Updates quantity, measure, or eaten state for an existing meal item. | Yes |
+| `move_meal_item` | Moves a meal item to another meal, date, or both. | Yes |
+| `remove_meal_item` | Removes an existing meal item. | Yes |
+
+Typical workflow:
+
+1. Call `get_day_plan_items` to inspect available `mealKey` and `itemId` values.
+2. Call `search_food` to find a matching `productId`, `foodId`, `foodType`, and `measureId`.
+3. Call a mutation tool such as `add_meal_items`, `update_meal_item`, `move_meal_item`, or `remove_meal_item`.
+4. Call `get_day_plan_items` again to verify the final state.
+
+Fitatu applies some mutations asynchronously, so a very fast follow-up read may briefly return the previous state.
+
+## Configuration
+
+Runtime configuration is read from environment variables and validated at startup.
+
+| Variable | Required | Default | Sensitive | Description |
+| --- | --- | --- | --- | --- |
+| `FITATU_EMAIL` | Yes | none | Yes | Fitatu account email address. |
+| `FITATU_PASSWORD` | Yes | none | Yes | Fitatu account password. |
+| `PORT` | No | `3000` | No | HTTP server port. |
+| `NODE_ENV` | No | `development` | No | `development`, `production`, or `test`. |
+| `SERVER_NAME` | No | `fitatu-mcp` | No | MCP server name. |
+| `SERVER_VERSION` | No | `1.0.0` | No | MCP server version. |
+| `LOG_LEVEL` | No | `info` | No | `error`, `warn`, `info`, or `debug`. |
+
+Do not commit `.env`. The repository keeps `.env.example` as documentation only.
+
+## Local Development
+
+Start the server in watch mode:
+
+```bash
+npm run dev
+```
+
+Build the project:
 
 ```bash
 npm run build
 ```
 
-### Linting
+Start the built server:
 
-- Lint the project
+```bash
+npm start
+```
+
+Run quality checks:
 
 ```bash
 npm run lint
-```
-
-- Fix all auto-fixable lint errors
-
-```bash
-npm run lint:fix
-```
-
-### Formatting
-
-- Format files in the project
-
-```bash
-npm run format
-```
-
-- Check formatting
-
-```bash
 npm run format:check
+npm run test:ci
+npm run build
 ```
 
-## Testing Your MCP Server
-
-You can test your MCP server using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
-
-```bash
-npx @modelcontextprotocol/inspector
-```
-
-This will launch a web interface that allows you to:
-
-- Connect to your MCP server
-- Test your tools interactively
-- View request/response messages
-- Debug your MCP implementation
-
-Make sure your server is running (using `npm start` or `npm run dev`) before connecting with the inspector.
-
-## Available Tools
-
-### search_food
-
-Searches Fitatu food catalogs and returns product ids, measure ids, default weights, kcal, and available measures. Use this before
-`add_meal_items` when you need a `foodId`/`productId` and `measureId`.
-Fields without values and empty arrays are omitted from the MCP response instead of being returned as `null` or `[]`.
-
-The response groups candidates by input query in `results[]`. For each group, inspect `items` before searching again. Compare `displayName`/`name`, `brand`,
-`source`, `matchScore`, `verified`, `kcal`, the default `measureId`/`measureName`/`weightG`, and
-`measures[].measureId`/`measureName`/`weightG`/`energyKcal`. Choose the candidate whose name, brand, weight, kcal, and measure best match that query and the
-requested portion. Next, call `add_meal_items` with the selected `foodId` or `productId`, `foodType` when present, and the most appropriate `measureId`; use
-a measure from `measures[]` when the default measure is unsuitable.
-
-**Parameters:**
-
-- `queries` - required non-empty list of food phrases. Use one element for a single product, for example `["banan"]`.
-- `locale` - optional search locale. Defaults to `pl_PL`.
-- `limit` - optional result limit from 1 to 50. Defaults to `3`.
-- `includeUserFood` - optional flag for the authenticated user's catalog. Defaults to `true`.
-- `includePublicFood` - optional flag for the public catalog. Defaults to `true`.
-- `includeDetails` - optional flag to enrich top results with product or recipe detail measures. Defaults to `false`.
-- `detailsLimit` - optional number of results to enrich from 0 to 50. Defaults to `3`.
-
-When `includeDetails` is enabled, the client tries available product and recipe detail endpoints and returns safe warnings if detail enrichment fails.
-
-## Customizing Your MCP Server
-
-1. **Update package.json** - Change name, description, and keywords
-2. **Modify src/index.ts** - Replace the echo tool with your custom tools
-3. **Add your logic** - Create additional TypeScript files for your business logic
-4. **Update README** - Document your specific MCP server functionality
+Integration tests require valid Fitatu credentials in `.env` and may read or mutate data in the authenticated account.
 
 ## Docker
 
-Build and run using Docker:
-
-- Build the Docker image
+Create `.env` before building the image:
 
 ```bash
-docker build -t my-mcp-server .
+cp .env.example .env
 ```
 
-- Run the container
+Fill in your Fitatu credentials in `.env`.
+
+Build the Docker image:
 
 ```bash
-docker run -p 3000:3000 my-mcp-server
+docker build -t fitatu-mcp .
 ```
 
-### Docker Compose
+The build copies `.env` into the image so the server can read it at runtime. Treat the built image as sensitive. Do not push it to a public registry or share it with other people.
 
-```yaml
-# docker-compose.yml
-version: "3.8"
-services:
-  mcp-server:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-```
+Run the container:
 
 ```bash
-docker-compose up --build
+docker run --name fitatu-mcp -p 3000:3000 fitatu-mcp
 ```
 
-## Project Structure
+If a container with that name already exists, recreate it:
 
-```
-mcp-typescript-template/
-├── src/
-│   └── index.ts          # Main MCP server entry point
-├── dist/                 # Built output (generated)
-├── .eslintrc.js         # ESLint configuration
-├── .prettierrc          # Prettier configuration
-├── tsconfig.json        # TypeScript configuration
-├── vite.config.ts       # Vite build configuration
-├── Dockerfile           # Docker configuration
-└── package.json         # Dependencies and scripts
+```bash
+docker stop fitatu-mcp
+docker rm fitatu-mcp
+docker run --name fitatu-mcp -p 3000:3000 fitatu-mcp
 ```
 
-## Architecture
+## Exposing a Local Server with Cloudflare Tunnel
 
-This template follows a simple architecture:
+When the server is running locally on port `3000`, expose it through a temporary Cloudflare Tunnel:
 
-- **HTTP Transport** - Uses Express with StreamableHTTPServerTransport for remote MCP connections
-- **Tool Registration** - Tools are registered with JSON schemas for input validation
-- **Error Handling** - Proper MCP-formatted error responses
-- **Session Management** - Handles MCP session initialization and management
-
-## Example: Adding a New Tool
-
-```typescript
-import { createTextResult } from "./lib/utils.js";
-
-server.registerTool(
-  "my_tool",
-  {
-    title: "My Custom Tool",
-    description: "Description of what this tool does",
-    inputSchema: {
-      param1: z.string().describe("Description of param1"),
-      param2: z.number().optional().describe("Optional parameter"),
-    },
-  },
-  async (args) => {
-    // Your tool logic here
-    const result = await myCustomLogic(args.param1, args.param2);
-
-    return createTextResult(result);
-  },
-);
+```bash
+cloudflared tunnel --url http://localhost:3000
 ```
 
-## Why Express?
+Cloudflare will print a public tunnel URL. Use that URL with the `/mcp` path as the MCP endpoint.
 
-This template uses Express for the HTTP server, which provides:
+## Security Notes
 
-- **MCP SDK Compatibility** - Full compatibility with the MCP TypeScript SDK's StreamableHTTPServerTransport
-- **Mature & Stable** - Battle-tested HTTP server with extensive ecosystem
-- **TypeScript Support** - Excellent TypeScript support with comprehensive type definitions
-- **Middleware Ecosystem** - Rich ecosystem of middleware for common tasks
-- **Documentation** - Comprehensive documentation and community support
-- **Reliability** - Proven reliability for production applications
+- Use this server only with your own Fitatu account.
+- Do not commit Fitatu credentials, tokens, cookies, account identifiers, nutrition logs, body measurements, or profile data.
+- Do not expose full upstream Fitatu responses in issues, logs, tests, fixtures, or MCP responses.
+- Captured HTTP traffic should be used only for legitimate work with your own account and your own network traffic.
+- Review mutation tool calls carefully before allowing an MCP client to execute them.
 
-## Repository Guidelines
+## Contributing
 
-Contributors should review `AGENTS.md` for project structure, coding standards, and pull request expectations before opening changes.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).

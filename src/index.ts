@@ -90,7 +90,7 @@ const mcpHandler = async (req: express.Request, res: express.Response) => {
 			res.json({
 				name: config.SERVER_NAME,
 				version: config.SERVER_VERSION,
-				description: "TypeScript template for building MCP servers",
+				description: "Unofficial Model Context Protocol server for Fitatu",
 				capabilities: ["tools"],
 			});
 		}
@@ -130,7 +130,7 @@ async function main() {
 				serverName: config.SERVER_NAME,
 				version: config.SERVER_VERSION,
 			},
-			`MCP TypeScript Template Server running on port ${config.PORT}`,
+			`Fitatu MCP Unofficial server running on port ${config.PORT}`,
 		);
 	});
 }

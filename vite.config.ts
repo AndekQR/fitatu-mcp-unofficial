@@ -6,7 +6,7 @@ export default defineConfig(({ command }) => ({
 	build: {
 		lib: {
 			entry: resolve(__dirname, "src/index.ts"),
-			name: "MCPTypescriptTemplate",
+			name: "FitatuMcpUnofficial",
 			fileName: "index",
 			formats: ["es"],
 		},

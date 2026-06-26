@@ -145,7 +145,6 @@ vite.config.ts.timestamp-*
 .claude/
 
 /.idea/*
-/.github/*
 /docs/*
 /test-results.json
 /tmp/*

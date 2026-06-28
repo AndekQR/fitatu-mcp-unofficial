@@ -9,61 +9,29 @@ export const mealItemInputSchema = z.object({
 	foodId: idSchema
 		.optional()
 		.describe("Fitatu food id returned by search_food. Provide foodId or productId for product items."),
-	food_id: idSchema
-		.optional()
-		.describe("Snake_case alias for foodId. Prefer foodId unless the caller already uses snake_case."),
 	productId: idSchema
 		.optional()
 		.describe("Fitatu product id returned by search_food. This is usually the same value as foodId."),
-	product_id: idSchema
-		.optional()
-		.describe("Snake_case alias for productId. Prefer productId unless the caller already uses snake_case."),
 	recipeId: idSchema.optional().describe("Fitatu recipe id when adding a recipe instead of a product."),
-	recipe_id: idSchema
-		.optional()
-		.describe("Snake_case alias for recipeId. Prefer recipeId unless the caller already uses snake_case."),
 	foodType: z
 		.string()
 		.min(1)
 		.optional()
 		.describe("Fitatu food type returned by search_food, for example PRODUCT or CUSTOM_ITEM."),
-	food_type: z
-		.string()
-		.min(1)
-		.optional()
-		.describe("Snake_case alias for foodType. Prefer foodType unless the caller already uses snake_case."),
 	measureId: idSchema
 		.optional()
 		.describe("Measure id to use for this item. Prefer a measureId returned by search_food."),
-	measure_id: idSchema
-		.optional()
-		.describe("Snake_case alias for measureId. Prefer measureId unless the caller already uses snake_case."),
 	measureQuantity: z
 		.number()
 		.positive()
 		.optional()
 		.describe("Positive quantity of the selected measure to add, for example 1 for one serving."),
-	measure_quantity: z
-		.number()
-		.positive()
-		.optional()
-		.describe(
-			"Snake_case alias for measureQuantity. Prefer measureQuantity unless the caller already uses snake_case.",
-		),
 	ingredientsServing: z
 		.number()
 		.positive()
 		.nullable()
 		.optional()
 		.describe("Optional positive recipe serving multiplier. Use null or omit for ordinary products."),
-	ingredients_serving: z
-		.number()
-		.positive()
-		.nullable()
-		.optional()
-		.describe(
-			"Snake_case alias for ingredientsServing. Prefer ingredientsServing unless the caller already uses snake_case.",
-		),
 	eaten: z.boolean().optional().describe("Whether Fitatu should mark the added item as eaten."),
 });
 
@@ -120,13 +88,13 @@ export const itemKindSchema = z
 
 export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): MealItemInput {
 	return {
-		foodId: input.foodId ?? input.food_id,
-		productId: input.productId ?? input.product_id,
-		recipeId: input.recipeId ?? input.recipe_id,
-		foodType: input.foodType ?? input.food_type,
-		measureId: input.measureId ?? input.measure_id,
-		measureQuantity: input.measureQuantity ?? input.measure_quantity,
-		ingredientsServing: input.ingredientsServing ?? input.ingredients_serving,
+		foodId: input.foodId,
+		productId: input.productId,
+		recipeId: input.recipeId,
+		foodType: input.foodType,
+		measureId: input.measureId,
+		measureQuantity: input.measureQuantity,
+		ingredientsServing: input.ingredientsServing,
 		eaten: input.eaten,
 	};
 }

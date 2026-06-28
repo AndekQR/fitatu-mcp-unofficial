@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
 import { CurrentUserService } from "../../services/currentUser/CurrentUserService.ts";
-import type { FitatuUserProfile } from "../../services/currentUser/CurrentUserTypes.ts";
+import type { FitatuUserProfile } from "../../api/users/FitatuUserProfile.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
 const optionalString = z.string().optional();

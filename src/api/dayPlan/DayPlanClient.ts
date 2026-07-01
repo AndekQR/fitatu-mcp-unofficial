@@ -8,6 +8,7 @@ import type {
 	GetDayPlanOptions,
 	MoveMealItemOptions,
 	RemoveMealItemOptions,
+	RemoveMealItemsOptions,
 	UpdateMealItemOptions,
 } from "./DayPlanClientTypes.ts";
 import { normalizeDate, normalizeUserId } from "./DayPlanValidators.ts";
@@ -61,6 +62,11 @@ export class DayPlanClient extends FitatuApiClientBase {
 	public async removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
 		const userId = normalizeUserId(await this.getContextUserId(options.userId));
 		return this.mealItemMutationService.removeMealItem({ ...options, userId });
+	}
+
+	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
+		const userId = normalizeUserId(await this.getContextUserId(options.userId));
+		return this.mealItemMutationService.removeMealItems({ ...options, userId });
 	}
 
 	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {

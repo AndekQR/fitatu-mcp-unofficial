@@ -9,7 +9,7 @@ import { AddMealItemsTool } from "./tools/addMealItems/AddMealItemsTool.ts";
 import { GetCurrentUserTool } from "./tools/currentUser/GetCurrentUserTool.ts";
 import { GetDayPlanItemsTool } from "./tools/dayPlanItems/GetDayPlanItemsTool.ts";
 import { MoveMealItemTool } from "./tools/mealItems/MoveMealItemTool.ts";
-import { RemoveMealItemTool } from "./tools/mealItems/RemoveMealItemTool.ts";
+import { RemoveMealItemsTool } from "./tools/mealItems/RemoveMealItemsTool.ts";
 import { UpdateMealItemTool } from "./tools/mealItems/UpdateMealItemTool.ts";
 import { SearchFoodTool } from "./tools/searchFood/SearchFoodTool.ts";
 import { ApplicationServices } from "./services/ApplicationServices.ts";
@@ -28,7 +28,7 @@ const getServer = () => {
 	new SearchFoodTool(applicationServices.foodSearchService).register(server);
 	new AddMealItemsTool(applicationServices.mealItemMutationService).register(server);
 	new UpdateMealItemTool(applicationServices.mealItemMutationService).register(server);
-	new RemoveMealItemTool(applicationServices.mealItemMutationService).register(server);
+	new RemoveMealItemsTool(applicationServices.mealItemMutationService).register(server);
 	new MoveMealItemTool(applicationServices.mealItemMutationService).register(server);
 
 	return server;

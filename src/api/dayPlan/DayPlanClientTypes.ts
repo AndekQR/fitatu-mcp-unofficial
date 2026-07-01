@@ -31,6 +31,12 @@ export interface RemoveMealItemOptions {
 	readonly userId?: string;
 }
 
+export interface RemoveMealItemsOptions {
+	readonly date: string;
+	readonly productIds: readonly (string | number)[];
+	readonly userId?: string;
+}
+
 export interface MoveMealItemOptions {
 	readonly fromDate: string;
 	readonly fromMealKey: string;

@@ -81,13 +81,13 @@ When using a public tunnel, replace the local URL with the tunnel URL and keep t
 | `add_meal_items` | Adds one or more products or recipes to a meal. | Yes |
 | `update_meal_item` | Updates quantity, measure, or eaten state for an existing meal item. | Yes |
 | `move_meal_item` | Moves a meal item to another meal, date, or both. | Yes |
-| `remove_meal_item` | Removes an existing meal item. | Yes |
+| `remove_meal_items` | Removes active product meal items by `productIds` across the whole day. | Yes |
 
 Typical workflow:
 
-1. Call `get_day_plan_items` to inspect available `mealKey` and `itemId` values.
+1. Call `get_day_plan_items` to inspect available meals, items, and `productId` values.
 2. Call `search_food` to find a matching `productId`, `foodId`, `foodType`, and `measureId`.
-3. Call a mutation tool such as `add_meal_items`, `update_meal_item`, `move_meal_item`, or `remove_meal_item`.
+3. Call a mutation tool such as `add_meal_items`, `update_meal_item`, `move_meal_item`, or `remove_meal_items`.
 4. Call `get_day_plan_items` again to verify the final state.
 
 Fitatu applies some mutations asynchronously, so a very fast follow-up read may briefly return the previous state.

@@ -3,6 +3,7 @@ import type {
 	AddMealItemsOptions,
 	MoveMealItemOptions,
 	RemoveMealItemOptions,
+	RemoveMealItemsOptions,
 	UpdateMealItemOptions,
 } from "../../api/dayPlan/DayPlanClientTypes.ts";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutation.ts";
@@ -24,6 +25,10 @@ export class MealItemMutationService {
 
 	public removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
 		return this.dayPlanClient.removeMealItem(options);
+	}
+
+	public removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
+		return this.dayPlanClient.removeMealItems(options);
 	}
 
 	public moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {

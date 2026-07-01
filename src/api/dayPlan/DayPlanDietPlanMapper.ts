@@ -48,6 +48,42 @@ export function findItemInDietPlan(
 	return null;
 }
 
+export function findActiveProductItemsInDietPlan(
+	dietPlan: Record<string, unknown>,
+	productIds: ReadonlySet<string>,
+): readonly FoundDietItem[] {
+	const found: FoundDietItem[] = [];
+
+	for (const key of Object.keys(dietPlan)) {
+		const meal = dietPlan[key];
+		if (!isRecord(meal)) {
+			continue;
+		}
+
+		const items = getMealItems(dietPlan, key);
+		items.forEach((item, index) => {
+			const productId = item.productId;
+			const foodType = String(item.foodType ?? "")
+				.trim()
+				.toUpperCase();
+			const deletedAt = typeof item.deletedAt === "string" ? item.deletedAt.trim() : "";
+
+			if (deletedAt || foodType !== "PRODUCT" || !productIds.has(String(productId ?? ""))) {
+				return;
+			}
+
+			found.push({
+				mealKey: key,
+				item,
+				items,
+				index,
+			});
+		});
+	}
+
+	return found;
+}
+
 export function resolveItemKind(item: Record<string, unknown>): Exclude<MealItemKind, "auto"> {
 	const foodType = String(item.foodType ?? "")
 		.trim()

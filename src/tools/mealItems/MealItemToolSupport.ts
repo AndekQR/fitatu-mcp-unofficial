@@ -38,7 +38,7 @@ export const mealItemInputSchema = z.object({
 export const mealItemMutationOutputSchema = {
 	status: z
 		.literal("accepted")
-		.describe("Mutation request status. Accepted means Fitatu accepted the asynchronous change."),
+		.describe("Mutation request status. Accepted means the requested mutation completed according to the tool contract."),
 	operation: z.enum(["add", "update", "remove", "move"]).describe("Meal item mutation operation that was requested."),
 	message: z.string().describe("Human-readable summary of the mutation result."),
 	targetDate: z

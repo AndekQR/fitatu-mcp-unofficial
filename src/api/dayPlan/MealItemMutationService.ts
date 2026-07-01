@@ -1,5 +1,6 @@
 import {
 	createDeletedItemMarker,
+	findActiveProductItemsInDietPlan,
 	findItemInDietPlan,
 	getMealItems,
 	resolveItemKind,
@@ -12,6 +13,7 @@ import type {
 	AddMealItemsOptions,
 	MoveMealItemOptions,
 	RemoveMealItemOptions,
+	RemoveMealItemsOptions,
 	UpdateMealItemOptions,
 } from "./DayPlanClientTypes.ts";
 import {
@@ -168,6 +170,53 @@ export class MealItemMutationService {
 		};
 	}
 
+	public async removeMealItems(
+		options: RemoveMealItemsOptions & { readonly userId: string },
+	): Promise<MealItemMutationResult> {
+		const date = normalizeDate(options.date);
+		const productIds = normalizeProductIds(options.productIds);
+		const dayPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, date);
+		const targets = findActiveProductItemsInDietPlan(dayPayload.dietPlan, productIds);
+
+		if (targets.length === 0) {
+			throw new DayPlanError("Meal item not found");
+		}
+
+		const deletedAt = nowTimestamp();
+		for (const target of targets) {
+			target.item.deletedAt = deletedAt;
+			target.item.updatedAt = deletedAt;
+			target.item.measureQuantity = 0.01;
+		}
+
+		await this.dayPlanSyncService.syncSingleDay(options.userId, date, dayPayload);
+
+		const acceptedItems = targets.map((target, index) =>
+			toOperationSummary({
+				index,
+				item: target.item,
+				itemId: getRequiredItemId(target.item),
+				mealKey: target.mealKey,
+			}),
+		);
+
+		return {
+			status: "accepted",
+			operation: "remove",
+			message: "Meal item remove request accepted by Fitatu.",
+			targetDate: date,
+			mealKey: null,
+			operationCount: acceptedItems.length,
+			acceptedItems,
+			createdItemIds: [],
+			updatedItemIds: [],
+			deletedItemIds: acceptedItems.map((item) => item.itemId),
+			oldItemId: null,
+			newItemId: null,
+			itemIdChanged: false,
+		};
+	}
+
 	public async moveMealItem(
 		options: MoveMealItemOptions & { readonly userId: string },
 	): Promise<MealItemMutationResult> {
@@ -232,4 +281,21 @@ export class MealItemMutationService {
 			itemIdChanged: true,
 		};
 	}
+}
+
+function normalizeProductIds(productIds: readonly (string | number)[]): ReadonlySet<string> {
+	if (productIds.length === 0) {
+		throw new DayPlanError("productIds must not be empty");
+	}
+
+	return new Set(productIds.map((productId) => String(normalizeId(productId, "productId"))));
+}
+
+function getRequiredItemId(item: Record<string, unknown>): string {
+	const itemId = item.planDayDietItemId;
+	if (typeof itemId === "string" && itemId.trim()) {
+		return itemId;
+	}
+
+	throw new DayPlanError("Meal item id was not available");
 }

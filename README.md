@@ -12,6 +12,7 @@ Unofficial Model Context Protocol (MCP) server for Fitatu. It exposes selected F
 - Streamable HTTP MCP endpoint at `/mcp`.
 - Fitatu authentication through local environment variables.
 - Safe profile and day-plan read tools.
+- Diet summary tool for an inclusive date range, including period energy, key nutrients, and full nutrient details.
 - Food search with product and measure identifiers for follow-up mutations.
 - Meal item add, update, move, and remove tools.
 - Docker workflow for local/private deployment.
@@ -71,12 +72,25 @@ For clients that launch MCP servers through a command, use `mcp-remote`:
 
 When using a public tunnel, replace the local URL with the tunnel URL and keep the `/mcp` path.
 
+To test the server manually in a browser-based tool, run the MCP Inspector and connect it to the Streamable HTTP endpoint:
+
+```bash
+npx @modelcontextprotocol/inspector
+```
+
+Use this URL in the Inspector:
+
+```text
+http://localhost:3000/mcp
+```
+
 ## Available Tools
 
 | Tool | Purpose | Mutates Fitatu data |
 | --- | --- | --- |
 | `get_current_user` | Returns a safe subset of the authenticated Fitatu user profile. | No |
 | `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date. | No |
+| `get_diet_summary` | Returns an agent-friendly nutrition and energy summary for an inclusive date range. | No |
 | `search_food` | Searches Fitatu food catalogs for product, recipe, and measure identifiers. | No |
 | `add_meal_items` | Adds one or more products or recipes to a meal. | Yes |
 | `update_meal_item` | Updates quantity, measure, or eaten state for an existing meal item. | Yes |
@@ -85,12 +99,32 @@ When using a public tunnel, replace the local URL with the tunnel URL and keep t
 
 Typical workflow:
 
-1. Call `get_day_plan_items` to inspect available meals, items, and `productId` values.
-2. Call `search_food` to find a matching `productId`, `foodId`, `foodType`, and `measureId`.
-3. Call a mutation tool such as `add_meal_items`, `update_meal_item`, `move_meal_item`, or `remove_meal_items`.
-4. Call `get_day_plan_items` again to verify the final state.
+1. Call `get_diet_summary` for a date range when you need period totals, daily energy targets/measures, and nutrient status against available targets.
+2. Call `get_day_plan_items` to inspect available meals, items, and `productId` values for a specific day.
+3. Call `search_food` to find a matching `productId`, `foodId`, `foodType`, and `measureId`.
+4. Call a mutation tool such as `add_meal_items`, `update_meal_item`, `move_meal_item`, or `remove_meal_items`.
+5. Call `get_day_plan_items` or `get_diet_summary` again to verify the final state.
 
 Fitatu applies some mutations asynchronously, so a very fast follow-up read may briefly return the previous state.
+
+`get_diet_summary` uses Fitatu's period summary endpoints and returns normalized arrays rather than raw upstream response maps. Its output includes:
+
+- `period`: inclusive `fromDate`, `toDate`, and `dayCount`.
+- `energy`: total and average logged/target energy plus daily values.
+- `keyNutrients`: high-signal nutrients such as energy, protein, fat, carbohydrate, fiber, sugars, salt, water, saturated fat, and sodium when Fitatu returns them.
+- `allNutrients`: every nutrient returned by Fitatu with raw values and interpreted status.
+
+Energy `logged` values come from Fitatu's energy summary endpoint and include logged/planned items returned by that endpoint. They are not limited to food
+items whose day-plan `eaten` flag is `true`. Nutrient entries may also include Fitatu's `eaten` value when the summary endpoint returns it.
+
+Missing daily energy measures are returned as `logged: 0`, so empty days are counted as zero in period totals and averages. Missing daily targets remain
+absent from the compact MCP response; when a target exists, `remainingToTarget` is calculated as `target - logged`.
+
+Date inputs must use `YYYY-MM-DD`, must be valid calendar dates, and must use years from `0001` through `9999`. Invalid JSON schema input, such as the
+wrong type or wrong date shape, may be rejected by MCP before the tool handler runs. Business validation and upstream failures are returned as structured
+tool errors with `status: "error"` and `isError: true`, without exposing tokens, stack traces, or raw personal upstream payloads.
+
+Nutrient status treats `null` or a missing value as `noValue`. Numeric zero from Fitatu is treated as a real upstream value, including for `water`.
 
 ## Configuration
 

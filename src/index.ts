@@ -8,6 +8,7 @@ import { getConfig } from "./config.ts";
 import { AddMealItemsTool } from "./tools/addMealItems/AddMealItemsTool.ts";
 import { GetCurrentUserTool } from "./tools/currentUser/GetCurrentUserTool.ts";
 import { GetDayPlanItemsTool } from "./tools/dayPlanItems/GetDayPlanItemsTool.ts";
+import { GetDietSummaryTool } from "./tools/dietSummary/GetDietSummaryTool.ts";
 import { MoveMealItemTool } from "./tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "./tools/mealItems/RemoveMealItemsTool.ts";
 import { UpdateMealItemTool } from "./tools/mealItems/UpdateMealItemTool.ts";
@@ -25,6 +26,7 @@ const getServer = () => {
 
 	new GetCurrentUserTool(applicationServices.currentUserService).register(server);
 	new GetDayPlanItemsTool(applicationServices.dayPlanQueryService).register(server);
+	new GetDietSummaryTool(applicationServices.dietSummaryService).register(server);
 	new SearchFoodTool(applicationServices.foodSearchService).register(server);
 	new AddMealItemsTool(applicationServices.mealItemMutationService).register(server);
 	new UpdateMealItemTool(applicationServices.mealItemMutationService).register(server);

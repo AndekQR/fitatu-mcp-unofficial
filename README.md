@@ -99,32 +99,14 @@ http://localhost:3000/mcp
 
 Typical workflow:
 
-1. Call `get_diet_summary` for a date range when you need period totals, daily energy targets/measures, and nutrient status against available targets.
-2. Call `get_day_plan_items` to inspect available meals, items, and `productId` values for a specific day.
-3. Call `search_food` to find a matching `productId`, `foodId`, `foodType`, and `measureId`.
-4. Call a mutation tool such as `add_meal_items`, `update_meal_item`, `move_meal_item`, or `remove_meal_items`.
-5. Call `get_day_plan_items` or `get_diet_summary` again to verify the final state.
+1. Call `get_day_plan_items` to inspect available meals, items, and `productId` values for a specific day.
+2. Call `search_food` to find a matching `productId`, `foodId`, `foodType`, and `measureId`.
+3. Call a mutation tool such as `add_meal_items`, `update_meal_item`, `move_meal_item`, or `remove_meal_items`.
+4. Call `get_day_plan_items` again to verify the final state.
+
+An agent may also use `get_diet_summary` to fetch periodic diet data and track nutrition over time.
 
 Fitatu applies some mutations asynchronously, so a very fast follow-up read may briefly return the previous state.
-
-`get_diet_summary` uses Fitatu's period summary endpoints and returns normalized arrays rather than raw upstream response maps. Its output includes:
-
-- `period`: inclusive `fromDate`, `toDate`, and `dayCount`.
-- `energy`: total and average logged/target energy plus daily values.
-- `keyNutrients`: high-signal nutrients such as energy, protein, fat, carbohydrate, fiber, sugars, salt, water, saturated fat, and sodium when Fitatu returns them.
-- `allNutrients`: every nutrient returned by Fitatu with raw values and interpreted status.
-
-Energy `logged` values come from Fitatu's energy summary endpoint and include logged/planned items returned by that endpoint. They are not limited to food
-items whose day-plan `eaten` flag is `true`. Nutrient entries may also include Fitatu's `eaten` value when the summary endpoint returns it.
-
-Missing daily energy measures are returned as `logged: 0`, so empty days are counted as zero in period totals and averages. Missing daily targets remain
-absent from the compact MCP response; when a target exists, `remainingToTarget` is calculated as `target - logged`.
-
-Date inputs must use `YYYY-MM-DD`, must be valid calendar dates, and must use years from `0001` through `9999`. Invalid JSON schema input, such as the
-wrong type or wrong date shape, may be rejected by MCP before the tool handler runs. Business validation and upstream failures are returned as structured
-tool errors with `status: "error"` and `isError: true`, without exposing tokens, stack traces, or raw personal upstream payloads.
-
-Nutrient status treats `null` or a missing value as `noValue`. Numeric zero from Fitatu is treated as a real upstream value, including for `water`.
 
 ## Configuration
 

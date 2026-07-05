@@ -8,6 +8,7 @@
 	"scripts": {
 		"build": "vite build",
 		"dev": "node --env-file=.env --watch src/index.ts | pino-pretty",
+		"inspector": "npx @modelcontextprotocol/inspector",
 		"start": "node --env-file=.env dist/index.js",
 		"test": "vitest",
 		"test:integration": "node --env-file=.env ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",

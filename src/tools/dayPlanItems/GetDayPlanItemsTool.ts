@@ -48,7 +48,6 @@ const dayPlanOutputSchema = {
 		.array(
 			z.object({
 				mealKey: z.string().describe("Fitatu meal key used by add, update, remove, and move meal item tools."),
-				mealName: z.string().optional().describe("Human-readable meal name, when available."),
 				mealTime: z.string().optional().describe("Meal time configured in Fitatu, when available."),
 				items: z
 					.array(dayPlanItemSchema)
@@ -74,12 +73,13 @@ export class GetDayPlanItemsTool {
 			{
 				title: "Get Fitatu Day Plan Items",
 				description:
-					"Fetches the authenticated Fitatu user's day plan meals and added food items for a YYYY-MM-DD date.",
+					"Fetches the authenticated Fitatu user's day plan meals and added food items for a YYYY-MM-DD date. Defaults to today's local date when omitted.",
 				inputSchema: {
 					date: z
 						.string()
 						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
-						.describe("Day to fetch in YYYY-MM-DD format."),
+						.optional()
+						.describe("Day to fetch in YYYY-MM-DD format. Defaults to today's local date when omitted."),
 					withRating: z
 						.boolean()
 						.default(false)
@@ -97,12 +97,16 @@ export class GetDayPlanItemsTool {
 			async ({ date, withRating }) => {
 				try {
 					const dayPlan = await this.dayPlanQueryService.getDayPlan({
-						date,
+						date: date ?? localDateString(),
 						withRating: withRating === true,
 					});
 					return createTextResult({
 						date: dayPlan.date,
-						meals: dayPlan.meals,
+						meals: dayPlan.meals.map((meal) => ({
+							mealKey: meal.mealKey,
+							mealTime: meal.mealTime,
+							items: meal.items,
+						})),
 					});
 				} catch (error) {
 					return createToolErrorResult(this.name, "Unable to fetch Fitatu day plan items.", error);
@@ -110,4 +114,12 @@ export class GetDayPlanItemsTool {
 			},
 		);
 	}
+}
+
+function localDateString(): string {
+	const now = new Date();
+	const year = now.getFullYear();
+	const month = String(now.getMonth() + 1).padStart(2, "0");
+	const day = String(now.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
 }

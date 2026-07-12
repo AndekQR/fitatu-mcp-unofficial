@@ -19,6 +19,7 @@ export default defineConfig({
 					},
 				}
 			: {
+					setupFiles: ["./tests/unit/setup.ts"],
 					exclude: ["tests/integration/**", "node_modules/**", "dist/**"],
 				}),
 	},

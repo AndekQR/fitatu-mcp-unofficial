@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MealItemMutationService } from "../../src/api/dayPlan/MealItemMutationService.ts";
-import type { DaySyncPayload, DayPlanSyncService } from "../../src/api/dayPlan/DayPlanSyncService.ts";
+import { MealItemMutationService } from "../../../../src/api/dayPlan/MealItemMutationService.ts";
+import type { DaySyncPayload, DayPlanSyncService } from "../../../../src/api/dayPlan/DayPlanSyncService.ts";
 
 describe("MealItemMutationService.removeMealItems", () => {
 	it("removes multiple product items across meals in a single day sync", async () => {

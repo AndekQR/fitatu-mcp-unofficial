@@ -42,8 +42,9 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 	}
 
 	public async refreshSession(): Promise<FitatuAuthSession> {
-		const refreshToken = nonEmptyString(this.session?.refreshToken);
-		if (!refreshToken) {
+		const previousSession = this.session;
+		const refreshToken = nonEmptyString(previousSession?.refreshToken);
+		if (!previousSession || !refreshToken) {
 			this.clearSession();
 			throw new FitatuAuthError("Fitatu refresh token is missing");
 		}
@@ -63,7 +64,7 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 			}
 
 			try {
-				this.session = FitatuRefreshResponseData.fromApiResponse(await response.json()).toSession(this.session);
+				this.session = FitatuRefreshResponseData.fromApiResponse(await response.json()).toSession(previousSession);
 				return this.session;
 			} catch (error) {
 				this.clearSession();

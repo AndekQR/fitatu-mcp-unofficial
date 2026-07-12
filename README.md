@@ -99,9 +99,9 @@ http://localhost:3000/mcp
 
 Typical workflow:
 
-1. Call `get_day_plan_items` to inspect available meals, items, and `productId` values for a specific day.
+1. Call `get_day_plan_items` to inspect available meals, items, and canonical string `productId` values for a specific day.
 2. Call `search_food` to find a matching `foodId`, `foodType`, and `measureId`.
-3. Call `add_meal_items` with the canonical `foodId` and `measureId` strings (plus `foodType` when available), or use another mutation tool such as `update_meal_item`, `move_meal_item`, or `remove_meal_items`.
+3. Call `add_meal_items` with the canonical `foodId` and `measureId` strings (plus `foodType` when available), or use another mutation tool. Pass `productId` strings from `get_day_plan_items` directly to `remove_meal_items.productIds`.
 4. Call `get_day_plan_items` again to verify the final state.
 
 An agent may also use `get_diet_summary` to fetch periodic diet data and track nutrition over time.

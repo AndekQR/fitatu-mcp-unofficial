@@ -4,8 +4,6 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import { MealItemMutationService } from "../../services/dayPlan/MealItemMutationService.ts";
 import { createSafeMealItemErrorResult, mealItemMutationOutputSchema } from "./MealItemToolSupport.ts";
 
-const idSchema = z.union([z.string().min(1), z.number().finite()]);
-
 export class RemoveMealItemsTool {
 	public readonly name = "remove_meal_items";
 
@@ -21,17 +19,17 @@ export class RemoveMealItemsTool {
 			{
 				title: "Remove Fitatu Meal Items",
 				description:
-					"Removes all active PRODUCT meal items matching one or more productIds from a YYYY-MM-DD date. This is destructive. The items are removed in one Fitatu day sync; accepted means Fitatu accepted the sync request.",
+					"Removes all active PRODUCT meal items matching one or more productIds from a YYYY-MM-DD date. Copy productId strings from get_day_plan_items. This is destructive. The items are removed in one Fitatu day sync; accepted means Fitatu accepted the sync request.",
 				inputSchema: {
 					date: z
 						.string()
 						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
 						.describe("Day containing the products to remove, in YYYY-MM-DD format."),
 					productIds: z
-						.array(idSchema)
+						.array(z.string().min(1))
 						.min(1)
 						.describe(
-							"One or more Fitatu product ids to remove from the whole day. All active occurrences of each productId are removed.",
+							"One or more Fitatu product id strings copied from get_day_plan_items. All active occurrences of each productId are removed from the whole day.",
 						),
 				},
 				outputSchema: mealItemMutationOutputSchema,

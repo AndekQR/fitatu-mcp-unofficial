@@ -100,9 +100,9 @@ async function waitForItem(date: string, mealKey: string, itemId: string): Promi
 	throw new Error(`Meal item ${itemId} did not appear in ${mealKey} on ${date}`);
 }
 
-function requireFoodId(value: string | number | undefined): string | number {
-	if (value === undefined) {
-		throw new Error("Expected test meal item to define foodId");
+function requireFoodId(value: string | number | undefined): string {
+	if (typeof value !== "string") {
+		throw new Error("Expected test meal item to define foodId as a string");
 	}
 
 	return value;

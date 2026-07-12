@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
 import { DayPlanQueryService } from "../../services/dayPlan/DayPlanQueryService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
 
 const dayPlanItemSchema = z.object({
 	itemId: z
@@ -15,9 +16,9 @@ const dayPlanItemSchema = z.object({
 		.optional()
 		.describe("Fitatu food type for the item, for example PRODUCT or CUSTOM_ITEM, when available."),
 	productId: z
-		.union([z.number(), z.string()])
+		.string()
 		.optional()
-		.describe("Fitatu product id for product items, when applicable."),
+		.describe("Fitatu product id string to pass to remove_meal_items, when applicable."),
 	recipeId: z
 		.union([z.number(), z.string()])
 		.optional()
@@ -73,7 +74,7 @@ export class GetDayPlanItemsTool {
 			{
 				title: "Get Fitatu Day Plan Items",
 				description:
-					"Fetches the authenticated Fitatu user's day plan meals and added food items for a YYYY-MM-DD date. Defaults to today's local date when omitted.",
+					"Fetches the authenticated Fitatu user's day plan meals and added food items for a YYYY-MM-DD date. Product items include productId strings that can be passed directly to remove_meal_items. Defaults to today's local date when omitted.",
 				inputSchema: {
 					date: z
 						.string()
@@ -105,7 +106,7 @@ export class GetDayPlanItemsTool {
 						meals: dayPlan.meals.map((meal) => ({
 							mealKey: meal.mealKey,
 							mealTime: meal.mealTime,
-							items: meal.items,
+							items: meal.items.map(toDayPlanItemForMcp),
 						})),
 					});
 				} catch (error) {
@@ -114,6 +115,11 @@ export class GetDayPlanItemsTool {
 			},
 		);
 	}
+}
+
+function toDayPlanItemForMcp(item: DayPlanItem): Omit<DayPlanItem, "productId"> & { productId?: string } {
+	const { productId, ...otherFields } = item;
+	return productId === null ? otherFields : { ...otherFields, productId: String(productId) };
 }
 
 function localDateString(): string {

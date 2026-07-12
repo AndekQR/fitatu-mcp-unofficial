@@ -149,3 +149,5 @@ vite.config.ts.timestamp-*
 /test-results.json
 /tmp/*
 /PYTHON_REFERENCE_ENDPOINTS.md
+/.agents/*
+/skills-lock.json

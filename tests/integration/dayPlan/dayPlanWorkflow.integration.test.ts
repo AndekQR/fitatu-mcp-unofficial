@@ -32,21 +32,21 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			mealKey: sourceMealKey,
 			items: [
 				{
-					productId: products.fallbackProduct.productId,
+					foodId: products.fallbackProduct.productId,
 					foodType: products.fallbackProduct.foodType,
 					measureId: products.fallbackProduct.measure.measureId,
 					measureQuantity: 1,
 					eaten: false,
 				},
 				{
-					productId: products.gramProduct.productId,
+					foodId: products.gramProduct.productId,
 					foodType: products.gramProduct.foodType,
 					measureId: products.gramProduct.measure.measureId,
 					measureQuantity: 100,
 					eaten: false,
 				},
 				{
-					productId: products.packageProduct.productId,
+					foodId: products.packageProduct.productId,
 					foodType: products.packageProduct.foodType,
 					measureId: products.packageProduct.measure.measureId,
 					measureQuantity: 2,

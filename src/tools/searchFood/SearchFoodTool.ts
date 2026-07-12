@@ -60,10 +60,10 @@ const foodSearchOutputSchema = {
 							source: z.enum(["public", "user"]).describe("Fitatu catalog source for this candidate."),
 							foodId: z
 								.string()
-								.describe("Food id to pass to add_meal_items. Usually the same as productId."),
+								.describe("Canonical food id to pass to add_meal_items for products and recipes."),
 							productId: z
 								.string()
-								.describe("Product id to pass to add_meal_items. Usually the same as foodId."),
+								.describe("Fitatu product id retained for product inspection and other operations."),
 							foodType: z
 								.string()
 								.optional()
@@ -170,7 +170,7 @@ export class SearchFoodTool {
 			{
 				title: "Search Fitatu Food",
 				description:
-					"Searches Fitatu food catalogs for product ids and measure ids. Provide one precise query per desired product; use a single-element queries array for one product. Results are grouped by input query and default to 3 candidates per query per source to keep responses compact. For each result group, compare displayName/name, brand, source, matchScore, verified, kcal, default measureId/measureName/weightG, and measures[].measureId/measureName/weightG/energyKcal. Choose the candidate whose name, brand, weight, kcal, and measure best match that query and the user's requested portion. Next action: call add_meal_items with the selected foodId or productId, foodType when present, and the most appropriate measureId; use a measure from measures[] when the default measure is unsuitable. Only run follow-up searches for products that remain unresolved, using improved or simplified query text.",
+					"Searches Fitatu food catalogs for food ids and measure ids. Provide one precise query per desired product; use a single-element queries array for one product. Results are grouped by input query and default to 3 candidates per query per source to keep responses compact. For each result group, compare displayName/name, brand, source, matchScore, verified, kcal, default measureId/measureName/weightG, and measures[].measureId/measureName/weightG/energyKcal. Choose the candidate whose name, brand, weight, kcal, and measure best match that query and the user's requested portion. Next action: call add_meal_items with the selected foodId, foodType when present, and the most appropriate measureId; use a measure from measures[] when the default measure is unsuitable. Only run follow-up searches for products that remain unresolved, using improved or simplified query text.",
 				inputSchema,
 				outputSchema: foodSearchOutputSchema,
 				annotations: {

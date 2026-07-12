@@ -2,24 +2,21 @@ import { z } from "zod";
 import type { MealItemInput, MealItemKind } from "../../services/dayPlan/MealItemTypes.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
-const idSchema = z.union([z.string().min(1), z.number().finite()]);
 const optionalIdSchema = z.union([z.string(), z.number()]).optional();
 
 export const mealItemInputSchema = z.object({
-	foodId: idSchema
-		.optional()
-		.describe("Fitatu food id returned by search_food. Provide foodId or productId for product items."),
-	productId: idSchema
-		.optional()
-		.describe("Fitatu product id returned by search_food. This is usually the same value as foodId."),
-	recipeId: idSchema.optional().describe("Fitatu recipe id when adding a recipe instead of a product."),
+	foodId: z
+		.string()
+		.min(1)
+		.describe("Fitatu food id returned by search_food. Use this field for both products and recipes."),
 	foodType: z
 		.string()
 		.min(1)
 		.optional()
-		.describe("Fitatu food type returned by search_food, for example PRODUCT or CUSTOM_ITEM."),
-	measureId: idSchema
-		.optional()
+		.describe("Fitatu food type returned by search_food, for example PRODUCT, RECIPE, or CUSTOM_ITEM."),
+	measureId: z
+		.string()
+		.min(1)
 		.describe("Measure id to use for this item. Prefer a measureId returned by search_food."),
 	measureQuantity: z
 		.number()
@@ -89,8 +86,6 @@ export const itemKindSchema = z
 export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): MealItemInput {
 	return {
 		foodId: input.foodId,
-		productId: input.productId,
-		recipeId: input.recipeId,
 		foodType: input.foodType,
 		measureId: input.measureId,
 		measureQuantity: input.measureQuantity,

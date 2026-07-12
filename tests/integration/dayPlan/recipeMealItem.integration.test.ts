@@ -16,7 +16,7 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 		await cleanup.cleanup();
 	});
 
-	it("maps a RECIPE foodId and productId to a visible recipe meal item", async () => {
+	it("maps a RECIPE foodId to a visible recipe meal item", async () => {
 		const date = getIntegrationTestDate();
 		const addResult = await dayPlanClient.addMealItems({
 			date,
@@ -24,7 +24,6 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 			items: [
 				{
 					foodId: RECIPE_ID,
-					productId: RECIPE_ID,
 					foodType: "RECIPE",
 					measureId: "39",
 					measureQuantity: 1.5,

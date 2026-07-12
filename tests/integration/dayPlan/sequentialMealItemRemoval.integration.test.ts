@@ -12,42 +12,37 @@ const READ_AFTER_WRITE_ATTEMPTS = 20;
 const MEAL_KEY = "breakfast";
 const INCORRECT_BREAKFAST_ITEMS: readonly MealItemInput[] = [
 	{
-		productId: 146822727,
-		foodId: 146822727,
+		foodId: "146822727",
 		foodType: "PRODUCT",
-		measureId: 2,
+		measureId: "2",
 		measureQuantity: 0.5,
 		eaten: true,
 	},
 	{
-		productId: 117741055,
-		foodId: 117741055,
+		foodId: "117741055",
 		foodType: "PRODUCT",
-		measureId: 1,
+		measureId: "1",
 		measureQuantity: 40,
 		eaten: true,
 	},
 	{
-		productId: 53858645,
-		foodId: 53858645,
+		foodId: "53858645",
 		foodType: "PRODUCT",
-		measureId: 1,
+		measureId: "1",
 		measureQuantity: 62.5,
 		eaten: true,
 	},
 	{
-		productId: 145823013,
-		foodId: 145823013,
+		foodId: "145823013",
 		foodType: "PRODUCT",
-		measureId: 2,
+		measureId: "2",
 		measureQuantity: 0.5,
 		eaten: true,
 	},
 	{
-		productId: 116885192,
-		foodId: 116885192,
+		foodId: "116885192",
 		foodType: "PRODUCT",
-		measureId: 1,
+		measureId: "1",
 		measureQuantity: 75,
 		eaten: true,
 	},
@@ -80,7 +75,7 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 
 			const removeResult = await dayPlanClient.removeMealItems({
 				date,
-				productIds: INCORRECT_BREAKFAST_ITEMS.map((item) => requireProductId(item.productId)),
+				productIds: INCORRECT_BREAKFAST_ITEMS.map((item) => requireFoodId(item.foodId)),
 			});
 
 			expect(removeResult.status).toBe("accepted");
@@ -105,9 +100,9 @@ async function waitForItem(date: string, mealKey: string, itemId: string): Promi
 	throw new Error(`Meal item ${itemId} did not appear in ${mealKey} on ${date}`);
 }
 
-function requireProductId(value: string | number | undefined): string | number {
+function requireFoodId(value: string | number | undefined): string | number {
 	if (value === undefined) {
-		throw new Error("Expected test meal item to define productId");
+		throw new Error("Expected test meal item to define foodId");
 	}
 
 	return value;

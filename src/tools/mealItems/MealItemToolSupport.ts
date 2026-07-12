@@ -35,7 +35,9 @@ export const mealItemInputSchema = z.object({
 export const mealItemMutationOutputSchema = {
 	status: z
 		.literal("accepted")
-		.describe("Mutation request status. Accepted means the requested mutation completed according to the tool contract."),
+		.describe(
+			"Mutation request status. Accepted confirms that Fitatu accepted the synchronization request, not that each requested change is present in the persisted day plan.",
+		),
 	operation: z.enum(["add", "update", "remove", "move"]).describe("Meal item mutation operation that was requested."),
 	message: z.string().describe("Human-readable summary of the mutation result."),
 	targetDate: z
@@ -49,21 +51,26 @@ export const mealItemMutationOutputSchema = {
 		.describe(
 			"Primary Fitatu meal key for the mutation, when applicable. For move operations, this is the source meal key; inspect acceptedItems for the destination meal.",
 		),
-	operationCount: z.number().int().describe("Number of meal items included in the accepted mutation."),
+	operationCount: z
+		.number()
+		.int()
+		.describe("Number of meal items submitted in the synchronization request accepted by Fitatu."),
 	acceptedItems: z.array(
 		z.object({
-			index: z.number().int().describe("Zero-based index of the accepted item in the request."),
-			itemId: z.string().describe("Fitatu meal item id accepted by the mutation."),
-			productId: optionalIdSchema.describe("Product id for the accepted product item, when applicable."),
-			recipeId: optionalIdSchema.describe("Recipe id for the accepted recipe item, when applicable."),
-			foodType: z.string().describe("Fitatu food type for the accepted item."),
-			mealKey: z.string().describe("Meal key containing the accepted item."),
+			index: z.number().int().describe("Zero-based index of the item in the accepted request."),
+			itemId: z.string().describe("Meal item id submitted in the accepted request."),
+			productId: optionalIdSchema.describe("Submitted product id, when applicable."),
+			recipeId: optionalIdSchema.describe("Submitted recipe id, when applicable."),
+			foodType: z.string().describe("Submitted Fitatu food type."),
+			mealKey: z.string().describe("Meal key targeted by the submitted item."),
 		}),
 	),
 	createdItemIds: z
 		.array(z.string())
 		.optional()
-		.describe("Meal item ids created by the accepted mutation, when any."),
+		.describe(
+			"Client-generated meal item ids submitted for creation in the accepted request. Their persistence is not confirmed by this response.",
+		),
 	updatedItemIds: z
 		.array(z.string())
 		.optional()

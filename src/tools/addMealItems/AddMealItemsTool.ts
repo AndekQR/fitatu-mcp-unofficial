@@ -24,7 +24,7 @@ export class AddMealItemsTool {
 			{
 				title: "Add Fitatu Meal Items",
 				description:
-					"Adds one or more products or recipes to an existing Fitatu meal for a YYYY-MM-DD date. Each item requires the foodId and measureId returned by search_food; pass foodType when available, including RECIPE for recipes. Fitatu applies this mutation asynchronously; an immediate get_day_plan_items call may still return the previous day plan state.",
+					"Adds one or more products or recipes to an existing Fitatu meal for a YYYY-MM-DD date. Each item requires the foodId and measureId returned by search_food; pass foodType when available, including RECIPE for recipes. A status of accepted only confirms that Fitatu accepted the synchronization request; it does not confirm that individual items were persisted. After accepted, wait for synchronization and call get_day_plan_items to verify the result before reporting that the items were added. An immediate read may still return the previous day plan state.",
 				inputSchema: {
 					date: z
 						.string()

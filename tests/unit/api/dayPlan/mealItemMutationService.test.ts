@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MealItemMutationService } from "../../../../src/api/dayPlan/MealItemMutationService.ts";
-import type { DaySyncPayload, DayPlanSyncService } from "../../../../src/api/dayPlan/DayPlanSyncService.ts";
+import type { DaySyncPayload, DayPlanSyncProvider } from "../../../../src/api/dayPlan/DayPlanSyncService.ts";
 
 describe("MealItemMutationService.removeMealItems", () => {
 	it("removes multiple product items across meals in a single day sync", async () => {
@@ -15,7 +15,7 @@ describe("MealItemMutationService.removeMealItems", () => {
 			],
 		});
 		const syncService = new FakeDayPlanSyncService(payload);
-		const service = new MealItemMutationService(syncService.asDayPlanSyncService());
+		const service = new MealItemMutationService(syncService);
 
 		const result = await service.removeMealItems({
 			userId: "user-1",
@@ -46,7 +46,7 @@ describe("MealItemMutationService.removeMealItems", () => {
 			lunch: [createProductItem({ itemId: "lunch-1", productId: 101 })],
 		});
 		const syncService = new FakeDayPlanSyncService(payload);
-		const service = new MealItemMutationService(syncService.asDayPlanSyncService());
+		const service = new MealItemMutationService(syncService);
 
 		const result = await service.removeMealItems({
 			userId: "user-1",
@@ -64,7 +64,7 @@ describe("MealItemMutationService.removeMealItems", () => {
 			lunch: [createProductItem({ itemId: "lunch-1", productId: 202, deletedAt: "2026-07-01 10:00:00" })],
 		});
 		const syncService = new FakeDayPlanSyncService(payload);
-		const service = new MealItemMutationService(syncService.asDayPlanSyncService());
+		const service = new MealItemMutationService(syncService);
 
 		await expect(
 			service.removeMealItems({
@@ -77,7 +77,7 @@ describe("MealItemMutationService.removeMealItems", () => {
 	});
 });
 
-class FakeDayPlanSyncService {
+class FakeDayPlanSyncService implements DayPlanSyncProvider {
 	public readonly syncCalls: { readonly userId: string; readonly date: string; readonly payload: DaySyncPayload }[] =
 		[];
 
@@ -85,10 +85,6 @@ class FakeDayPlanSyncService {
 
 	public constructor(payload: DaySyncPayload) {
 		this.payload = payload;
-	}
-
-	public asDayPlanSyncService(): DayPlanSyncService {
-		return this as unknown as DayPlanSyncService;
 	}
 
 	public async getDaySyncPayload(): Promise<DaySyncPayload> {
@@ -99,6 +95,8 @@ class FakeDayPlanSyncService {
 		this.payload = payload;
 		this.syncCalls.push({ userId, date, payload });
 	}
+
+	public async syncDays(): Promise<void> {}
 
 	public item(mealKey: string, itemId: string): Record<string, unknown> | null {
 		const meal = this.payload.dietPlan[mealKey];

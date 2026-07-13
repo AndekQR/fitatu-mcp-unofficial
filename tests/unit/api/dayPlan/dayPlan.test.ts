@@ -6,12 +6,18 @@ describe("DayPlan.fromApiResponse", () => {
 		const plan = DayPlan.fromApiResponse({
 			date: "2026-07-12",
 			userId: "user-1",
-			data: { dietPlan: { breakfast: { items: [] }, lunch: { items: [] } } },
+			data: {
+				dietPlan: {
+					breakfast: { items: [{ planDayDietItemId: "item-1", name: "Apple", productId: 101, energy: 52 }] },
+					lunch: { items: [] },
+				},
+			},
 		});
 
 		expect(plan.date).toBe("2026-07-12");
 		expect(plan.userId).toBe("user-1");
 		expect(plan.meals.map((meal) => meal.mealKey)).toEqual(["breakfast", "lunch"]);
+		expect(plan.meals[0]?.items[0]).toMatchObject({ itemId: "item-1", name: "Apple", productId: 101, energy: 52 });
 	});
 
 	it("rejects a response without dietPlan", () => {

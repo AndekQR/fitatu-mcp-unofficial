@@ -4,9 +4,7 @@ import { createFetchStub, createJsonResponse } from "../../support/httpTestDoubl
 
 describe("DayPlanSyncService.getDaySyncPayload", () => {
 	it("normalizes the Fitatu day response into a synchronization payload", async () => {
-		const fetchStub = createFetchStub(
-			createJsonResponse({ dietPlan: { breakfast: { items: [] } }, note: "note" }),
-		);
+		const fetchStub = createFetchStub(createJsonResponse({ dietPlan: { breakfast: { items: [] } }, note: "note" }));
 		const service = new DayPlanSyncService({ baseUrl: "https://fitatu.test/api", fetchFn: fetchStub.fetchFn });
 
 		const payload = await service.getDaySyncPayload("user 1", "2026-07-12");

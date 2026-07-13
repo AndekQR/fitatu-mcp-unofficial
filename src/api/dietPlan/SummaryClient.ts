@@ -14,7 +14,7 @@ export class SummaryClient extends FitatuApiClientBase {
 	}
 
 	public async getSummary(request: GetSummaryRequest): Promise<GetSummaryResponse> {
-		return this.get({
+		return this.get<GetSummaryResponse>({
 			path: `/v2/diet-plan/${encodeURIComponent(request.userId)}/summary/custom`,
 			request,
 			errorMessage: "Fitatu diet plan summary request failed",
@@ -22,7 +22,7 @@ export class SummaryClient extends FitatuApiClientBase {
 	}
 
 	public async getEnergySummary(request: GetEnergySummaryRequest): Promise<GetEnergySummaryResponse> {
-		return this.get({
+		return this.get<GetEnergySummaryResponse & Record<string, unknown>>({
 			path: `/v2/diet-plan/${encodeURIComponent(request.userId)}/summary/energy/custom`,
 			request,
 			errorMessage: "Fitatu diet plan energy summary request failed",

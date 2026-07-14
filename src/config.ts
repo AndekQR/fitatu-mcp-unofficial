@@ -10,20 +10,31 @@ const configSchema = z.object({
 	FITATU_PASSWORD: z.string().min(1, "FITATU_PASSWORD is required"),
 });
 
+const loggerConfigSchema = configSchema.pick({
+	NODE_ENV: true,
+	SERVER_NAME: true,
+	SERVER_VERSION: true,
+	LOG_LEVEL: true,
+});
+
 export type Config = z.infer<typeof configSchema>;
+export type LoggerConfig = z.infer<typeof loggerConfigSchema>;
 
 let config: Config;
+let loggerConfig: LoggerConfig;
 
 export function getConfig(): Config {
 	if (!config) {
-		try {
-			config = configSchema.parse(process.env);
-		} catch (error) {
-			console.error("❌ Invalid environment configuration:", error);
-			process.exit(1);
-		}
+		config = parseEnvironment(configSchema);
 	}
 	return config;
+}
+
+export function getLoggerConfig(): LoggerConfig {
+	if (!loggerConfig) {
+		loggerConfig = parseEnvironment(loggerConfigSchema);
+	}
+	return loggerConfig;
 }
 
 export function getFitatuUsername(): string {
@@ -40,4 +51,13 @@ export function isProduction(): boolean {
 
 export function isDevelopment(): boolean {
 	return getConfig().NODE_ENV === "development";
+}
+
+function parseEnvironment<Output>(schema: z.ZodType<Output>): Output {
+	try {
+		return schema.parse(process.env);
+	} catch (error) {
+		console.error("❌ Invalid environment configuration:", error);
+		process.exit(1);
+	}
 }

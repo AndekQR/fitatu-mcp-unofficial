@@ -123,7 +123,11 @@ const NUTRIENT_UNITS: Record<string, string> = {
 	zinc: "mg",
 };
 
-export class DietSummaryService {
+export interface DietSummaryProvider {
+	getDietSummary(request: DietSummaryRequest): Promise<DietSummaryResult>;
+}
+
+export class DietSummaryService implements DietSummaryProvider {
 	private readonly summaryClient: SummaryApiClient;
 	private readonly userClient: CurrentUserProvider;
 

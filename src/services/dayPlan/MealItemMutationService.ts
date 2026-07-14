@@ -8,7 +8,15 @@ import type {
 } from "../../api/dayPlan/DayPlanClientTypes.ts";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutation.ts";
 
-export class MealItemMutationService {
+export interface MealItemMutationProvider {
+	addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult>;
+	updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult>;
+	removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult>;
+	removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult>;
+	moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult>;
+}
+
+export class MealItemMutationService implements MealItemMutationProvider {
 	private readonly dayPlanClient;
 
 	public constructor(dayPlanClient: DayPlanClient) {

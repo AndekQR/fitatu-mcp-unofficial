@@ -44,4 +44,40 @@ describe("getConfig", () => {
 		expect(exit).toHaveBeenCalledWith(1);
 		expect(consoleError).toHaveBeenCalled();
 	});
+
+	it("initializes the logger without requiring Fitatu credentials", async () => {
+		vi.resetModules();
+		process.env = {
+			...originalEnv,
+			NODE_ENV: "test",
+			SERVER_NAME: "fitatu-mcp-test",
+			SERVER_VERSION: "test-version",
+			LOG_LEVEL: "warn",
+			FITATU_EMAIL: undefined,
+			FITATU_PASSWORD: undefined,
+		};
+
+		const { logger } = await import("./logger.ts");
+
+		expect(logger.level).toBe("warn");
+		expect(logger.bindings()).toMatchObject({ service: "fitatu-mcp-test", version: "test-version" });
+	});
+
+	it("exits safely when logger configuration is invalid", async () => {
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+			throw new Error("process.exit called");
+		}) as never);
+		vi.resetModules();
+		process.env = {
+			...originalEnv,
+			LOG_LEVEL: "verbose",
+			FITATU_EMAIL: undefined,
+			FITATU_PASSWORD: undefined,
+		};
+
+		await expect(import("./logger.ts")).rejects.toThrow("process.exit called");
+		expect(exit).toHaveBeenCalledWith(1);
+		expect(consoleError).toHaveBeenCalled();
+	});
 });

@@ -153,6 +153,18 @@ npm run test:ci
 npm run build
 ```
 
+`test:ci` runs only deterministic unit tests and does not load Fitatu credentials. Generate the informational V8 coverage report without a blocking threshold with:
+
+```bash
+npm run test:coverage
+```
+
+The HTML and JSON summary are written to the ignored `coverage/` directory. Integration tests stay separate:
+
+```bash
+npm run test:integration
+```
+
 Integration tests require valid Fitatu credentials in `.env` and may read or mutate data in the authenticated account.
 
 ## Docker

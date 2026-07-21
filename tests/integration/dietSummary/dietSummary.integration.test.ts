@@ -237,14 +237,21 @@ describe("GetDietSummaryTool integration", () => {
 		const handler = registerToolForTest(tool);
 
 		const result = await handler({ fromDate: "2026-07-03", toDate: "2026-07-01" });
-
-		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toEqual({
+		const expectedError = {
 			status: "error",
 			toolName: "get_diet_summary",
 			errorName: "DayPlanError",
 			message: "fromDate must be before or equal to toDate",
-		});
+		};
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toBeUndefined();
+		expect(result.content).toEqual([
+			{
+				type: "text",
+				text: JSON.stringify(expectedError, null, 2),
+			},
+		]);
 	});
 
 	it("does not expose generic unexpected error messages to MCP callers", async () => {

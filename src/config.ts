@@ -5,7 +5,7 @@ const configSchema = z.object({
 	NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 	SERVER_NAME: z.string().default("fitatu-mcp"),
 	SERVER_VERSION: z.string().default("1.0.0"),
-	LOG_LEVEL: z.enum(["error", "warn", "info", "debug"]).default("info"),
+	LOG_LEVEL: z.enum(["silent", "error", "warn", "info", "debug"]).default("info"),
 	FITATU_EMAIL: z.string().email("FITATU_EMAIL must be a valid email address"),
 	FITATU_PASSWORD: z.string().min(1, "FITATU_PASSWORD is required"),
 });
@@ -20,21 +20,12 @@ const loggerConfigSchema = configSchema.pick({
 export type Config = z.infer<typeof configSchema>;
 export type LoggerConfig = z.infer<typeof loggerConfigSchema>;
 
-let config: Config;
-let loggerConfig: LoggerConfig;
-
 export function getConfig(): Config {
-	if (!config) {
-		config = parseEnvironment(configSchema);
-	}
-	return config;
+	return parseEnvironment(configSchema);
 }
 
 export function getLoggerConfig(): LoggerConfig {
-	if (!loggerConfig) {
-		loggerConfig = parseEnvironment(loggerConfigSchema);
-	}
-	return loggerConfig;
+	return parseEnvironment(loggerConfigSchema);
 }
 
 export function getFitatuUsername(): string {

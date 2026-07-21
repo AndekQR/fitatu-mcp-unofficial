@@ -3,7 +3,7 @@ import { FitatuUserError } from "../../../../src/api/users/FitatuUserError.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import type { CurrentUserProvider } from "../../../../src/services/currentUser/CurrentUserService.ts";
 import { GetCurrentUserTool } from "../../../../src/tools/currentUser/GetCurrentUserTool.ts";
-import { parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
+import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
 
 describe("GetCurrentUserTool", () => {
 	it("returns only the safe public subset of the authenticated profile", async () => {
@@ -19,7 +19,7 @@ describe("GetCurrentUserTool", () => {
 				demo: false,
 			}),
 		);
-		const registered = registerToolForTest(new GetCurrentUserTool(service));
+		const registered = await registerToolForTest(new GetCurrentUserTool(service));
 
 		const result = await registered.invoke({});
 		const expectedContent = {
@@ -34,10 +34,11 @@ describe("GetCurrentUserTool", () => {
 		};
 
 		expect(service.requestCount).toBe(1);
+		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
 		expect(result.structuredContent).toEqual(expectedContent);
 		expect(parseTextContent(result)).toEqual(expectedContent);
-		expect(result.content[0]?.text).not.toContain("sensitive@example.test");
-		expect(result.content[0]?.text).not.toContain("ROLE_USER");
+		expect(getTextContent(result)).not.toContain("sensitive@example.test");
+		expect(getTextContent(result)).not.toContain("ROLE_USER");
 	});
 
 	it("returns a safe structured error for a known user failure", async () => {
@@ -45,18 +46,19 @@ describe("GetCurrentUserTool", () => {
 			undefined,
 			new FitatuUserError("Fitatu user request failed", { statusCode: 503 }),
 		);
-		const registered = registerToolForTest(new GetCurrentUserTool(service));
+		const registered = await registerToolForTest(new GetCurrentUserTool(service));
 
 		const result = await registered.invoke({});
 
 		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toEqual({
+		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: "get_current_user",
 			errorName: "FitatuUserError",
 			message: "Fitatu user request failed",
 			fitatuApiError: { statusCode: 503 },
 		});
+		expect(result.structuredContent).toBeUndefined();
 	});
 });
 

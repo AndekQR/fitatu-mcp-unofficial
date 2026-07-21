@@ -11,7 +11,7 @@ import { AddMealItemsTool } from "../../../../src/tools/addMealItems/AddMealItem
 import { MoveMealItemTool } from "../../../../src/tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "../../../../src/tools/mealItems/RemoveMealItemsTool.ts";
 import { UpdateMealItemTool } from "../../../../src/tools/mealItems/UpdateMealItemTool.ts";
-import { registerToolForTest } from "../../support/mcpToolTestDouble.ts";
+import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
 
 type TestedMealItemMutationProvider = Pick<
 	MealItemMutationProvider,
@@ -274,7 +274,7 @@ const errorCases = [
 describe("meal item mutation tools", () => {
 	it.each(successCases)("$name delegates validated input and returns accepted content", async (testCase) => {
 		const service = new FakeMealItemMutationService(testCase.result);
-		const registered = registerToolForTest(testCase.createTool(service));
+		const registered = await registerToolForTest(testCase.createTool(service));
 
 		const result = await registered.invoke(testCase.input);
 
@@ -292,9 +292,11 @@ describe("meal item mutation tools", () => {
 
 	it.each(invalidInputCases)("$name rejects invalid input before delegation", async (testCase) => {
 		const service = new FakeMealItemMutationService(successCases[0].result);
-		const registered = registerToolForTest(testCase.createTool(service));
+		const registered = await registerToolForTest(testCase.createTool(service));
 
-		await expect(registered.invoke(testCase.input)).rejects.toThrow();
+		const result = await registered.invoke(testCase.input);
+
+		expect(result.isError).toBe(true);
 		expect(service.calls).toHaveLength(0);
 	});
 
@@ -303,18 +305,19 @@ describe("meal item mutation tools", () => {
 			successCases[0].result,
 			new Error(`secret ${testCase.name} response`),
 		);
-		const registered = registerToolForTest(testCase.createTool(service));
+		const registered = await registerToolForTest(testCase.createTool(service));
 
 		const result = await registered.invoke(testCase.input);
 
 		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toEqual({
+		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: testCase.name,
 			errorName: "Error",
 			message: testCase.fallbackMessage,
 		});
-		expect(result.content[0]?.text).not.toContain(`secret ${testCase.name} response`);
+		expect(result.structuredContent).toBeUndefined();
+		expect(getTextContent(result)).not.toContain(`secret ${testCase.name} response`);
 	});
 });
 

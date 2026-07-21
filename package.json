@@ -12,12 +12,13 @@
 		"start": "node --env-file=.env dist/index.js",
 		"test": "vitest",
 		"test:integration": "node --env-file=.env ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
-		"test:ci": "vitest run --config vitest.config.ts --reporter=json --outputFile=test-results.json",
+		"test:ci": "vitest run --config vitest.config.ts --coverage --reporter=json --outputFile=test-results.json",
 		"test:coverage": "vitest run --config vitest.config.ts --coverage",
-		"lint": "eslint src/",
-		"lint:fix": "eslint src/ --fix",
-		"format": "prettier --write src/**/*.ts",
-		"format:check": "prettier --check src/**/*.ts"
+		"typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+		"lint": "eslint src tests vitest.config.ts vitest.integration.config.ts",
+		"lint:fix": "eslint src tests vitest.config.ts vitest.integration.config.ts --fix",
+		"format": "prettier --write src tests vitest.config.ts vitest.integration.config.ts",
+		"format:check": "prettier --check src tests vitest.config.ts vitest.integration.config.ts"
 	},
 	"keywords": [
 		"fitatu",

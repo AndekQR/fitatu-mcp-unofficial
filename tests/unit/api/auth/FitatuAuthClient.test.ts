@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FitatuAuthError } from "../../../../src/api/auth/FitatuAuthError.ts";
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
 
 describe("FitatuAuthClient", () => {
@@ -26,6 +27,65 @@ describe("FitatuAuthClient", () => {
 		});
 	});
 
+	it("shares one login request between concurrent session callers", async () => {
+		const token = createJwt({ user_id: "user-1" });
+		const fetchStub = createFetchStub(createJsonResponse({ token, refresh_token: "refresh-1" }));
+		const client = await createAuthClient(fetchStub.fetchFn);
+
+		const [firstSession, secondSession] = await Promise.all([client.getSession(), client.getSession()]);
+
+		expect(firstSession).toBe(secondSession);
+		expect(fetchStub.calls).toHaveLength(1);
+	});
+
+	it("does not restore a session when it is cleared during an in-flight login", async () => {
+		const firstToken = createJwt({ user_id: "user-1", version: 1 });
+		const secondToken = createJwt({ user_id: "user-1", version: 2 });
+		let releaseFirstRequest: (() => void) | undefined;
+		const firstRequestGate = new Promise<void>((resolve) => {
+			releaseFirstRequest = resolve;
+		});
+		let requestCount = 0;
+		const fetchFn: typeof fetch = async () => {
+			requestCount += 1;
+			if (requestCount === 1) {
+				await firstRequestGate;
+				return createJsonResponse({ token: firstToken, refresh_token: "refresh-1" });
+			}
+			return createJsonResponse({ token: secondToken, refresh_token: "refresh-2" });
+		};
+		const client = await createAuthClient(fetchFn);
+
+		const staleLogin = client.getSession();
+		client.clearSession();
+		releaseFirstRequest?.();
+		await staleLogin;
+		const currentSession = await client.getSession();
+
+		expect(currentSession.token).toBe(secondToken);
+		expect(requestCount).toBe(2);
+	});
+
+	it("rejects a successful login response with an invalid token", async () => {
+		const fetchStub = createFetchStub(createJsonResponse({ token: "not-a-jwt", refresh_token: "refresh-1" }));
+		const client = await createAuthClient(fetchStub.fetchFn);
+
+		await expect(client.getSession()).rejects.toMatchObject({ name: "FitatuAuthError" });
+	});
+
+	it("propagates a rejected network request without caching a session", async () => {
+		let requestCount = 0;
+		const fetchFn: typeof fetch = async () => {
+			requestCount += 1;
+			throw new Error("network unavailable");
+		};
+		const client = await createAuthClient(fetchFn);
+
+		await expect(client.getSession()).rejects.toThrow("network unavailable");
+		await expect(client.getSession()).rejects.toThrow("network unavailable");
+		expect(requestCount).toBe(2);
+	});
+
 	it("maps a failed login without exposing sensitive response values", async () => {
 		const fetchStub = createFetchStub(
 			createJsonResponse(
@@ -45,8 +105,7 @@ describe("FitatuAuthClient", () => {
 				method: "POST",
 				path: "/login",
 				upstreamMessage: "invalid credentials",
-				responseSnippet:
-					'{"message":"invalid credentials","token":"[REDACTED]","email":"[REDACTED]"}',
+				responseSnippet: '{"message":"invalid credentials","token":"[REDACTED]","email":"[REDACTED]"}',
 			},
 		});
 	});
@@ -94,14 +153,18 @@ describe("FitatuAuthClient", () => {
 		await client.getSession();
 
 		const error = await client.refreshSession().catch((caught: unknown) => caught);
+		if (!isFitatuAuthError(error)) {
+			throw new Error("Expected refreshSession to reject with FitatuAuthError");
+		}
 
 		expect(error).toMatchObject({
 			name: "FitatuAuthError",
 			message: "Fitatu token refresh failed",
 			statusCode: 401,
 		});
-		expect(error.fitatuApiErrors).toHaveLength(3);
-		expect(error.fitatuApiErrors.map((details: { responseSnippet: string }) => details.responseSnippet)).toEqual([
+		const fitatuApiErrors = error.fitatuApiErrors ?? [];
+		expect(fitatuApiErrors).toHaveLength(3);
+		expect(fitatuApiErrors.map((details) => details.responseSnippet)).toEqual([
 			'{"message":"refresh rejected","token":"[REDACTED]","user":"[REDACTED]"}',
 			'{"message":"refresh rejected","token":"[REDACTED]","user":"[REDACTED]"}',
 			'{"message":"refresh rejected","token":"[REDACTED]","user":"[REDACTED]"}',
@@ -127,4 +190,8 @@ async function createAuthClient(fetchFn: typeof fetch) {
 
 function createJwt(payload: Record<string, unknown>): string {
 	return `header.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
+}
+
+function isFitatuAuthError(error: unknown): error is FitatuAuthError {
+	return error instanceof Error && error.name === "FitatuAuthError";
 }

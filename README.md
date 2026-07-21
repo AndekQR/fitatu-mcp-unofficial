@@ -153,13 +153,19 @@ npm run test:ci
 npm run build
 ```
 
-`test:ci` runs only deterministic unit tests and does not load Fitatu credentials. Generate the informational V8 coverage report without a blocking threshold with:
+`test:ci` runs deterministic unit tests with an informational V8 coverage report and does not load Fitatu credentials. Generate the same text, HTML, and JSON coverage reports locally with:
 
 ```bash
 npm run test:coverage
 ```
 
-The HTML and JSON summary are written to the ignored `coverage/` directory. Integration tests stay separate:
+The HTML and JSON summary are written to the ignored `coverage/` directory. Run strict TypeScript checks for both production and unit-test code with:
+
+```bash
+npm run typecheck
+```
+
+Integration tests stay separate:
 
 ```bash
 npm run test:integration

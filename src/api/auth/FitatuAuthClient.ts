@@ -14,6 +14,8 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 
 	private readonly credentialsProvider: () => FitatuCredentials;
 	private session: FitatuAuthSession | undefined;
+	private sessionPromise: Promise<FitatuAuthSession> | undefined;
+	private sessionGeneration = 0;
 
 	private constructor(options: FitatuAuthClientOptions = {}) {
 		super(options);
@@ -33,12 +35,17 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 			return this.session;
 		}
 
-		this.session = await this.login();
-		return this.session;
+		if (!this.sessionPromise) {
+			this.sessionPromise = this.loginAndCache(this.sessionGeneration);
+		}
+
+		return this.sessionPromise;
 	}
 
 	public clearSession(): void {
+		this.sessionGeneration += 1;
 		this.session = undefined;
+		this.sessionPromise = undefined;
 	}
 
 	public async refreshSession(): Promise<FitatuAuthSession> {
@@ -64,7 +71,9 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 			}
 
 			try {
-				this.session = FitatuRefreshResponseData.fromApiResponse(await response.json()).toSession(previousSession);
+				this.session = FitatuRefreshResponseData.fromApiResponse(await response.json()).toSession(
+					previousSession,
+				);
 				return this.session;
 			} catch (error) {
 				this.clearSession();
@@ -106,6 +115,20 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 		}
 
 		return FitatuLoginResponse.fromApiResponse(await response.json()).toSession();
+	}
+
+	private async loginAndCache(generation: number): Promise<FitatuAuthSession> {
+		try {
+			const session = await this.login();
+			if (generation === this.sessionGeneration) {
+				this.session = session;
+			}
+			return session;
+		} finally {
+			if (generation === this.sessionGeneration) {
+				this.sessionPromise = undefined;
+			}
+		}
 	}
 
 	private createRefreshRequestBodies(refreshToken: string): readonly Record<string, string>[] {

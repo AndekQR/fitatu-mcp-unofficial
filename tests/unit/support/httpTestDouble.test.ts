@@ -7,9 +7,7 @@ describe("HTTP test double", () => {
 
 		const response = await fetchStub.fetchFn("https://fitatu.test/users", { method: "POST" });
 
-		expect(fetchStub.calls).toEqual([
-			{ input: "https://fitatu.test/users", init: { method: "POST" } },
-		]);
+		expect(fetchStub.calls).toEqual([{ input: "https://fitatu.test/users", init: { method: "POST" } }]);
 		expect(response.status).toBe(201);
 		await expect(response.json()).resolves.toEqual({ id: "user-1" });
 	});

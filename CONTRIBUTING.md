@@ -12,7 +12,7 @@ Please report unacceptable behavior through the repository's GitHub contact opti
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature-name`
 3. Make your changes
-4. Run the quality checks: `npm run lint && npm run format:check && npm run test:ci && npm run build`
+4. Run the quality checks: `npm run typecheck && npm run lint && npm run format:check && npm run test:ci && npm run build`
 5. Submit a pull request
 
 ## Reporting Issues

@@ -99,4 +99,70 @@ describe("FoodSearchClient.search", () => {
 		expect(result.warnings[0]).toContain("public search failed for query='granola'");
 		expect(result.warningDetails[0]).toMatchObject({ query: "granola", source: "public" });
 	});
+
+	it("preserves query order and deduplicates repeated rows within each query", async () => {
+		const repeatedRow = { id: "food-1", name: "Jogurt" };
+		const fetchStub = createFetchStub(
+			createJsonResponse({ items: [repeatedRow, repeatedRow] }),
+			createJsonResponse({ items: [repeatedRow, repeatedRow] }),
+		);
+		const client = new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient,
+		});
+
+		const result = await client.search({
+			queries: ["jogurt", "jogurt naturalny"],
+			includePublicFood: true,
+			includeUserFood: false,
+		});
+
+		expect(result.queries).toEqual(["jogurt", "jogurt naturalny"]);
+		expect(result.items).toHaveLength(2);
+		expect(
+			result.items.map((item) => ({ queryIndex: item.queryIndex, query: item.query, foodId: item.foodId })),
+		).toEqual([
+			{ queryIndex: 0, query: "jogurt", foodId: "food-1" },
+			{ queryIndex: 1, query: "jogurt naturalny", foodId: "food-1" },
+		]);
+	});
+
+	it("fails safely when every enabled source variant fails", async () => {
+		const unavailable = () => createJsonResponse({ message: "temporary failure" }, { status: 503 });
+		const fetchStub = createFetchStub(unavailable(), unavailable(), unavailable(), unavailable());
+		const client = new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient,
+		});
+
+		await expect(client.search({ queries: ["granola"] })).rejects.toMatchObject({
+			name: "FoodSearchError",
+			message: "All Fitatu food search requests failed",
+			statusCode: 503,
+		});
+		expect(fetchStub.calls).toHaveLength(4);
+	});
+
+	it("treats malformed successful JSON as a failed search boundary", async () => {
+		const fetchStub = createFetchStub(
+			new Response("not-json", { status: 200, headers: { "content-type": "application/json" } }),
+		);
+		const client = new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient,
+		});
+
+		await expect(
+			client.search({ queries: ["granola"], includePublicFood: true, includeUserFood: false }),
+		).rejects.toMatchObject({
+			name: "FoodSearchError",
+			message: "All Fitatu food search requests failed",
+		});
+	});
 });

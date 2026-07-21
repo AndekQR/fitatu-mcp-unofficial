@@ -3,6 +3,7 @@ import type { FitatuAuthSession } from "../../../../src/api/auth/FitatuAuthSessi
 import { FitatuApiClientBase } from "../../../../src/api/fitatuApiClientBase/FitatuApiClientBase.ts";
 import type {
 	FitatuAuthProvider,
+	FitatuApiClientBaseOptions,
 	FitatuUserProvider,
 } from "../../../../src/api/fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "../../../../src/api/fitatuApiClientBase/FitatuApiRequestOptions.ts";
@@ -90,6 +91,10 @@ describe("FitatuApiClientBase", () => {
 });
 
 class TestFitatuApiClient extends FitatuApiClientBase {
+	public constructor(options: FitatuApiClientBaseOptions = {}) {
+		super(options);
+	}
+
 	public request(options: FitatuApiRequestOptions): Promise<Response> {
 		return this.fetchFitatuApi(options);
 	}

@@ -55,4 +55,19 @@ describe("SummaryClient", () => {
 		).rejects.toThrow("fromDate must be before or equal to toDate");
 		expect(fetchStub.calls).toHaveLength(0);
 	});
+
+	it("rejects an energy summary with malformed nested values", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse({ targets: { "2026-07-13": "2500" }, measures: { "2026-07-13": 2100 } }),
+		);
+		const client = new SummaryClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+		});
+
+		await expect(
+			client.getEnergySummary({ userId: "user-1", fromDate: "2026-07-13", toDate: "2026-07-13" }),
+		).rejects.toThrow("Fitatu diet plan summary response was invalid");
+	});
 });

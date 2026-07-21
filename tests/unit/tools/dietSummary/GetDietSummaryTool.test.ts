@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { DietSummaryRequest, DietSummaryResult } from "../../../../src/services/dietSummary/DietSummaryTypes.ts";
 import type { DietSummaryProvider } from "../../../../src/services/dietSummary/DietSummaryService.ts";
 import { GetDietSummaryTool } from "../../../../src/tools/dietSummary/GetDietSummaryTool.ts";
-import { parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
+import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
 
 describe("GetDietSummaryTool", () => {
 	it("delegates an inclusive range and returns compact structured content", async () => {
 		const service = new FakeDietSummaryService(createSummary());
-		const registered = registerToolForTest(new GetDietSummaryTool(service));
+		const registered = await registerToolForTest(new GetDietSummaryTool(service));
 
 		const result = await registered.invoke({ fromDate: "2026-07-13", toDate: "2026-07-14" });
 		const expectedContent = {
@@ -28,31 +28,35 @@ describe("GetDietSummaryTool", () => {
 		};
 
 		expect(service.requests).toEqual([{ fromDate: "2026-07-13", toDate: "2026-07-14" }]);
+		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
 		expect(result.structuredContent).toEqual(expectedContent);
 		expect(parseTextContent(result)).toEqual(expectedContent);
 	});
 
 	it("rejects malformed dates before calling the service", async () => {
 		const service = new FakeDietSummaryService(createSummary());
-		const registered = registerToolForTest(new GetDietSummaryTool(service));
+		const registered = await registerToolForTest(new GetDietSummaryTool(service));
 
-		await expect(registered.invoke({ fromDate: "2026/07/13", toDate: "2026-07-14" })).rejects.toThrow();
+		const result = await registered.invoke({ fromDate: "2026/07/13", toDate: "2026-07-14" });
+
+		expect(result.isError).toBe(true);
 		expect(service.requests).toHaveLength(0);
 	});
 
 	it("redacts unexpected service errors", async () => {
 		const service = new FakeDietSummaryService(undefined, new Error("secret summary response"));
-		const registered = registerToolForTest(new GetDietSummaryTool(service));
+		const registered = await registerToolForTest(new GetDietSummaryTool(service));
 
 		const result = await registered.invoke({ fromDate: "2026-07-13", toDate: "2026-07-14" });
 
-		expect(result.structuredContent).toEqual({
+		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: "get_diet_summary",
 			errorName: "Error",
 			message: "Unable to fetch Fitatu diet summary.",
 		});
-		expect(result.content[0]?.text).not.toContain("secret summary response");
+		expect(result.structuredContent).toBeUndefined();
+		expect(getTextContent(result)).not.toContain("secret summary response");
 	});
 });
 

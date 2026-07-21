@@ -3,12 +3,12 @@ import { DayPlan } from "../../../../src/api/dayPlan/DayPlan.ts";
 import type { GetDayPlanOptions } from "../../../../src/api/dayPlan/DayPlanClientTypes.ts";
 import type { DayPlanQueryProvider } from "../../../../src/services/dayPlan/DayPlanQueryService.ts";
 import { GetDayPlanItemsTool } from "../../../../src/tools/dayPlanItems/GetDayPlanItemsTool.ts";
-import { parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
+import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
 
 describe("GetDayPlanItemsTool", () => {
 	it("delegates the validated date and returns MCP-safe day plan items", async () => {
 		const service = new FakeDayPlanQueryService(createDayPlan());
-		const registered = registerToolForTest(new GetDayPlanItemsTool(service));
+		const registered = await registerToolForTest(new GetDayPlanItemsTool(service));
 
 		const result = await registered.invoke({ date: "2026-07-14", withRating: true });
 		const expectedContent = {
@@ -33,31 +33,35 @@ describe("GetDayPlanItemsTool", () => {
 		};
 
 		expect(service.requests).toEqual([{ date: "2026-07-14", withRating: true }]);
+		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
 		expect(result.structuredContent).toEqual(expectedContent);
 		expect(parseTextContent(result)).toEqual(expectedContent);
 	});
 
 	it("rejects an invalid date before calling the service", async () => {
 		const service = new FakeDayPlanQueryService(createDayPlan());
-		const registered = registerToolForTest(new GetDayPlanItemsTool(service));
+		const registered = await registerToolForTest(new GetDayPlanItemsTool(service));
 
-		await expect(registered.invoke({ date: "14-07-2026" })).rejects.toThrow();
+		const result = await registered.invoke({ date: "14-07-2026" });
+
+		expect(result.isError).toBe(true);
 		expect(service.requests).toHaveLength(0);
 	});
 
 	it("redacts an unexpected service error", async () => {
 		const service = new FakeDayPlanQueryService(undefined, new Error("secret day plan response"));
-		const registered = registerToolForTest(new GetDayPlanItemsTool(service));
+		const registered = await registerToolForTest(new GetDayPlanItemsTool(service));
 
 		const result = await registered.invoke({ date: "2026-07-14" });
 
-		expect(result.structuredContent).toEqual({
+		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: "get_day_plan_items",
 			errorName: "Error",
 			message: "Unable to fetch Fitatu day plan items.",
 		});
-		expect(result.content[0]?.text).not.toContain("secret day plan response");
+		expect(result.structuredContent).toBeUndefined();
+		expect(getTextContent(result)).not.toContain("secret day plan response");
 	});
 });
 

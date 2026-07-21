@@ -2,6 +2,93 @@ import { describe, expect, it } from "vitest";
 import { MealItemMutationService } from "../../../../src/api/dayPlan/MealItemMutationService.ts";
 import type { DaySyncPayload, DayPlanSyncProvider } from "../../../../src/api/dayPlan/DayPlanSyncService.ts";
 
+describe("MealItemMutationService single-day mutations", () => {
+	it("adds a product item and synchronizes the changed day", async () => {
+		const syncService = new RecordingDayPlanSyncService(createPayload({ breakfast: [] }));
+		const service = new MealItemMutationService(syncService);
+
+		const result = await service.addMealItems({
+			userId: "user-1",
+			date: "2026-07-01",
+			mealKey: "breakfast",
+			items: [{ foodId: "101", foodType: "PRODUCT", measureId: "1", measureQuantity: 2, eaten: true }],
+		});
+
+		expect(result).toMatchObject({ operation: "add", operationCount: 1, itemIdChanged: false });
+		expect(result.createdItemIds).toHaveLength(1);
+		expect(syncService.syncCalls).toHaveLength(1);
+		expect(mealItems(syncService.currentPayload, "breakfast")[0]).toMatchObject({
+			productId: 101,
+			measureId: 1,
+			measureQuantity: 2,
+			eaten: true,
+		});
+	});
+
+	it("updates only the requested fields of an active item", async () => {
+		const syncService = new RecordingDayPlanSyncService(
+			createPayload({ breakfast: [createProductItem({ itemId: "item-1", productId: 101 })] }),
+		);
+		const service = new MealItemMutationService(syncService);
+
+		const result = await service.updateMealItem({
+			userId: "user-1",
+			date: "2026-07-01",
+			mealKey: "breakfast",
+			itemId: "item-1",
+			measureQuantity: 2.5,
+			eaten: true,
+		});
+
+		expect(result.updatedItemIds).toEqual(["item-1"]);
+		expect(syncService.item("breakfast", "item-1")).toMatchObject({
+			productId: 101,
+			measureId: 1,
+			measureQuantity: 2.5,
+			eaten: true,
+		});
+	});
+
+	it("marks a custom recipe item as deleted and hidden", async () => {
+		const syncService = new RecordingDayPlanSyncService(
+			createPayload({ breakfast: [createRecipeItem({ itemId: "recipe-1", recipeId: 501 })] }),
+		);
+		const service = new MealItemMutationService(syncService);
+
+		const result = await service.removeMealItem({
+			userId: "user-1",
+			date: "2026-07-01",
+			mealKey: "breakfast",
+			itemId: "recipe-1",
+			itemKind: "custom_recipe_item",
+		});
+
+		expect(result.deletedItemIds).toEqual(["recipe-1"]);
+		expect(syncService.item("breakfast", "recipe-1")).toMatchObject({
+			measureQuantity: 0.01,
+			visible: false,
+		});
+		expect(syncService.item("breakfast", "recipe-1")?.deletedAt).toBeTruthy();
+	});
+
+	it("rejects an update without changes before synchronizing", async () => {
+		const syncService = new RecordingDayPlanSyncService(
+			createPayload({ breakfast: [createProductItem({ itemId: "item-1", productId: 101 })] }),
+		);
+		const service = new MealItemMutationService(syncService);
+
+		await expect(
+			service.updateMealItem({
+				userId: "user-1",
+				date: "2026-07-01",
+				mealKey: "breakfast",
+				itemId: "item-1",
+			}),
+		).rejects.toThrow("Provide at least one update field");
+		expect(syncService.syncCalls).toHaveLength(0);
+	});
+});
+
 describe("MealItemMutationService.removeMealItems", () => {
 	it("removes multiple product items across meals in a single day sync", async () => {
 		const payload = createPayload({
@@ -14,7 +101,7 @@ describe("MealItemMutationService.removeMealItems", () => {
 				createRecipeItem({ itemId: "recipe-1", recipeId: 101 }),
 			],
 		});
-		const syncService = new FakeDayPlanSyncService(payload);
+		const syncService = new RecordingDayPlanSyncService(payload);
 		const service = new MealItemMutationService(syncService);
 
 		const result = await service.removeMealItems({
@@ -46,7 +133,7 @@ describe("MealItemMutationService.removeMealItems", () => {
 			],
 			lunch: [createProductItem({ itemId: "lunch-1", productId: 101 })],
 		});
-		const syncService = new FakeDayPlanSyncService(payload);
+		const syncService = new RecordingDayPlanSyncService(payload);
 		const service = new MealItemMutationService(syncService);
 
 		const result = await service.removeMealItems({
@@ -65,7 +152,7 @@ describe("MealItemMutationService.removeMealItems", () => {
 			breakfast: [createProductItem({ itemId: "breakfast-1", productId: 101 })],
 			lunch: [createProductItem({ itemId: "lunch-1", productId: 202, deletedAt: "2026-07-01 10:00:00" })],
 		});
-		const syncService = new FakeDayPlanSyncService(payload);
+		const syncService = new RecordingDayPlanSyncService(payload);
 		const service = new MealItemMutationService(syncService);
 
 		await expect(
@@ -80,8 +167,35 @@ describe("MealItemMutationService.removeMealItems", () => {
 });
 
 describe("MealItemMutationService.moveMealItem", () => {
+	it("moves an item between meals in one day payload", async () => {
+		const syncService = new RecordingDayPlanSyncService({
+			"2026-07-01": createPayload({
+				breakfast: [createProductItem({ itemId: "item-1", productId: 101 })],
+				lunch: [],
+			}),
+		});
+		const service = new MealItemMutationService(syncService);
+
+		const result = await service.moveMealItem({
+			userId: "user-1",
+			fromDate: "2026-07-01",
+			fromMealKey: "breakfast",
+			itemId: "item-1",
+			toMealKey: "lunch",
+		});
+
+		const syncedDay = syncService.syncDaysCalls[0]?.daysPayload["2026-07-01"] as DaySyncPayload;
+		expect(Object.keys(syncService.syncDaysCalls[0]?.daysPayload ?? {})).toEqual(["2026-07-01"]);
+		expect(mealItems(syncedDay, "breakfast")[0]).toMatchObject({ planDayDietItemId: "item-1" });
+		expect(mealItems(syncedDay, "breakfast")[0]?.deletedAt).toBeTruthy();
+		expect(mealItems(syncedDay, "lunch")[0]).toMatchObject({
+			planDayDietItemId: result.newItemId,
+			productId: 101,
+		});
+	});
+
 	it("moves an item between days in one multi-day synchronization", async () => {
-		const syncService = new MultiDaySyncService({
+		const syncService = new RecordingDayPlanSyncService({
 			"2026-07-01": createPayload({ breakfast: [createProductItem({ itemId: "item-1", productId: 101 })] }),
 			"2026-07-02": createPayload({ lunch: [] }),
 		});
@@ -114,56 +228,54 @@ describe("MealItemMutationService.moveMealItem", () => {
 	});
 });
 
-class FakeDayPlanSyncService implements DayPlanSyncProvider {
+class RecordingDayPlanSyncService implements DayPlanSyncProvider {
 	public readonly syncCalls: { readonly userId: string; readonly date: string; readonly payload: DaySyncPayload }[] =
 		[];
+	public readonly syncDaysCalls: { readonly userId: string; readonly daysPayload: Record<string, unknown> }[] = [];
 
-	private payload: DaySyncPayload;
+	private readonly payloads: Record<string, DaySyncPayload>;
 
-	public constructor(payload: DaySyncPayload) {
-		this.payload = payload;
+	public get currentPayload(): DaySyncPayload {
+		return this.getPayload("2026-07-01");
 	}
 
-	public async getDaySyncPayload(): Promise<DaySyncPayload> {
-		return this.payload;
+	public constructor(payload: DaySyncPayload | Record<string, DaySyncPayload>) {
+		this.payloads = isDaySyncPayload(payload) ? { "2026-07-01": payload } : payload;
+	}
+
+	public async getDaySyncPayload(_userId: string, date: string): Promise<DaySyncPayload> {
+		return this.getPayload(date);
 	}
 
 	public async syncSingleDay(userId: string, date: string, payload: DaySyncPayload): Promise<void> {
-		this.payload = payload;
+		this.payloads[date] = payload;
 		this.syncCalls.push({ userId, date, payload });
 	}
 
-	public async syncDays(): Promise<void> {
-		throw new Error("Unexpected syncDays call");
+	public async syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<void> {
+		this.syncDaysCalls.push({ userId, daysPayload });
+		for (const [date, payload] of Object.entries(daysPayload)) {
+			if (isDaySyncPayload(payload)) {
+				this.payloads[date] = payload;
+			}
+		}
 	}
 
-	public item(mealKey: string, itemId: string): Record<string, unknown> | null {
-		const meal = this.payload.dietPlan[mealKey];
+	public item(mealKey: string, itemId: string, date = "2026-07-01"): Record<string, unknown> | null {
+		const meal = this.getPayload(date).dietPlan[mealKey];
 		if (!isRecord(meal) || !Array.isArray(meal.items)) {
 			return null;
 		}
 
 		return meal.items.find((item) => isRecord(item) && item.planDayDietItemId === itemId) ?? null;
 	}
-}
 
-class MultiDaySyncService implements DayPlanSyncProvider {
-	public readonly syncDaysCalls: { userId: string; daysPayload: Record<string, unknown> }[] = [];
-
-	public constructor(private readonly payloads: Record<string, DaySyncPayload>) {}
-
-	public async getDaySyncPayload(_userId: string, date: string): Promise<DaySyncPayload> {
+	private getPayload(date: string): DaySyncPayload {
 		const payload = this.payloads[date];
-		if (!payload) throw new Error(`Missing payload for ${date}`);
+		if (!payload) {
+			throw new Error(`Missing payload for ${date}`);
+		}
 		return payload;
-	}
-
-	public async syncSingleDay(): Promise<void> {
-		throw new Error("Unexpected syncSingleDay call");
-	}
-
-	public async syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<void> {
-		this.syncDaysCalls.push({ userId, daysPayload });
 	}
 }
 
@@ -205,6 +317,10 @@ function createRecipeItem(options: { readonly itemId: string; readonly recipeId:
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isDaySyncPayload(value: unknown): value is DaySyncPayload {
+	return isRecord(value) && isRecord(value.dietPlan);
 }
 
 function mealItems(payload: DaySyncPayload | undefined, mealKey: string): Record<string, unknown>[] {

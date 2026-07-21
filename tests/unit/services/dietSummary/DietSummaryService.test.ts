@@ -103,6 +103,65 @@ describe("DietSummaryService.getDietSummary", () => {
 		expect(userRequestCount).toBe(0);
 		expect(summaryClient.requests).toHaveLength(0);
 	});
+
+	it("fills missing single-day energy values and classifies nutrient boundaries", async () => {
+		const summaryClient = new FakeSummaryClient(
+			{
+				protein: { current: 70, min: 70, max: 120, eaten: 70 },
+				fiber: { current: null, min: 25, max: 40, eaten: null },
+			},
+			{ targets: {}, measures: {} },
+		);
+		const service = new DietSummaryService(summaryClient, {
+			getAuthenticatedUser: async () => FitatuUserProfile.fromApiResponse({ id: "user-123" }),
+		});
+
+		const result = await service.getDietSummary({ fromDate: "2026-07-12", toDate: "2026-07-12" });
+
+		expect(result.period.dayCount).toBe(1);
+		expect(result.energy).toEqual({
+			loggedTotal: 0,
+			targetTotal: 0,
+			averageLogged: 0,
+			averageTarget: 0,
+			remainingToTarget: 0,
+			daily: [{ date: "2026-07-12", logged: 0, target: null, remainingToTarget: null }],
+		});
+		expect(result.allNutrients).toMatchObject([
+			{ key: "protein", status: "withinRange", remainingToMaximum: 50 },
+			{ key: "fiber", status: "noValue" },
+		]);
+	});
+
+	it("does not call summary endpoints when loading the authenticated user fails", async () => {
+		const summaryClient = new FakeSummaryClient({}, { targets: {}, measures: {} });
+		const service = new DietSummaryService(summaryClient, {
+			getAuthenticatedUser: async () => {
+				throw new Error("user unavailable");
+			},
+		});
+
+		await expect(service.getDietSummary({ fromDate: "2026-07-12", toDate: "2026-07-12" })).rejects.toThrow(
+			"user unavailable",
+		);
+		expect(summaryClient.requests).toHaveLength(0);
+	});
+
+	it("propagates a summary dependency failure", async () => {
+		const service = new DietSummaryService(
+			{
+				getSummary: async () => {
+					throw new Error("summary unavailable");
+				},
+				getEnergySummary: async () => ({ targets: {}, measures: {} }),
+			},
+			{ getAuthenticatedUser: async () => FitatuUserProfile.fromApiResponse({ id: "user-123" }) },
+		);
+
+		await expect(service.getDietSummary({ fromDate: "2026-07-12", toDate: "2026-07-12" })).rejects.toThrow(
+			"summary unavailable",
+		);
+	});
 });
 
 class FakeSummaryClient {

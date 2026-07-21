@@ -53,38 +53,34 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 		await cleanup.cleanup();
 	});
 
-	it(
-		"removes batch-added breakfast products in one accepted day sync",
-		async () => {
-			const date = getIntegrationTestDate();
-			const addResult = await dayPlanClient.addMealItems({
-				date,
-				mealKey: MEAL_KEY,
-				items: INCORRECT_BREAKFAST_ITEMS,
-			});
+	it("removes batch-added breakfast products in one accepted day sync", async () => {
+		const date = getIntegrationTestDate();
+		const addResult = await dayPlanClient.addMealItems({
+			date,
+			mealKey: MEAL_KEY,
+			items: INCORRECT_BREAKFAST_ITEMS,
+		});
 
-			expect(addResult.status).toBe("accepted");
-			expect(addResult.operation).toBe("add");
-			expect(addResult.operationCount).toBe(INCORRECT_BREAKFAST_ITEMS.length);
-			expect(addResult.createdItemIds).toHaveLength(INCORRECT_BREAKFAST_ITEMS.length);
+		expect(addResult.status).toBe("accepted");
+		expect(addResult.operation).toBe("add");
+		expect(addResult.operationCount).toBe(INCORRECT_BREAKFAST_ITEMS.length);
+		expect(addResult.createdItemIds).toHaveLength(INCORRECT_BREAKFAST_ITEMS.length);
 
-			for (const itemId of addResult.createdItemIds) {
-				cleanup.track(date, MEAL_KEY, itemId);
-				await waitForItem(date, MEAL_KEY, itemId);
-			}
+		for (const itemId of addResult.createdItemIds) {
+			cleanup.track(date, MEAL_KEY, itemId);
+			await waitForItem(date, MEAL_KEY, itemId);
+		}
 
-			const removeResult = await dayPlanClient.removeMealItems({
-				date,
-				productIds: INCORRECT_BREAKFAST_ITEMS.map((item) => requireFoodId(item.foodId)),
-			});
+		const removeResult = await dayPlanClient.removeMealItems({
+			date,
+			productIds: INCORRECT_BREAKFAST_ITEMS.map((item) => requireFoodId(item.foodId)),
+		});
 
-			expect(removeResult.status).toBe("accepted");
-			expect(removeResult.operation).toBe("remove");
-			expect(removeResult.operationCount).toBeGreaterThanOrEqual(INCORRECT_BREAKFAST_ITEMS.length);
-			expect(removeResult.deletedItemIds).toEqual(expect.arrayContaining(addResult.createdItemIds));
-		},
-		180_000,
-	);
+		expect(removeResult.status).toBe("accepted");
+		expect(removeResult.operation).toBe("remove");
+		expect(removeResult.operationCount).toBeGreaterThanOrEqual(INCORRECT_BREAKFAST_ITEMS.length);
+		expect(removeResult.deletedItemIds).toEqual(expect.arrayContaining([...addResult.createdItemIds]));
+	}, 180_000);
 });
 
 async function waitForItem(date: string, mealKey: string, itemId: string): Promise<DayPlanItem> {

@@ -1,70 +1,66 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { CallToolResultSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 interface ToolForTest {
 	register(server: McpServer): void;
 }
 
-interface ToolConfigForTest {
-	readonly inputSchema: Record<string, z.ZodType>;
-	readonly annotations?: Record<string, unknown>;
-}
+type ListedTool = Awaited<ReturnType<Client["listTools"]>>["tools"][number];
 
 export interface RegisteredToolForTest {
 	readonly name: string;
-	readonly config: ToolConfigForTest;
-	invoke(input: unknown): Promise<CallToolResult>;
+	readonly config: ListedTool;
+	invoke(input: Record<string, unknown>): Promise<CallToolResult>;
 }
 
-export function registerToolForTest(tool: ToolForTest): RegisteredToolForTest {
-	let registration:
-		| {
-				readonly name: string;
-				readonly config: ToolConfigForTest;
-				readonly handler: (input: unknown) => Promise<CallToolResult>;
-		  }
-		| undefined;
-
-	const server = {
-		registerTool: (name: string, config: unknown, handler: unknown) => {
-			if (!isToolConfig(config) || typeof handler !== "function") {
-				throw new Error(`Tool ${name} registered an invalid test contract`);
-			}
-
-			registration = {
-				name,
-				config,
-				handler: handler as (input: unknown) => Promise<CallToolResult>,
-			};
-		},
-	} as unknown as McpServer;
+export async function registerToolForTest(tool: ToolForTest): Promise<RegisteredToolForTest> {
+	const server = new McpServer({ name: "fitatu-unit-test-server", version: "1.0.0" });
+	const client = new Client({ name: "fitatu-unit-test-client", version: "1.0.0" });
+	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
 	tool.register(server);
+	await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
-	if (!registration) {
-		throw new Error("Tool did not register a handler");
+	const tools = await client.listTools();
+	const registeredTool = tools.tools[0];
+	if (!registeredTool || tools.tools.length !== 1) {
+		await closePair(client, server);
+		throw new Error(`Expected exactly one registered tool, received ${tools.tools.length}`);
+	}
+	if (!registeredTool.description || !registeredTool.outputSchema) {
+		await closePair(client, server);
+		throw new Error(`Tool ${registeredTool.name} must publish a description and output schema`);
 	}
 
-	const { name, config, handler } = registration;
-	const inputSchema = z.object(config.inputSchema);
-
 	return {
-		name,
-		config,
-		invoke: async (input) => handler(inputSchema.parse(input)),
+		name: registeredTool.name,
+		config: registeredTool,
+		invoke: async (input) => {
+			try {
+				const result = await client.callTool({ name: registeredTool.name, arguments: input });
+				return CallToolResultSchema.parse(result);
+			} finally {
+				await closePair(client, server);
+			}
+		},
 	};
 }
 
-export function parseTextContent(result: CallToolResult): unknown {
+export function getTextContent(result: CallToolResult): string {
 	const content = result.content[0];
 	if (content?.type !== "text") {
 		throw new Error("Expected the first MCP content item to contain text");
 	}
 
-	return JSON.parse(content.text);
+	return content.text;
 }
 
-function isToolConfig(value: unknown): value is ToolConfigForTest {
-	return typeof value === "object" && value !== null && "inputSchema" in value;
+export function parseTextContent(result: CallToolResult): unknown {
+	return JSON.parse(getTextContent(result));
+}
+
+async function closePair(client: Client, server: McpServer): Promise<void> {
+	await Promise.allSettled([client.close(), server.close()]);
 }

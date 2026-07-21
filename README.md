@@ -153,6 +153,24 @@ npm run test:ci
 npm run build
 ```
 
+`test:ci` runs deterministic unit tests with an informational V8 coverage report and does not load Fitatu credentials. Generate the same text, HTML, and JSON coverage reports locally with:
+
+```bash
+npm run test:coverage
+```
+
+The HTML and JSON summary are written to the ignored `coverage/` directory. Run strict TypeScript checks for both production and unit-test code with:
+
+```bash
+npm run typecheck
+```
+
+Integration tests stay separate:
+
+```bash
+npm run test:integration
+```
+
 Integration tests require valid Fitatu credentials in `.env` and may read or mutate data in the authenticated account.
 
 ## Docker

@@ -1,4 +1,7 @@
-import { createFitatuApiErrorDetails, createFitatuApiErrorDetailsFromData } from "../fitatuApiClientBase/FitatuApiError.ts";
+import {
+	createFitatuApiErrorDetails,
+	createFitatuApiErrorDetailsFromData,
+} from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
 import { DayPlanError } from "../dayPlan/DayPlanError.ts";

@@ -1,7 +1,7 @@
 import pino from "pino";
-import { getConfig } from "./config.ts";
+import { getLoggerConfig } from "./config.ts";
 
-const config = getConfig();
+const config = getLoggerConfig();
 
 export const logger = pino({
 	level: config.LOG_LEVEL,

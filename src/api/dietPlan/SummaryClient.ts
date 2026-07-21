@@ -6,6 +6,20 @@ import type { GetEnergySummaryRequest } from "./GetEnergySummaryRequest.ts";
 import type { GetEnergySummaryResponse } from "./GetEnergySummaryResponse.ts";
 import type { GetSummaryRequest } from "./GetSummaryRequest.ts";
 import type { GetSummaryResponse } from "./GetSummaryResponse.ts";
+import { z } from "zod";
+
+const nullableNumberSchema = z.number().nullable();
+const summaryMeasureSchema = z.object({
+	current: nullableNumberSchema,
+	min: nullableNumberSchema,
+	max: nullableNumberSchema,
+	eaten: nullableNumberSchema,
+});
+const summaryResponseSchema: z.ZodType<GetSummaryResponse> = z.record(z.string(), summaryMeasureSchema);
+const energySummaryResponseSchema: z.ZodType<GetEnergySummaryResponse> = z.object({
+	targets: z.record(z.string(), nullableNumberSchema),
+	measures: z.record(z.string(), nullableNumberSchema),
+});
 
 /** HTTP adapter for Fitatu diet-plan summary endpoints. */
 export class SummaryClient extends FitatuApiClientBase {
@@ -18,6 +32,7 @@ export class SummaryClient extends FitatuApiClientBase {
 			path: `/v2/diet-plan/${encodeURIComponent(request.userId)}/summary/custom`,
 			request,
 			errorMessage: "Fitatu diet plan summary request failed",
+			responseSchema: summaryResponseSchema,
 		});
 	}
 
@@ -26,13 +41,15 @@ export class SummaryClient extends FitatuApiClientBase {
 			path: `/v2/diet-plan/${encodeURIComponent(request.userId)}/summary/energy/custom`,
 			request,
 			errorMessage: "Fitatu diet plan energy summary request failed",
+			responseSchema: energySummaryResponseSchema,
 		});
 	}
 
-	private async get<ResponseBody extends Record<string, unknown>>(options: {
+	private async get<ResponseBody>(options: {
 		readonly path: string;
 		readonly request: GetSummaryRequest | GetEnergySummaryRequest;
 		readonly errorMessage: string;
+		readonly responseSchema: z.ZodType<ResponseBody>;
 	}): Promise<ResponseBody> {
 		const fromDate = normalizeSummaryDate(options.request.fromDate, "fromDate");
 		const toDate = normalizeSummaryDate(options.request.toDate, "toDate");
@@ -56,11 +73,12 @@ export class SummaryClient extends FitatuApiClientBase {
 		}
 
 		const data: unknown = await response.json();
-		if (!isRecord(data)) {
-			throw new DayPlanError("Fitatu diet plan summary response was not a JSON object");
+		const result = options.responseSchema.safeParse(data);
+		if (!result.success) {
+			throw new DayPlanError("Fitatu diet plan summary response was invalid");
 		}
 
-		return data as ResponseBody;
+		return result.data;
 	}
 }
 
@@ -76,8 +94,4 @@ function normalizeSummaryDate(value: string, fieldName: string): string {
 	}
 
 	return date;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

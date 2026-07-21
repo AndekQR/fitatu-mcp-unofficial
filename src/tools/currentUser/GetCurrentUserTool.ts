@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
-import { CurrentUserService } from "../../services/currentUser/CurrentUserService.ts";
+import type { CurrentUserProvider } from "../../services/currentUser/CurrentUserService.ts";
 import type { FitatuUserProfile } from "../../api/users/FitatuUserProfile.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
@@ -35,9 +35,9 @@ type SafeCurrentUser = z.infer<typeof currentUserOutputSchema.user>;
 export class GetCurrentUserTool {
 	public readonly name = "get_current_user";
 
-	private readonly currentUserService: CurrentUserService;
+	private readonly currentUserService: CurrentUserProvider;
 
-	public constructor(currentUserService: CurrentUserService) {
+	public constructor(currentUserService: CurrentUserProvider) {
 		this.currentUserService = currentUserService;
 	}
 

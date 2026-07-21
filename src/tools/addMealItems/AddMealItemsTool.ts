@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
-import { MealItemMutationService } from "../../services/dayPlan/MealItemMutationService.ts";
+import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
 	mealItemInputSchema,
@@ -12,9 +12,9 @@ import {
 export class AddMealItemsTool {
 	public readonly name = "add_meal_items";
 
-	private readonly mealItemMutationService: MealItemMutationService;
+	private readonly mealItemMutationService: Pick<MealItemMutationProvider, "addMealItems">;
 
-	public constructor(mealItemMutationService: MealItemMutationService) {
+	public constructor(mealItemMutationService: Pick<MealItemMutationProvider, "addMealItems">) {
 		this.mealItemMutationService = mealItemMutationService;
 	}
 

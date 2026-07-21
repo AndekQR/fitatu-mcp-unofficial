@@ -14,7 +14,11 @@ import type {
 } from "./DietSummaryTypes.ts";
 
 interface SummaryApiClient {
-	getSummary(request: { readonly userId: string; readonly fromDate: string; readonly toDate: string }): Promise<GetSummaryResponse>;
+	getSummary(request: {
+		readonly userId: string;
+		readonly fromDate: string;
+		readonly toDate: string;
+	}): Promise<GetSummaryResponse>;
 	getEnergySummary(request: {
 		readonly userId: string;
 		readonly fromDate: string;
@@ -119,7 +123,11 @@ const NUTRIENT_UNITS: Record<string, string> = {
 	zinc: "mg",
 };
 
-export class DietSummaryService {
+export interface DietSummaryProvider {
+	getDietSummary(request: DietSummaryRequest): Promise<DietSummaryResult>;
+}
+
+export class DietSummaryService implements DietSummaryProvider {
 	private readonly summaryClient: SummaryApiClient;
 	private readonly userClient: CurrentUserProvider;
 
@@ -128,8 +136,13 @@ export class DietSummaryService {
 		this.userClient = userClient;
 	}
 
-	public static create(options: { readonly summaryClient?: SummaryClient; readonly userClient?: FitatuUserClient } = {}): DietSummaryService {
-		return new DietSummaryService(options.summaryClient ?? new SummaryClient(), options.userClient ?? FitatuUserClient.getInstance());
+	public static create(
+		options: { readonly summaryClient?: SummaryClient; readonly userClient?: FitatuUserClient } = {},
+	): DietSummaryService {
+		return new DietSummaryService(
+			options.summaryClient ?? new SummaryClient(),
+			options.userClient ?? FitatuUserClient.getInstance(),
+		);
 	}
 
 	public async getDietSummary(request: DietSummaryRequest): Promise<DietSummaryResult> {
@@ -266,7 +279,7 @@ function eachDate(fromDate: string, toDate: string): readonly string[] {
 }
 
 function sumNumbers(values: readonly (number | null)[]): number {
-	return round(values.reduce((sum, value) => sum + (value ?? 0), 0));
+	return round(values.reduce<number>((sum, value) => sum + (value ?? 0), 0));
 }
 
 function numberOrNull(value: number | null | undefined): number | null {

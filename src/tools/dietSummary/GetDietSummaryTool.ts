@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DietSummaryService } from "../../services/dietSummary/DietSummaryService.ts";
+import type { DietSummaryProvider } from "../../services/dietSummary/DietSummaryService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 
@@ -33,11 +33,15 @@ const dietSummaryOutputSchema = {
 		.object({
 			loggedTotal: z
 				.number()
-				.describe("Sum of daily energy values returned by Fitatu for logged/planned items, not only eaten=true items."),
+				.describe(
+					"Sum of daily energy values returned by Fitatu for logged/planned items, not only eaten=true items.",
+				),
 			targetTotal: z.number().describe("Sum of daily energy targets returned by Fitatu."),
 			averageLogged: z
 				.number()
-				.describe("Logged/planned energy averaged across every day in the selected range, including empty days as zero."),
+				.describe(
+					"Logged/planned energy averaged across every day in the selected range, including empty days as zero.",
+				),
 			averageTarget: z.number().describe("Target energy averaged across every day in the selected range."),
 			remainingToTarget: z.number().describe("Positive means remaining calories; negative means over target."),
 			daily: z
@@ -48,22 +52,26 @@ const dietSummaryOutputSchema = {
 							.number()
 							.describe("Logged/planned energy for the day; zero when Fitatu returned no daily measure."),
 						target: optionalNumber.describe("Energy target for the day, when Fitatu returned it."),
-						remainingToTarget: optionalNumber.describe("Target minus logged energy for the day, when a target exists."),
+						remainingToTarget: optionalNumber.describe(
+							"Target minus logged energy for the day, when a target exists.",
+						),
 					}),
 				)
 				.describe("Daily energy target and logged/planned values."),
 		})
 		.describe("Energy totals and daily values from the energy summary endpoint."),
 	keyNutrients: z.array(nutrientSchema).describe("High-signal nutrients selected for quick agent interpretation."),
-	allNutrients: z.array(nutrientSchema).describe("All nutrients returned by Fitatu, normalized into a scannable list."),
+	allNutrients: z
+		.array(nutrientSchema)
+		.describe("All nutrients returned by Fitatu, normalized into a scannable list."),
 };
 
 export class GetDietSummaryTool {
 	public readonly name = "get_diet_summary";
 
-	private readonly dietSummaryService: DietSummaryService;
+	private readonly dietSummaryService: DietSummaryProvider;
 
-	public constructor(dietSummaryService: DietSummaryService) {
+	public constructor(dietSummaryService: DietSummaryProvider) {
 		this.dietSummaryService = dietSummaryService;
 	}
 

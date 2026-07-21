@@ -26,12 +26,12 @@ import {
 } from "./DayPlanValidators.ts";
 import type { MealItemMutationResult } from "./MealItemMutation.ts";
 import { toDayItemPayload } from "./MealItemPayloadMapper.ts";
-import type { DayPlanSyncService } from "./DayPlanSyncService.ts";
+import type { DayPlanSyncProvider } from "./DayPlanSyncService.ts";
 
 export class MealItemMutationService {
-	private readonly dayPlanSyncService: DayPlanSyncService;
+	private readonly dayPlanSyncService: DayPlanSyncProvider;
 
-	public constructor(dayPlanSyncService: DayPlanSyncService) {
+	public constructor(dayPlanSyncService: DayPlanSyncProvider) {
 		this.dayPlanSyncService = dayPlanSyncService;
 	}
 

@@ -1,25 +1,15 @@
 import { defineConfig } from "vitest/config";
-import { loadEnvFile } from "node:process";
-
-const isIntegrationRun = process.argv.some((arg) => arg.includes("tests/integration"));
-
-if (isIntegrationRun) {
-	loadEnvFile(".env");
-}
 
 export default defineConfig({
 	test: {
-		...(isIntegrationRun
-			? {
-					fileParallelism: false,
-					testTimeout: 120_000,
-					hookTimeout: 90_000,
-					sequence: {
-						concurrent: false,
-					},
-				}
-			: {
-					exclude: ["tests/integration/**", "node_modules/**", "dist/**"],
-				}),
+		include: ["src/**/*.test.ts", "tests/unit/**/*.test.ts"],
+		setupFiles: ["./tests/unit/setup.ts"],
+		coverage: {
+			provider: "v8",
+			reporter: ["text", "json-summary", "html"],
+			reportsDirectory: "coverage",
+			include: ["src/**/*.ts"],
+			exclude: ["src/**/*.test.ts"],
+		},
 	},
 });

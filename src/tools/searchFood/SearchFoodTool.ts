@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
-import { FoodSearchService } from "../../services/foodSearch/FoodSearchService.ts";
+import type { FoodSearchProvider } from "../../services/foodSearch/FoodSearchService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { FoodSearchResultForMcp } from "./FoodSearchResultForMcp.ts";
 
@@ -158,9 +158,9 @@ const inputSchema = {
 export class SearchFoodTool {
 	public readonly name = "search_food";
 
-	private readonly foodSearchService: FoodSearchService;
+	private readonly foodSearchService: FoodSearchProvider;
 
-	public constructor(foodSearchService: FoodSearchService) {
+	public constructor(foodSearchService: FoodSearchProvider) {
 		this.foodSearchService = foodSearchService;
 	}
 

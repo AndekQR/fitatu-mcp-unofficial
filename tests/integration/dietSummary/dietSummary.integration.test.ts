@@ -229,38 +229,55 @@ describe("GetDietSummaryTool integration", () => {
 
 	it("returns a safe structured MCP error for invalid tool input handled by the service", async () => {
 		const tool = new GetDietSummaryTool(
-			new FakeDietSummaryService(undefined, new DayPlanError("fromDate must be before or equal to toDate")) as unknown as DietSummaryService,
+			new FakeDietSummaryService(
+				undefined,
+				new DayPlanError("fromDate must be before or equal to toDate"),
+			) as unknown as DietSummaryService,
 		);
 		const handler = registerToolForTest(tool);
 
 		const result = await handler({ fromDate: "2026-07-03", toDate: "2026-07-01" });
-
-		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toEqual({
+		const expectedError = {
 			status: "error",
 			toolName: "get_diet_summary",
 			errorName: "DayPlanError",
 			message: "fromDate must be before or equal to toDate",
-		});
+		};
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toBeUndefined();
+		expect(result.content).toEqual([
+			{
+				type: "text",
+				text: JSON.stringify(expectedError, null, 2),
+			},
+		]);
 	});
 
 	it("does not expose generic unexpected error messages to MCP callers", async () => {
 		const tool = new GetDietSummaryTool(
-			new FakeDietSummaryService(undefined, new Error("upstream token secret leaked in stack")) as unknown as DietSummaryService,
+			new FakeDietSummaryService(
+				undefined,
+				new Error("upstream token secret leaked in stack"),
+			) as unknown as DietSummaryService,
 		);
 		const handler = registerToolForTest(tool);
 
 		const result = await handler({ fromDate: "2026-07-01", toDate: "2026-07-01" });
 
 		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toEqual({
+		expect(result.structuredContent).toBeUndefined();
+		const content = result.content[0];
+		if (content?.type !== "text") {
+			throw new Error("Expected a text MCP error result");
+		}
+		expect(JSON.parse(content.text)).toEqual({
 			status: "error",
 			toolName: "get_diet_summary",
 			errorName: "Error",
 			message: "Unable to fetch Fitatu diet summary.",
 		});
-		expect(result.content[0]?.type).toBe("text");
-		expect(result.content[0]?.text).not.toContain("upstream token secret");
+		expect(content.text).not.toContain("upstream token secret");
 	});
 });
 
@@ -275,7 +292,9 @@ class FakeSummaryClient {
 	private readonly summary: GetSummaryResponse;
 	private readonly energySummary: GetEnergySummaryResponse;
 
-	public constructor(options: { readonly summary?: GetSummaryResponse; readonly energySummary?: GetEnergySummaryResponse } = {}) {
+	public constructor(
+		options: { readonly summary?: GetSummaryResponse; readonly energySummary?: GetEnergySummaryResponse } = {},
+	) {
 		this.summary = options.summary ?? {};
 		this.energySummary = options.energySummary ?? { targets: {}, measures: {} };
 	}

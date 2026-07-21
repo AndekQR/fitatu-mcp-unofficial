@@ -12,7 +12,13 @@ export interface DaySyncPayload {
 	tagsIds: unknown[];
 }
 
-export class DayPlanSyncService {
+export interface DayPlanSyncProvider {
+	getDaySyncPayload(userId: string, date: string): Promise<DaySyncPayload>;
+	syncSingleDay(userId: string, date: string, dayPayload: DaySyncPayload): Promise<void>;
+	syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<void>;
+}
+
+export class DayPlanSyncService implements DayPlanSyncProvider {
 	private readonly dayClient: DayClient;
 	private readonly daysClient: DaysClient;
 

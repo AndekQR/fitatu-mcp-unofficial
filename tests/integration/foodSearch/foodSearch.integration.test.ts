@@ -200,19 +200,20 @@ describe.sequential("Fitatu food search integration", () => {
 		const handler = registerToolForTest(tool);
 
 		const result = await handler({ queries: ["pomidory koktajlowe"] });
-
-		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toEqual({
+		const expectedError = {
 			status: "error",
 			toolName: "search_food",
 			errorName: "FoodSearchError",
 			message: "All Fitatu food search requests failed",
 			fitatuApiErrors,
-		});
+		};
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toBeUndefined();
 		expect(result.content).toEqual([
 			{
 				type: "text",
-				text: JSON.stringify(result.structuredContent, null, 2),
+				text: JSON.stringify(expectedError, null, 2),
 			},
 		]);
 	});

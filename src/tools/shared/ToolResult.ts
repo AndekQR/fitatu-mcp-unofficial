@@ -22,7 +22,6 @@ export function createTextResult(data: unknown, options: McpResponseFormatterOpt
 /** Creates an MCP error result without compacting diagnostic fields. */
 export function createErrorResult(data: unknown): CallToolResult {
 	const plainData = toJsonValue(data === undefined ? null : data);
-	const structuredContent = isRecord(plainData) ? plainData : undefined;
 
 	return {
 		isError: true,
@@ -32,7 +31,6 @@ export function createErrorResult(data: unknown): CallToolResult {
 				text: typeof plainData === "string" ? plainData : JSON.stringify(plainData, null, 2),
 			},
 		],
-		...(structuredContent ? { structuredContent } : {}),
 	};
 }
 

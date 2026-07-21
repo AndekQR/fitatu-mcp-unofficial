@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
-import { DayPlanQueryService } from "../../services/dayPlan/DayPlanQueryService.ts";
+import type { DayPlanQueryProvider } from "../../services/dayPlan/DayPlanQueryService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
 
@@ -62,9 +62,9 @@ const dayPlanOutputSchema = {
 export class GetDayPlanItemsTool {
 	public readonly name = "get_day_plan_items";
 
-	private readonly dayPlanQueryService: DayPlanQueryService;
+	private readonly dayPlanQueryService: DayPlanQueryProvider;
 
-	public constructor(dayPlanQueryService: DayPlanQueryService) {
+	public constructor(dayPlanQueryService: DayPlanQueryProvider) {
 		this.dayPlanQueryService = dayPlanQueryService;
 	}
 

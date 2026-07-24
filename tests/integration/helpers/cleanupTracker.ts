@@ -1,4 +1,6 @@
 import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
+import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
+import { RecipeError } from "../../../src/api/recipes/RecipeError.ts";
 
 interface TrackedMealItem {
 	readonly date: string;
@@ -8,11 +10,15 @@ interface TrackedMealItem {
 
 export class CleanupTracker {
 	private readonly items;
+	private readonly recipeIds;
 	private readonly dayPlanClient;
+	private readonly recipeClient;
 
-	public constructor(dayPlanClient: DayPlanClient) {
+	public constructor(dayPlanClient: DayPlanClient, recipeClient?: RecipeClient) {
 		this.dayPlanClient = dayPlanClient;
+		this.recipeClient = recipeClient;
 		this.items = new Map<string, TrackedMealItem>();
+		this.recipeIds = new Set<string>();
 	}
 
 	public track(date: string, mealKey: string, itemId: string | null | undefined): void {
@@ -43,6 +49,18 @@ export class CleanupTracker {
 		this.track(options.toDate, options.toMealKey, options.newItemId);
 	}
 
+	public trackRecipe(recipeId: string | null | undefined): void {
+		if (recipeId) {
+			this.recipeIds.add(recipeId);
+		}
+	}
+
+	public untrackRecipe(recipeId: string | null | undefined): void {
+		if (recipeId) {
+			this.recipeIds.delete(recipeId);
+		}
+	}
+
 	public async cleanup(): Promise<void> {
 		const trackedItems = [...this.items.values()].reverse();
 
@@ -61,6 +79,22 @@ export class CleanupTracker {
 					throw error;
 				}
 				this.untrack(item.date, item.mealKey, item.itemId);
+			}
+		}
+
+		if (!this.recipeClient) {
+			return;
+		}
+
+		for (const recipeId of [...this.recipeIds].reverse()) {
+			try {
+				await this.recipeClient.deleteRecipe(recipeId);
+				this.recipeIds.delete(recipeId);
+			} catch (error) {
+				if (!isMissingRecipeError(error)) {
+					throw error;
+				}
+				this.recipeIds.delete(recipeId);
 			}
 		}
 	}
@@ -82,6 +116,10 @@ export class CleanupTracker {
 
 		throw new Error(`Cleanup did not remove item ${item.itemId} from ${item.mealKey} on ${item.date}`);
 	}
+}
+
+function isMissingRecipeError(error: unknown): boolean {
+	return error instanceof RecipeError && (error.statusCode === 404 || error.statusCode === 410);
 }
 
 function isNotFoundError(error: unknown): boolean {

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { FitatuAuthSession } from "../../../../src/api/auth/FitatuAuthSession.ts";
 import { FitatuApiClientBase } from "../../../../src/api/fitatuApiClientBase/FitatuApiClientBase.ts";
 import type {
-	FitatuAuthProvider,
 	FitatuApiClientBaseOptions,
+	FitatuAuthProvider,
 	FitatuUserProvider,
 } from "../../../../src/api/fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "../../../../src/api/fitatuApiClientBase/FitatuApiRequestOptions.ts";

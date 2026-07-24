@@ -58,7 +58,7 @@ export class RecipeClient extends FitatuApiClientBase {
 		});
 		const recipeId = StringUtils.parseStringValue(created.id, "Recipe creation response id is required");
 
-		return { recipeId, details: await this.getRecipeAfterWrite(recipeId) };
+		return { recipeId, details: await this.getRecipeAfterWrite(recipeId), warnings: [] };
 	}
 
 	public async replaceRecipe(recipeId: string | number, input: RecipeReplacementInput): Promise<RecipeReplaceResult> {
@@ -79,6 +79,7 @@ export class RecipeClient extends FitatuApiClientBase {
 			recipeId: nextRecipeId,
 			identityChanged: nextRecipeId !== previousRecipeId,
 			details: await this.getRecipeAfterWrite(nextRecipeId),
+			warnings: [],
 		};
 	}
 
@@ -111,13 +112,65 @@ export class RecipeClient extends FitatuApiClientBase {
 			MAX_SEARCH_LIMIT,
 			`limit must be between 1 and ${MAX_SEARCH_LIMIT}`,
 		);
+		const matchLocale = query ? normalizeCaseLocale(await this.getContextSearchLocale()) : undefined;
 		const limited =
 			scope === "all"
-				? await this.searchCombinedRecipePage({ query, page, limit })
-				: RecipeSearchResult.deduplicateItems(
-						await this.searchRecipeSource({ query, source: scope, page, limit }),
-					).slice(0, limit);
+				? await this.searchCombinedRecipePage({ query, page, limit, matchLocale })
+				: query
+					? await this.searchFilteredRecipePage({ query, source: scope, page, limit, matchLocale })
+					: RecipeSearchResult.deduplicateItems(
+							await this.searchRecipeSource({ query, source: scope, page, limit }),
+						).slice(0, limit);
 		return { query, scope, page, limit, count: limited.length, items: limited };
+	}
+
+	private async searchFilteredRecipePage(options: {
+		readonly query: string;
+		readonly source: RecipeSearchSource;
+		readonly page: number;
+		readonly limit: number;
+		readonly matchLocale?: string;
+	}): Promise<readonly RecipeSearchItem[]> {
+		const requestedEnd = options.page * options.limit;
+		const matches = await this.collectMatchingRecipeItems({
+			...options,
+			count: requestedEnd,
+		});
+		const offset = (options.page - 1) * options.limit;
+		return matches.slice(offset, offset + options.limit);
+	}
+
+	private async collectMatchingRecipeItems(options: {
+		readonly query: string;
+		readonly source: RecipeSearchSource;
+		readonly limit: number;
+		readonly count: number;
+		readonly matchLocale?: string;
+	}): Promise<readonly RecipeSearchItem[]> {
+		const matches: RecipeSearchItem[] = [];
+		const seen = new Set<string>();
+
+		for (let sourcePage = 1; matches.length < options.count; sourcePage += 1) {
+			const sourceItems = await this.searchRecipeSource({ ...options, page: sourcePage });
+			let discoveredItem = false;
+
+			for (const item of sourceItems) {
+				if (seen.has(item.recipeId)) {
+					continue;
+				}
+				seen.add(item.recipeId);
+				discoveredItem = true;
+				if (recipeNameIncludes(item.name, options.query, options.matchLocale)) {
+					matches.push(item);
+				}
+			}
+
+			if (sourceItems.length < options.limit || !discoveredItem) {
+				break;
+			}
+		}
+
+		return matches;
 	}
 
 	private async searchRecipeSource(options: {
@@ -159,7 +212,25 @@ export class RecipeClient extends FitatuApiClientBase {
 		readonly query: string;
 		readonly page: number;
 		readonly limit: number;
+		readonly matchLocale?: string;
 	}): Promise<readonly RecipeSearchItem[]> {
+		const requestedEnd = options.page * options.limit;
+		if (options.query) {
+			const mine = await this.collectMatchingRecipeItems({
+				...options,
+				source: "mine",
+				count: requestedEnd,
+			});
+			const publicItems = await this.collectMatchingRecipeItems({
+				...options,
+				source: "public",
+				count: requestedEnd,
+			});
+			const combined = RecipeSearchResult.deduplicateItems(interleave(mine, publicItems));
+			const offset = (options.page - 1) * options.limit;
+			return combined.slice(offset, offset + options.limit);
+		}
+
 		const mine: RecipeSearchItem[] = [];
 		const publicItems: RecipeSearchItem[] = [];
 
@@ -247,4 +318,16 @@ function wait(milliseconds: number): Promise<void> {
 	return new Promise((resolve) => {
 		setTimeout(resolve, milliseconds);
 	});
+}
+
+function recipeNameIncludes(name: string, query: string, locale?: string): boolean {
+	return query === "" || name.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale));
+}
+
+function normalizeCaseLocale(locale: string): string | undefined {
+	try {
+		return Intl.getCanonicalLocales(locale.replaceAll("_", "-"))[0];
+	} catch {
+		return undefined;
+	}
 }

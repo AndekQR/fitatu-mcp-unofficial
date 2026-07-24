@@ -17,7 +17,11 @@ export class RecipeWriteInput {
 
 	public static toRecipePayload(input: RecipeWriteInput, categories: unknown): Record<string, unknown> {
 		if (input.ingredients.length === 0) {
-			throw new RecipeError("ingredients must not be empty");
+			throw new RecipeError("ingredients must not be empty", {
+				code: "INVALID_ARGUMENT",
+				parameter: "ingredients",
+				retryable: false,
+			});
 		}
 
 		return {

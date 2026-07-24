@@ -33,13 +33,15 @@ export class SearchRecipesTool {
 			{
 				title: "Search Fitatu Recipes",
 				description:
-					"Searches recipes by name in the authenticated user's catalog, Fitatu's public catalog, or both. Omit query to list recipes. Results are paginated from page 1; scope=all interleaves and deduplicates owned and public results.",
+					"Searches recipes using a case-insensitive substring match over recipe names in the authenticated user's Fitatu search locale. Searches the user's catalog, Fitatu's public catalog, or both. Diacritics are preserved. Omit query to list recipes. Results are paginated from page 1; scope=all interleaves and deduplicates owned and public results.",
 				inputSchema: {
 					query: z
 						.string()
 						.trim()
 						.optional()
-						.describe("Optional recipe-name search phrase. Omit or use an empty string to list recipes."),
+						.describe(
+							"Optional case-insensitive substring matched against recipe names. Omit or use an empty string to list recipes.",
+						),
 					scope: z
 						.enum(["mine", "public", "all"])
 						.default("mine")

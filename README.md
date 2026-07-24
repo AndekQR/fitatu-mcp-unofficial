@@ -67,10 +67,7 @@ For clients that launch MCP servers through a command, use `mcp-remote`:
 	"mcpServers": {
 		"fitatu": {
 			"command": "npx",
-			"args": [
-				"mcp-remote",
-				"http://localhost:3000/mcp"
-			]
+			"args": ["mcp-remote", "http://localhost:3000/mcp"]
 		}
 	}
 }
@@ -93,7 +90,7 @@ http://localhost:3000/mcp
 ## Available Tools
 
 | Tool                 | Purpose                                                                             | Mutates Fitatu data |
-|----------------------|-------------------------------------------------------------------------------------|---------------------|
+| -------------------- | ----------------------------------------------------------------------------------- | ------------------- |
 | `get_current_user`   | Returns a safe subset of the authenticated Fitatu user profile.                     | No                  |
 | `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date.                               | No                  |
 | `get_diet_summary`   | Returns an agent-friendly nutrition and energy summary for an inclusive date range. | No                  |
@@ -125,19 +122,26 @@ omit an individual item when its `foodId`, `measureId`, or `foodType` is not rec
 ### Recipe Workflow
 
 1. Call `search_food` to find product `foodId` and `measureId` values for recipe ingredients.
-2. Call `create_recipe`; recipes are private unless `shared: true` is explicitly requested.
-3. Use `search_recipes` to list or search the authenticated user's recipes, the public catalog, or both. Call `get_recipe` for canonical per-serving details.
+2. Call `create_recipe`; recipes are private unless `shared: true` is explicitly requested. Use only `breakfast`, `second_breakfast`, `lunch`, `snack`, or
+   `supper` in `mealSchema`.
+3. Use `search_recipes` to list or search the authenticated user's recipes, the public catalog, or both. A non-empty `query` performs a case-insensitive
+   substring match over recipe names using the authenticated user's Fitatu search locale while preserving diacritics. No matches returns `count: 0` and
+   `items: []`; `count` always means the number of items on the returned page, not a catalog-wide total. Call `get_recipe` for canonical per-serving details.
 4. Call `update_recipe` only for an owned, editable recipe. Always use the returned `recipeId` afterward because Fitatu may replace the recipe and assign a new
    ID.
 5. Call `delete_recipe` only when permanent deletion is intended. It requires the current recipe name in `expectedName` and rejects recipes not owned by the
    authenticated user.
+
+All recipe tools publish an MCP `outputSchema`. Successful create and update responses include `warnings`; the array is empty unless the same
+`itemId`/`measureId` selection occurs more than once. Recipe execution errors include a stable `code` and `retryable` flag. Invalid tool arguments are rejected
+by the MCP SDK with protocol error `-32602` before the tool handler runs.
 
 ## Configuration
 
 Runtime configuration is read from environment variables and validated at startup.
 
 | Variable          | Required | Default       | Sensitive | Description                             |
-|-------------------|----------|---------------|-----------|-----------------------------------------|
+| ----------------- | -------- | ------------- | --------- | --------------------------------------- |
 | `FITATU_EMAIL`    | Yes      | none          | Yes       | Fitatu account email address.           |
 | `FITATU_PASSWORD` | Yes      | none          | Yes       | Fitatu account password.                |
 | `PORT`            | No       | `3000`        | No        | HTTP server port.                       |

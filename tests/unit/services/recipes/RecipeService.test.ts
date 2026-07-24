@@ -13,6 +13,66 @@ const userClient = {
 };
 
 describe("RecipeService", () => {
+	it("warns when create uses the same product and measure more than once", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse({ id: 100 }, { status: 201 }),
+			createJsonResponse(recipeResponse()),
+		);
+		const service = createService(fetchStub);
+
+		const result = await service.createRecipe({
+			name: "Duplicate ingredients",
+			ingredients: [
+				{ itemId: "10", measureId: "2", measureQuantity: 1, type: "PRODUCT" },
+				{ itemId: "10", measureId: "2", measureQuantity: 2, type: "PRODUCT" },
+			],
+			tags: [],
+			servings: 2,
+			shared: false,
+			description: null,
+			cookingTimeMinutes: null,
+			preparationTimeMinutes: null,
+			mealSchema: [],
+		});
+
+		expect(result.warnings).toEqual([
+			{
+				code: "DUPLICATE_INGREDIENT_SELECTION",
+				message: "Ingredient itemId 10 with measureId 2 appears more than once.",
+				itemId: "10",
+				measureId: "2",
+				indexes: [0, 1],
+			},
+		]);
+	});
+
+	it("warns when update uses the same product and measure more than once", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse(recipeResponse()),
+			createJsonResponse({ id: 200 }, { status: 201 }),
+			createJsonResponse(recipeResponse({ id: 200, name: "Updated" })),
+		);
+		const service = createService(fetchStub);
+
+		const result = await service.updateRecipe("100", {
+			name: "Updated",
+			ingredients: [
+				{ itemId: "10", measureId: "2", measureQuantity: 1, type: "PRODUCT" },
+				{ itemId: "10", measureId: "2", measureQuantity: 3, type: "PRODUCT" },
+			],
+		});
+
+		expect(result.warnings).toEqual([
+			{
+				code: "DUPLICATE_INGREDIENT_SELECTION",
+				message: "Ingredient itemId 10 with measureId 2 appears more than once.",
+				itemId: "10",
+				measureId: "2",
+				indexes: [0, 1],
+			},
+		]);
+	});
+
 	it("updates only selected fields while preserving the current recipe payload", async () => {
 		const fetchStub = createFetchStub(
 			createJsonResponse(recipeResponse()),
@@ -47,7 +107,11 @@ describe("RecipeService", () => {
 		const service = createService(fetchStub);
 
 		await expect(service.updateRecipe("100", { name: "Changed" })).rejects.toEqual(
-			new RecipeError("Recipe 100 is not owned by the authenticated user"),
+			new RecipeError("Recipe 100 is not owned by the authenticated user", {
+				code: "RECIPE_NOT_OWNED",
+				parameter: "recipeId",
+				retryable: false,
+			}),
 		);
 		expect(fetchStub.calls).toHaveLength(1);
 	});
@@ -69,7 +133,11 @@ describe("RecipeService", () => {
 		const service = createService(fetchStub);
 
 		await expect(service.deleteRecipe("100", "Wrong")).rejects.toEqual(
-			new RecipeError("Recipe name confirmation did not match"),
+			new RecipeError("Recipe name confirmation did not match", {
+				code: "RECIPE_NAME_MISMATCH",
+				parameter: "expectedName",
+				retryable: false,
+			}),
 		);
 		expect(fetchStub.calls).toHaveLength(1);
 	});
@@ -81,7 +149,13 @@ describe("RecipeService", () => {
 		const fetchStub = createFetchStub(createJsonResponse(recipeResponse({ editable: false })));
 		const service = createService(fetchStub);
 
-		await expect(action(service)).rejects.toEqual(new RecipeError("Recipe 100 is not editable"));
+		await expect(action(service)).rejects.toEqual(
+			new RecipeError("Recipe 100 is not editable", {
+				code: "RECIPE_NOT_EDITABLE",
+				parameter: "recipeId",
+				retryable: false,
+			}),
+		);
 		expect(fetchStub.calls).toHaveLength(1);
 	});
 
@@ -90,7 +164,11 @@ describe("RecipeService", () => {
 		const service = createService(fetchStub);
 
 		await expect(service.deleteRecipe("100", "Original")).rejects.toEqual(
-			new RecipeError("Recipe 100 is not owned by the authenticated user"),
+			new RecipeError("Recipe 100 is not owned by the authenticated user", {
+				code: "RECIPE_NOT_OWNED",
+				parameter: "recipeId",
+				retryable: false,
+			}),
 		);
 		expect(fetchStub.calls).toHaveLength(1);
 	});

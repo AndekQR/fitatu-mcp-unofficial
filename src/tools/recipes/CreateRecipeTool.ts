@@ -5,6 +5,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import {
 	RECIPE_EMPTY_ARRAY_KEYS,
 	recipeDetailsOutputSchema,
+	recipeWarningOutputSchema,
 	recipeWriteInputShape,
 	toRecipeDetailsForMcp,
 } from "./RecipeToolSupport.ts";
@@ -32,6 +33,11 @@ export class CreateRecipeTool {
 					details: recipeDetailsOutputSchema.describe(
 						"Canonical recipe details returned by a read-after-write request.",
 					),
+					warnings: recipeWarningOutputSchema
+						.array()
+						.describe(
+							"Non-fatal write warnings; empty when no duplicate ingredient selections were found.",
+						),
 				},
 				annotations: {
 					title: "Create Fitatu Recipe",
@@ -58,7 +64,11 @@ export class CreateRecipeTool {
 						mealSchema: input.mealSchema ?? [],
 					});
 					return createTextResult(
-						{ recipeId: result.recipeId, details: toRecipeDetailsForMcp(result.details) },
+						{
+							recipeId: result.recipeId,
+							details: toRecipeDetailsForMcp(result.details),
+							warnings: result.warnings,
+						},
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);
 				} catch (error) {

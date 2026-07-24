@@ -99,6 +99,18 @@ describe("RecipeClient", () => {
 		});
 	});
 
+	it("classifies a missing recipe as non-retryable", async () => {
+		const fetchStub = createFetchStub(createJsonResponse({ message: "missing" }, { status: 404 }));
+		const client = createClient(fetchStub);
+
+		await expect(client.getRecipe("999")).rejects.toMatchObject({
+			name: "RecipeError",
+			code: "RECIPE_NOT_FOUND",
+			retryable: false,
+			statusCode: 404,
+		});
+	});
+
 	it("creates a private recipe and returns canonical details from read-after-write", async () => {
 		const fetchStub = createFetchStub(
 			createJsonResponse(
@@ -212,6 +224,108 @@ describe("RecipeClient", () => {
 		]);
 	});
 
+	it("returns no owned recipes when Fitatu ignores a query that matches no names", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([
+				{ foodId: 11, name: "Wanted recipe", type: "RECIPE" },
+				{ foodId: 22, name: "Unrelated recipe", type: "RECIPE" },
+			]),
+		);
+		const client = createClient(fetchStub);
+
+		const result = await client.searchRecipes({
+			query: "ZZZ_NO_SUCH_RECIPE_9F3B1",
+			scope: "mine",
+			page: 1,
+			limit: 20,
+		});
+
+		expect(result).toMatchObject({ count: 0, items: [] });
+	});
+
+	it("continues through owned catalog pages until it fills the requested filtered page", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([{ foodId: 11, name: "Unrelated recipe", type: "RECIPE" }]),
+			createJsonResponse([{ foodId: 22, name: "ŻÓŁTY Omlet Domowy", type: "RECIPE" }]),
+		);
+		const client = createClient(fetchStub);
+
+		const result = await client.searchRecipes({
+			query: "omlet dom",
+			scope: "mine",
+			page: 1,
+			limit: 1,
+		});
+
+		expect(result.items).toEqual([
+			{ recipeId: "22", name: "ŻÓŁTY Omlet Domowy", source: "mine", energyKcal: null },
+		]);
+		expect(fetchStub.calls).toHaveLength(2);
+		expect(fetchStub.calls[1]?.input).toContain("page=2");
+	});
+
+	it("uses the authenticated user's search locale for case-insensitive name matching", async () => {
+		const fetchStub = createFetchStub(createJsonResponse([{ foodId: 11, name: "IRMAK TARIFI", type: "RECIPE" }]));
+		const turkishUserClient = {
+			getCurrentUser: async () =>
+				FitatuUserProfile.fromApiResponse({
+					id: "test-user",
+					locale: "tr_TR",
+					searchLocale: "tr_TR",
+				}),
+			clearUserCache: () => undefined,
+		};
+		const client = new RecipeClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient: turkishUserClient,
+		});
+
+		const result = await client.searchRecipes({
+			query: "ırmak",
+			scope: "mine",
+			page: 1,
+			limit: 20,
+		});
+
+		expect(result.items).toEqual([{ recipeId: "11", name: "IRMAK TARIFI", source: "mine", energyKcal: null }]);
+	});
+
+	it("paginates after filtering instead of paginating the unfiltered catalog", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([{ foodId: 11, name: "Target one", type: "RECIPE" }]),
+			createJsonResponse([{ foodId: 22, name: "Unrelated", type: "RECIPE" }]),
+			createJsonResponse([{ foodId: 33, name: "Target two", type: "RECIPE" }]),
+		);
+		const client = createClient(fetchStub);
+
+		const result = await client.searchRecipes({
+			query: "target",
+			scope: "mine",
+			page: 2,
+			limit: 1,
+		});
+
+		expect(result.items).toEqual([{ recipeId: "33", name: "Target two", source: "mine", energyKcal: null }]);
+	});
+
+	it("stops safely when Fitatu repeats a full catalog page", async () => {
+		const repeatedPage = [{ foodId: 11, name: "Unrelated", type: "RECIPE" }];
+		const fetchStub = createFetchStub(createJsonResponse(repeatedPage), createJsonResponse(repeatedPage));
+		const client = createClient(fetchStub);
+
+		const result = await client.searchRecipes({
+			query: "missing",
+			scope: "mine",
+			page: 1,
+			limit: 1,
+		});
+
+		expect(result).toMatchObject({ count: 0, items: [] });
+		expect(fetchStub.calls).toHaveLength(2);
+	});
+
 	it("retries canonical read when a newly created recipe is briefly unavailable", async () => {
 		const fetchStub = createFetchStub(
 			createJsonResponse({ id: 159081309, name: "Test dish" }, { status: 201 }),
@@ -228,10 +342,10 @@ describe("RecipeClient", () => {
 
 	it("applies one total limit and deduplicates ids when searching all catalogs", async () => {
 		const fetchStub = createFetchStub(
-			createJsonResponse([{ foodId: 11, name: "Mine", type: "RECIPE" }]),
+			createJsonResponse([{ foodId: 11, name: "Mine recipe", type: "RECIPE" }]),
 			createJsonResponse([
-				{ foodId: 11, name: "Public duplicate", type: "RECIPE" },
-				{ foodId: 22, name: "Public other", type: "RECIPE" },
+				{ foodId: 11, name: "Public duplicate recipe", type: "RECIPE" },
+				{ foodId: 22, name: "Public other recipe", type: "RECIPE" },
 			]),
 		);
 		const client = createClient(fetchStub);
@@ -239,8 +353,25 @@ describe("RecipeClient", () => {
 		const result = await client.searchRecipes({ query: "recipe", scope: "all", page: 1, limit: 1 });
 
 		expect(result.count).toBe(1);
-		expect(result.items).toEqual([{ recipeId: "11", name: "Mine", source: "mine", energyKcal: null }]);
+		expect(result.items).toEqual([{ recipeId: "11", name: "Mine recipe", source: "mine", energyKcal: null }]);
 		expect(fetchStub.calls[1]?.input).toContain("locale=pl_PL");
+	});
+
+	it("filters both catalogs when searching all recipes", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([{ foodId: 11, name: "Mine", type: "RECIPE" }]),
+			createJsonResponse([{ foodId: 22, name: "Public", type: "RECIPE" }]),
+		);
+		const client = createClient(fetchStub);
+
+		const result = await client.searchRecipes({
+			query: "ZZZ_NO_SUCH_RECIPE_9F3B1",
+			scope: "all",
+			page: 1,
+			limit: 20,
+		});
+
+		expect(result).toMatchObject({ count: 0, items: [] });
 	});
 
 	it("paginates the combined catalog without starving public recipes", async () => {

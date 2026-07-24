@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
 import type { RecipeDetails } from "../../api/recipes/RecipeDetails.ts";
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
 
@@ -62,7 +63,11 @@ const recipeMutableInputSchema = {
 	description: z.string().nullable(),
 	cookingTimeMinutes: z.number().int().nonnegative().nullable(),
 	preparationTimeMinutes: z.number().int().nonnegative().nullable(),
-	mealSchema: z.array(z.string().trim().min(1)),
+	mealSchema: z.array(
+		z.enum(FITATU_MEAL_KEYS, {
+			error: `mealSchema entries must be one of: ${FITATU_MEAL_KEYS.join(", ")}`,
+		}),
+	),
 };
 
 export const recipeWriteInputShape = {
@@ -97,7 +102,7 @@ export const recipeWriteInputShape = {
 		.default([])
 		.optional()
 		.describe(
-			"Fitatu meal keys for which the recipe is suggested, such as breakfast or lunch. Prefer mealKey values returned by get_day_plan_items; omit for no suggestions.",
+			`Fitatu meal keys for which the recipe is suggested: ${FITATU_MEAL_KEYS.join(", ")}. Omit for no suggestions.`,
 		),
 };
 
@@ -151,6 +156,16 @@ const tagOutputSchema = z
 		translation: z.string().describe("Human-readable tag label."),
 	})
 	.describe("Recipe tag returned by Fitatu.");
+
+export const recipeWarningOutputSchema = z
+	.object({
+		code: z.literal("DUPLICATE_INGREDIENT_SELECTION"),
+		message: z.string(),
+		itemId: z.string().regex(/^[1-9]\d*$/),
+		measureId: z.string().regex(/^[1-9]\d*$/),
+		indexes: z.array(z.number().int().nonnegative()).min(2),
+	})
+	.describe("Non-fatal warning about a recipe write request.");
 
 export const recipeDetailsOutputShape = {
 	recipeId: z
@@ -292,4 +307,4 @@ export function toRecipeUpdateInput(input: {
 	) as RecipeUpdateInput;
 }
 
-export const RECIPE_EMPTY_ARRAY_KEYS = ["mealSchema", "tags", "ingredients", "items"] as const;
+export const RECIPE_EMPTY_ARRAY_KEYS = ["mealSchema", "tags", "ingredients", "items", "warnings"] as const;

@@ -7,6 +7,7 @@ import type { RecipeReplaceResult } from "../../api/recipes/RecipeReplaceResult.
 import type { RecipeSearchOptions } from "../../api/recipes/RecipeSearchOptions.ts";
 import type { RecipeSearchResult } from "../../api/recipes/RecipeSearchResult.ts";
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
+import type { RecipeWarning } from "../../api/recipes/RecipeWarning.ts";
 import type { RecipeWriteInput } from "../../api/recipes/RecipeWriteInput.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
 
@@ -25,8 +26,9 @@ export class RecipeService implements RecipeProvider {
 		this.recipeClient = recipeClient;
 	}
 
-	public createRecipe(input: RecipeWriteInput): Promise<RecipeCreateResult> {
-		return this.recipeClient.createRecipe(input);
+	public async createRecipe(input: RecipeWriteInput): Promise<RecipeCreateResult> {
+		const result = await this.recipeClient.createRecipe(input);
+		return { ...result, warnings: findDuplicateIngredientWarnings(input.ingredients) };
 	}
 
 	public getRecipe(recipeId: string | number): Promise<RecipeDetails> {
@@ -41,7 +43,7 @@ export class RecipeService implements RecipeProvider {
 		const current = await this.recipeClient.getRecipe(recipeId);
 		await this.assertOwnedEditable(current);
 
-		return this.recipeClient.replaceRecipe(current.recipeId, {
+		const replacement = {
 			name: input.name ?? current.name,
 			ingredients:
 				input.ingredients ??
@@ -63,14 +65,20 @@ export class RecipeService implements RecipeProvider {
 					: current.preparationTimeMinutes,
 			mealSchema: input.mealSchema ?? current.mealSchema,
 			categories: current.categories,
-		});
+		};
+		const result = await this.recipeClient.replaceRecipe(current.recipeId, replacement);
+		return { ...result, warnings: findDuplicateIngredientWarnings(replacement.ingredients) };
 	}
 
 	public async deleteRecipe(recipeId: string | number, expectedName: string): Promise<RecipeDeleteResult> {
 		const current = await this.recipeClient.getRecipe(recipeId);
 		await this.assertOwnedEditable(current);
 		if (expectedName !== current.name) {
-			throw new RecipeError("Recipe name confirmation did not match");
+			throw new RecipeError("Recipe name confirmation did not match", {
+				code: "RECIPE_NAME_MISMATCH",
+				parameter: "expectedName",
+				retryable: false,
+			});
 		}
 
 		await this.recipeClient.deleteRecipe(current.recipeId);
@@ -87,10 +95,47 @@ export class RecipeService implements RecipeProvider {
 			"Fitatu user id is required",
 		);
 		if (recipe.userId !== currentUserId) {
-			throw new RecipeError(`Recipe ${recipe.recipeId} is not owned by the authenticated user`);
+			throw new RecipeError(`Recipe ${recipe.recipeId} is not owned by the authenticated user`, {
+				code: "RECIPE_NOT_OWNED",
+				parameter: "recipeId",
+				retryable: false,
+			});
 		}
 		if (!recipe.editable || recipe.deleted) {
-			throw new RecipeError(`Recipe ${recipe.recipeId} is not editable`);
+			throw new RecipeError(`Recipe ${recipe.recipeId} is not editable`, {
+				code: "RECIPE_NOT_EDITABLE",
+				parameter: "recipeId",
+				retryable: false,
+			});
 		}
 	}
+}
+
+function findDuplicateIngredientWarnings(ingredients: RecipeWriteInput["ingredients"]): readonly RecipeWarning[] {
+	const selections = new Map<
+		string,
+		{ readonly itemId: string; readonly measureId: string; readonly indexes: number[] }
+	>();
+
+	ingredients.forEach((ingredient, index) => {
+		const itemId = String(ingredient.itemId);
+		const measureId = String(ingredient.measureId);
+		const key = `${ingredient.type}:${itemId}:${measureId}`;
+		const selection = selections.get(key);
+		if (selection) {
+			selection.indexes.push(index);
+			return;
+		}
+		selections.set(key, { itemId, measureId, indexes: [index] });
+	});
+
+	return [...selections.values()]
+		.filter(({ indexes }) => indexes.length > 1)
+		.map(({ itemId, measureId, indexes }) => ({
+			code: "DUPLICATE_INGREDIENT_SELECTION",
+			message: `Ingredient itemId ${itemId} with measureId ${measureId} appears more than once.`,
+			itemId,
+			measureId,
+			indexes,
+		}));
 }

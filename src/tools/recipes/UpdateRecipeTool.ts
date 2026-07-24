@@ -7,6 +7,7 @@ import {
 	RECIPE_EMPTY_ARRAY_KEYS,
 	recipeDetailsOutputSchema,
 	recipeUpdateInputSchema,
+	recipeWarningOutputSchema,
 	toRecipeDetailsForMcp,
 	toRecipeUpdateInput,
 } from "./RecipeToolSupport.ts";
@@ -42,6 +43,11 @@ export class UpdateRecipeTool {
 					details: recipeDetailsOutputSchema.describe(
 						"Canonical details for the updated recipe, read using the resulting recipeId.",
 					),
+					warnings: recipeWarningOutputSchema
+						.array()
+						.describe(
+							"Non-fatal write warnings; empty when no duplicate ingredient selections were found.",
+						),
 				},
 				annotations: {
 					title: "Update Fitatu Recipe",
@@ -63,6 +69,7 @@ export class UpdateRecipeTool {
 							recipeId: result.recipeId,
 							identityChanged: result.identityChanged,
 							details: toRecipeDetailsForMcp(result.details),
+							warnings: result.warnings,
 						},
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);

@@ -2,6 +2,8 @@ import { StringUtils } from "../../shared/StringUtils.ts";
 import { DayPlanError } from "./DayPlanError.ts";
 import type { MealItemKind } from "./MealItemMutation.ts";
 
+export const FITATU_MEAL_KEYS = ["breakfast", "second_breakfast", "lunch", "snack", "supper"] as const;
+
 export function normalizeMealKey(value: string): string {
 	const normalized = StringUtils.parseNonEmptyString(value, "mealKey is required")
 		.toLowerCase()

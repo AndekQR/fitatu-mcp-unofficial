@@ -6,6 +6,7 @@ import type { RecipeReplaceResult } from "../../../../src/api/recipes/RecipeRepl
 import type { RecipeSearchOptions } from "../../../../src/api/recipes/RecipeSearchOptions.ts";
 import type { RecipeSearchResult } from "../../../../src/api/recipes/RecipeSearchResult.ts";
 import type { RecipeUpdateInput } from "../../../../src/api/recipes/RecipeUpdateInput.ts";
+import type { RecipeWarning } from "../../../../src/api/recipes/RecipeWarning.ts";
 import type { RecipeWriteInput } from "../../../../src/api/recipes/RecipeWriteInput.ts";
 import { RecipeError } from "../../../../src/api/recipes/RecipeError.ts";
 import type { RecipeProvider } from "../../../../src/services/recipes/RecipeService.ts";
@@ -44,7 +45,43 @@ describe("Recipe MCP tools", () => {
 			preparationTimeMinutes: null,
 			mealSchema: [],
 		});
-		expect(parseTextContent(result)).toMatchObject({ recipeId: "100", details: { name: "Test recipe" } });
+		expect(parseTextContent(result)).toMatchObject({
+			recipeId: "100",
+			details: { name: "Test recipe" },
+			warnings: [],
+		});
+	});
+
+	it("create_recipe publishes non-fatal duplicate ingredient warnings", async () => {
+		const service = new RecordingRecipeService();
+		service.writeWarnings.push({
+			code: "DUPLICATE_INGREDIENT_SELECTION",
+			message: "Ingredient itemId 10 with measureId 2 appears more than once.",
+			itemId: "10",
+			measureId: "2",
+			indexes: [0, 1],
+		});
+		const registered = await registerToolForTest(new CreateRecipeTool(service));
+
+		const result = await registered.invoke({
+			name: "Test recipe",
+			ingredients: [
+				{ itemId: "10", measureId: "2", measureQuantity: 1 },
+				{ itemId: "10", measureId: "2", measureQuantity: 2 },
+			],
+			servings: 2,
+		});
+
+		expect(parseTextContent(result)).toMatchObject({
+			warnings: [
+				{
+					code: "DUPLICATE_INGREDIENT_SELECTION",
+					itemId: "10",
+					measureId: "2",
+					indexes: [0, 1],
+				},
+			],
+		});
 	});
 
 	it("get_recipe publishes a read-only contract", async () => {
@@ -73,6 +110,21 @@ describe("Recipe MCP tools", () => {
 		});
 	});
 
+	it("search_recipes returns a concise SDK validation error for an invalid query type", async () => {
+		const service = new RecordingRecipeService();
+		const registered = await registerToolForTest(new SearchRecipesTool(service));
+
+		const result = await registered.invoke({ query: null });
+		const text = getTextContent(result);
+
+		expect(result.isError).toBe(true);
+		expect(text).toContain('"query"');
+		expect(text).toContain("expected string");
+		expect(text).not.toContain('"inputSchema"');
+		expect(text.length).toBeLessThan(1_000);
+		expect(service.searchInputs).toHaveLength(0);
+	});
+
 	it("update_recipe forwards only fields selected by the caller", async () => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new UpdateRecipeTool(service));
@@ -84,6 +136,7 @@ describe("Recipe MCP tools", () => {
 			previousRecipeId: "100",
 			recipeId: "200",
 			identityChanged: true,
+			warnings: [],
 		});
 	});
 
@@ -116,6 +169,15 @@ describe("Recipe MCP tools", () => {
 				tags: [{ name: "", category: "RECIPE_TAG_USERS_TYPE", translation: "tag" }],
 			},
 		],
+		[
+			"invalid meal key",
+			{
+				name: "Test",
+				ingredients: [{ itemId: "10", measureId: "2", measureQuantity: 1 }],
+				servings: 2,
+				mealSchema: ["brunch"],
+			},
+		],
 	])("create_recipe rejects %s at the MCP boundary", async (_name, input) => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new CreateRecipeTool(service));
@@ -141,6 +203,7 @@ describe("Recipe MCP tools", () => {
 		["empty ingredients", { ingredients: [] }],
 		["invalid tag", { tags: [{ name: "", category: "RECIPE_TAG_USERS_TYPE", translation: "tag" }] }],
 		["invalid cooking time", { cookingTimeMinutes: -1 }],
+		["invalid meal key", { mealSchema: ["brunch"] }],
 	])("update_recipe rejects %s at the MCP boundary", async (_name, patch) => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new UpdateRecipeTool(service));
@@ -189,6 +252,8 @@ describe("Recipe MCP tools", () => {
 		expect(text).not.toContain("sensitive-user-id");
 		expect(text).not.toContain("daniel@example.com");
 		expect(parseTextContent(result)).toMatchObject({
+			code: "UPSTREAM_ERROR",
+			retryable: false,
 			fitatuApiError: {
 				path: "/recipes-and-user-action/100/:userId",
 				upstreamMessage: null,
@@ -204,13 +269,14 @@ class RecordingRecipeService implements RecipeProvider {
 	public readonly searchInputs: RecipeSearchOptions[] = [];
 	public readonly updateInputs: { recipeId: string | number; input: RecipeUpdateInput }[] = [];
 	public readonly deleteInputs: { recipeId: string | number; expectedName: string }[] = [];
+	public readonly writeWarnings: RecipeWarning[] = [];
 
 	public constructor(private readonly error?: Error) {}
 
 	public async createRecipe(input: RecipeWriteInput): Promise<RecipeCreateResult> {
 		this.throwWhenConfigured();
 		this.createInputs.push(input);
-		return { recipeId: "100", details: details() };
+		return { recipeId: "100", details: details(), warnings: [...this.writeWarnings] };
 	}
 
 	public async getRecipe(recipeId: string | number): Promise<RecipeDetails> {
@@ -240,6 +306,7 @@ class RecordingRecipeService implements RecipeProvider {
 			recipeId: "200",
 			identityChanged: true,
 			details: details({ recipeId: "200", name: "Changed", servings: 3 }),
+			warnings: [...this.writeWarnings],
 		};
 	}
 

@@ -1,3 +1,4 @@
+import { ResponseUtils } from "../../shared/ResponseUtils.ts";
 import { createFitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
@@ -25,15 +26,6 @@ export class DayClient extends FitatuApiClientBase {
 			throw new DayPlanError("Fitatu day plan request failed", { statusCode: response.status, fitatuApiError });
 		}
 
-		const data: unknown = await response.json();
-		if (!isRecord(data)) {
-			throw new DayPlanError("Fitatu day plan response was not a JSON object");
-		}
-
-		return data;
+		return ResponseUtils.parseJsonObject(response, "Fitatu day plan response was not a JSON object");
 	}
-}
-
-function isRecord(value: unknown): value is GetDayResponse {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

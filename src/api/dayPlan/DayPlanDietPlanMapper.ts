@@ -1,4 +1,6 @@
-import { asRecord, isRecord } from "./DayPlanApiResponse.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { ScalarUtils } from "../../shared/ScalarUtils.ts";
+import { asRecord } from "./DayPlanApiResponse.ts";
 import type { MealItemKind, MealItemOperationSummary } from "./MealItemMutation.ts";
 import { nowTimestamp } from "./DayPlanTimestamps.ts";
 
@@ -13,7 +15,7 @@ export function getMealItems(dietPlan: Record<string, unknown>, mealKey: string)
 	const meal = asRecord(dietPlan[mealKey], `meal ${mealKey}`);
 	const items = meal.items;
 	if (Array.isArray(items)) {
-		const normalizedItems = items.filter(isRecord);
+		const normalizedItems = items.filter(ObjectUtils.isRecord);
 		meal.items = normalizedItems;
 		return normalizedItems;
 	}
@@ -56,7 +58,7 @@ export function findActiveProductItemsInDietPlan(
 
 	for (const key of Object.keys(dietPlan)) {
 		const meal = dietPlan[key];
-		if (!isRecord(meal)) {
+		if (!ObjectUtils.isRecord(meal)) {
 			continue;
 		}
 
@@ -147,8 +149,8 @@ export function toOperationSummary(input: {
 	return {
 		index: input.index,
 		itemId: input.itemId,
-		productId: optionalId(input.item.productId),
-		recipeId: optionalId(input.item.recipeId),
+		productId: ScalarUtils.stringOrFiniteNumberOrNull(input.item.productId),
+		recipeId: ScalarUtils.stringOrFiniteNumberOrNull(input.item.recipeId),
 		foodType: typeof input.item.foodType === "string" ? input.item.foodType : "UNKNOWN",
 		mealKey: input.mealKey,
 	};
@@ -156,7 +158,7 @@ export function toOperationSummary(input: {
 
 function findItemInMeal(dietPlan: Record<string, unknown>, mealKey: string, itemId: string): FoundDietItem | null {
 	const meal = dietPlan[mealKey];
-	if (!isRecord(meal)) {
+	if (!ObjectUtils.isRecord(meal)) {
 		return null;
 	}
 
@@ -182,16 +184,4 @@ function findItemInMeal(dietPlan: Record<string, unknown>, mealKey: string, item
 		items,
 		index,
 	};
-}
-
-function optionalId(value: unknown): string | number | null {
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return value;
-	}
-
-	if (typeof value === "string" && value.trim()) {
-		return value.trim();
-	}
-
-	return null;
 }

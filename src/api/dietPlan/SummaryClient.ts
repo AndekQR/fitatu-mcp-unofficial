@@ -1,3 +1,4 @@
+import { DateUtils } from "../../shared/DateUtils.ts";
 import { DayPlanError } from "../dayPlan/DayPlanError.ts";
 import { createFitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
@@ -83,15 +84,5 @@ export class SummaryClient extends FitatuApiClientBase {
 }
 
 function normalizeSummaryDate(value: string, fieldName: string): string {
-	const date = value.trim();
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-		throw new DayPlanError(`${fieldName} must use YYYY-MM-DD format`);
-	}
-
-	const parsed = new Date(`${date}T00:00:00.000Z`);
-	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
-		throw new DayPlanError(`${fieldName} must be a valid calendar date`);
-	}
-
-	return date;
+	return DateUtils.validateIsoDate(value, { fieldName });
 }

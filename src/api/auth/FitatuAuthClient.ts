@@ -1,4 +1,5 @@
 import { getFitatuPassword, getFitatuUsername } from "../../config.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import { createFitatuApiErrorDetails, type FitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuAuthError } from "./FitatuAuthError.ts";
@@ -50,11 +51,17 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 
 	public async refreshSession(): Promise<FitatuAuthSession> {
 		const previousSession = this.session;
-		const refreshToken = nonEmptyString(previousSession?.refreshToken);
-		if (!previousSession || !refreshToken) {
+		if (!previousSession) {
 			this.clearSession();
-			throw new FitatuAuthError("Fitatu refresh token is missing");
+			return StringUtils.parseNonEmptyString(undefined, "Fitatu refresh token is missing");
 		}
+		if (typeof previousSession.refreshToken !== "string" || !previousSession.refreshToken.trim()) {
+			this.clearSession();
+		}
+		const refreshToken = StringUtils.parseNonEmptyString(
+			previousSession.refreshToken,
+			"Fitatu refresh token is missing",
+		);
 
 		const errors: FitatuApiErrorDetails[] = [];
 		for (const body of this.createRefreshRequestBodies(refreshToken)) {
@@ -70,19 +77,16 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 				continue;
 			}
 
+			let responseData: unknown;
 			try {
-				this.session = FitatuRefreshResponseData.fromApiResponse(await response.json()).toSession(
-					previousSession,
-				);
-				return this.session;
-			} catch (error) {
+				responseData = await response.json();
+			} catch {
 				this.clearSession();
-				if (error instanceof FitatuAuthError) {
-					throw error;
-				}
-
 				throw new FitatuAuthError("Fitatu refresh response was invalid");
 			}
+
+			this.session = FitatuRefreshResponseData.fromApiResponse(responseData).toSession(previousSession);
+			return this.session;
 		}
 
 		this.clearSession();
@@ -141,13 +145,4 @@ function defaultCredentialsProvider(): FitatuCredentials {
 		username: getFitatuUsername(),
 		password: getFitatuPassword(),
 	};
-}
-
-function nonEmptyString(value: string | null | undefined): string | undefined {
-	if (!value) {
-		return undefined;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
 }

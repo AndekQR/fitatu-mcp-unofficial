@@ -4,6 +4,9 @@ import type { GetSummaryResponse, SummaryMeasure } from "../../api/dietPlan/GetS
 import { SummaryClient } from "../../api/dietPlan/SummaryClient.ts";
 import { FitatuUserClient } from "../../api/users/FitatuUserClient.ts";
 import type { FitatuUserProfile } from "../../api/users/FitatuUserProfile.ts";
+import { DateUtils } from "../../shared/DateUtils.ts";
+import { NumberUtils } from "../../shared/NumberUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
 import type {
 	DietSummaryDailyEnergy,
 	DietSummaryEnergy,
@@ -153,7 +156,7 @@ export class DietSummaryService implements DietSummaryProvider {
 		}
 
 		const user = await this.userClient.getAuthenticatedUser();
-		const userId = normalizeUserId(user.id);
+		const userId = StringUtils.parseNonEmptyString(user.id, "Fitatu user id is required");
 		const [summary, energySummary] = await Promise.all([
 			this.summaryClient.getSummary({ userId, fromDate, toDate }),
 			this.summaryClient.getEnergySummary({ userId, fromDate, toDate }),
@@ -240,29 +243,11 @@ function nutrientStatus(current: number | null, min: number | null, max: number 
 }
 
 function normalizeDate(value: string, fieldName: string): string {
-	const date = value.trim();
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-		throw new DayPlanError(`${fieldName} must use YYYY-MM-DD format`);
-	}
-	if (date.startsWith("0000-")) {
-		throw new DayPlanError(`${fieldName} year must be between 0001 and 9999`);
-	}
-
-	const parsed = new Date(`${date}T00:00:00.000Z`);
-	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
-		throw new DayPlanError(`${fieldName} must be a valid calendar date`);
-	}
-
-	return date;
-}
-
-function normalizeUserId(value: string | null | undefined): string {
-	const userId = value?.trim();
-	if (!userId) {
-		throw new DayPlanError("Fitatu user id is required");
-	}
-
-	return userId;
+	return DateUtils.validateIsoDate(value, {
+		fieldName,
+		minimumYear: 1,
+		minimumYearErrorMessage: `${fieldName} year must be between 0001 and 9999`,
+	});
 }
 
 function eachDate(fromDate: string, toDate: string): readonly string[] {
@@ -283,7 +268,9 @@ function sumNumbers(values: readonly (number | null)[]): number {
 }
 
 function numberOrNull(value: number | null | undefined): number | null {
-	return typeof value === "number" && Number.isFinite(value) ? round(value) : null;
+	return value === null || value === undefined
+		? null
+		: round(NumberUtils.parseFiniteNumber(value, "Diet summary value must be a finite number"));
 }
 
 function round(value: number): number {

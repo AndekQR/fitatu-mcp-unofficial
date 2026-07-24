@@ -1,3 +1,4 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { DayPlanError } from "./DayPlanError.ts";
 import { DayPlanMeal } from "./DayPlanMeal.ts";
 
@@ -13,11 +14,11 @@ export class DayPlan {
 	}
 
 	public static fromApiResponse(input: { data: unknown; date: string; userId: string }): DayPlan {
-		if (!isRecord(input.data)) {
+		if (!ObjectUtils.isRecord(input.data)) {
 			throw new DayPlanError("DayPlan response was not a valid JSON object");
 		}
 
-		if (!isRecord(input.data.dietPlan)) {
+		if (!ObjectUtils.isRecord(input.data.dietPlan)) {
 			throw new DayPlanError("DayPlan response did not contain dietPlan");
 		}
 
@@ -27,8 +28,4 @@ export class DayPlan {
 			meals: DayPlanMeal.fromDietPlan(input.data.dietPlan),
 		});
 	}
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

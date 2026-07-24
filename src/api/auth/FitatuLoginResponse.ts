@@ -1,12 +1,7 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuAuthError } from "./FitatuAuthError.ts";
 import type { FitatuAuthSession } from "./FitatuAuthSession.ts";
-
-interface FitatuLoginResponseData {
-	readonly token?: unknown;
-	readonly access_token?: unknown;
-	readonly refresh_token?: unknown;
-	readonly refreshToken?: unknown;
-}
 
 export class FitatuLoginResponse {
 	public readonly token: string;
@@ -18,16 +13,22 @@ export class FitatuLoginResponse {
 	}
 
 	public static fromApiResponse(data: unknown): FitatuLoginResponse {
-		if (!isLoginResponseData(data)) {
+		if (!ObjectUtils.isRecord(data)) {
 			throw new FitatuAuthError("Login response was not a valid JSON object");
 		}
 
-		const token = firstString(data.token, data.access_token);
-		if (!token) {
-			throw new FitatuAuthError("Login response did not contain an access token");
-		}
+		const token = StringUtils.parseFirstNonEmptyString(
+			[data.token, data.access_token],
+			"Login response did not contain an access token",
+		);
 
-		return new FitatuLoginResponse(token, firstString(data.refresh_token, data.refreshToken));
+		return new FitatuLoginResponse(
+			token,
+			StringUtils.parseOptionalFirstNonEmptyString(
+				[data.refresh_token, data.refreshToken],
+				"Login response refresh token must be a non-empty string",
+			),
+		);
 	}
 
 	public toSession(): FitatuAuthSession {
@@ -44,29 +45,23 @@ export class FitatuLoginResponse {
 	}
 }
 
-function isLoginResponseData(data: unknown): data is FitatuLoginResponseData {
-	return typeof data === "object" && data !== null && !Array.isArray(data);
-}
-
-function firstString(...values: readonly unknown[]): string | undefined {
-	return values.find((value): value is string => {
-		return typeof value === "string" && value.trim().length > 0;
-	});
-}
-
 function extractUserIdFromJwt(token: string): string | undefined {
 	const [, encodedPayload] = token.split(".");
 	if (!encodedPayload) {
 		return undefined;
 	}
 
+	let payload: Record<string, unknown>;
 	try {
-		const payload = JSON.parse(decodeBase64Url(encodedPayload)) as Record<string, unknown>;
-
-		return firstString(payload.user_id, payload.uid, payload.id, payload.sub);
+		payload = JSON.parse(decodeBase64Url(encodedPayload)) as Record<string, unknown>;
 	} catch {
 		return undefined;
 	}
+
+	return StringUtils.parseFirstNonEmptyString(
+		[payload.user_id, payload.uid, payload.id, payload.sub],
+		"Login token did not contain a Fitatu user id",
+	);
 }
 
 function decodeBase64Url(value: string): string {

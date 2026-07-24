@@ -1,12 +1,7 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuAuthError } from "./FitatuAuthError.ts";
 import type { FitatuAuthSession } from "./FitatuAuthSession.ts";
-
-interface FitatuRefreshApiResponseData {
-	readonly token?: unknown;
-	readonly access_token?: unknown;
-	readonly refresh_token?: unknown;
-	readonly refreshToken?: unknown;
-}
 
 export class FitatuRefreshResponseData {
 	private readonly token: string;
@@ -18,16 +13,22 @@ export class FitatuRefreshResponseData {
 	}
 
 	public static fromApiResponse(data: unknown): FitatuRefreshResponseData {
-		if (!isRefreshApiResponseData(data)) {
+		if (!ObjectUtils.isRecord(data)) {
 			throw new FitatuAuthError("Refresh response was not a valid JSON object");
 		}
 
-		const token = firstString(data.token, data.access_token);
-		if (!token) {
-			throw new FitatuAuthError("Refresh response did not contain an access token");
-		}
+		const token = StringUtils.parseFirstNonEmptyString(
+			[data.token, data.access_token],
+			"Refresh response did not contain an access token",
+		);
 
-		return new FitatuRefreshResponseData(token, firstString(data.refresh_token, data.refreshToken));
+		return new FitatuRefreshResponseData(
+			token,
+			StringUtils.parseOptionalFirstNonEmptyString(
+				[data.refresh_token, data.refreshToken],
+				"Refresh response refresh token must be a non-empty string",
+			),
+		);
 	}
 
 	public toSession(previousSession: FitatuAuthSession): FitatuAuthSession {
@@ -37,14 +38,4 @@ export class FitatuRefreshResponseData {
 			fitatuUserId: previousSession.fitatuUserId,
 		};
 	}
-}
-
-function isRefreshApiResponseData(data: unknown): data is FitatuRefreshApiResponseData {
-	return typeof data === "object" && data !== null && !Array.isArray(data);
-}
-
-function firstString(...values: readonly unknown[]): string | undefined {
-	return values.find((value): value is string => {
-		return typeof value === "string" && value.trim().length > 0;
-	});
 }

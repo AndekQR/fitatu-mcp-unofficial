@@ -1,4 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { FitatuAuthError } from "../../api/auth/FitatuAuthError.ts";
 import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
 import { getFitatuApiErrors, isErrorWithFitatuApiDetails } from "../../api/fitatuApiClientBase/FitatuApiError.ts";
@@ -56,19 +57,15 @@ function isKnownToolError(error: unknown): error is Error {
 
 function firstStatusCode(errorResponse: Record<string, unknown>): number | undefined {
 	const single = errorResponse.fitatuApiError;
-	if (isRecord(single) && typeof single.statusCode === "number") {
+	if (ObjectUtils.isRecord(single) && typeof single.statusCode === "number") {
 		return single.statusCode;
 	}
 
 	const many = errorResponse.fitatuApiErrors;
 	if (Array.isArray(many)) {
-		const first = many.find(isRecord);
+		const first = many.find(ObjectUtils.isRecord);
 		return typeof first?.statusCode === "number" ? first.statusCode : undefined;
 	}
 
 	return undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

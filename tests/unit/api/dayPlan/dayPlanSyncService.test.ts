@@ -45,7 +45,7 @@ describe("DayPlanSyncService synchronization", () => {
 		});
 	});
 
-	it("maps an upstream synchronization failure to a safe day plan error", async () => {
+	it("propagates an upstream synchronization failure from the API client", async () => {
 		const fetchStub = createFetchStub(
 			createJsonResponse({ message: "upstream rejected the day" }, { status: 500, statusText: "Failure" }),
 		);
@@ -53,20 +53,20 @@ describe("DayPlanSyncService synchronization", () => {
 
 		await expect(service.syncDays("user-1", { "2026-07-12": { dietPlan: {} } })).rejects.toMatchObject({
 			name: "DayPlanError",
-			message: "upstream rejected the day",
+			message: "Fitatu day synchronization request failed",
 			statusCode: 500,
 		});
 	});
 
-	it("redacts an unexpected network synchronization failure", async () => {
+	it("propagates an unexpected network synchronization failure", async () => {
 		const fetchFn: typeof fetch = async () => {
 			throw new Error("socket contained a secret");
 		};
 		const service = new DayPlanSyncService({ baseUrl: "https://fitatu.test/api", fetchFn });
 
 		await expect(service.syncDays("user-1", { "2026-07-12": { dietPlan: {} } })).rejects.toMatchObject({
-			name: "DayPlanError",
-			message: "Fitatu day synchronization request failed",
+			name: "Error",
+			message: "socket contained a secret",
 		});
 	});
 });

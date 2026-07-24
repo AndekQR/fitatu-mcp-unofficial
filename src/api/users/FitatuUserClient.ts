@@ -1,3 +1,4 @@
+import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import { createFitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
@@ -26,7 +27,9 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	}
 
 	public async getAuthenticatedUser(): Promise<FitatuUserProfile> {
-		return this.getUser(normalizeUserId(await this.getContextUserId()));
+		return this.getUser(
+			StringUtils.parseNonEmptyString(await this.getContextUserId(), "Fitatu user id is required"),
+		);
 	}
 
 	public async getCurrentUser(): Promise<FitatuUserProfile> {
@@ -34,7 +37,7 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	}
 
 	public async getUser(userId: string): Promise<FitatuUserProfile> {
-		const normalizedUserId = normalizeUserId(userId);
+		const normalizedUserId = StringUtils.parseNonEmptyString(userId, "Fitatu user id is required");
 		const path = `/users/${encodeURIComponent(normalizedUserId)}`;
 
 		const cachedUser = this.users.get(normalizedUserId);
@@ -64,13 +67,4 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	public clearUserCache(): void {
 		this.users.clear();
 	}
-}
-
-function normalizeUserId(value: string | undefined): string {
-	const userId = value?.trim();
-	if (!userId) {
-		throw new FitatuUserError("Fitatu user id is required");
-	}
-
-	return userId;
 }

@@ -1,3 +1,6 @@
+import { DateUtils } from "../../shared/DateUtils.ts";
+import { NumberUtils } from "../../shared/NumberUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
 import {
 	createDeletedItemMarker,
 	findActiveProductItemsInDietPlan,
@@ -16,14 +19,7 @@ import type {
 	RemoveMealItemsOptions,
 	UpdateMealItemOptions,
 } from "./DayPlanClientTypes.ts";
-import {
-	normalizeDate,
-	normalizeId,
-	normalizeItemKind,
-	normalizeMealKey,
-	normalizePositiveNumber,
-	normalizeRequiredText,
-} from "./DayPlanValidators.ts";
+import { normalizeItemKind, normalizeMealKey } from "./DayPlanValidators.ts";
 import type { MealItemMutationResult } from "./MealItemMutation.ts";
 import { toDayItemPayload } from "./MealItemPayloadMapper.ts";
 import type { DayPlanSyncProvider } from "./DayPlanSyncService.ts";
@@ -38,7 +34,7 @@ export class MealItemMutationService {
 	public async addMealItems(
 		options: AddMealItemsOptions & { readonly userId: string },
 	): Promise<MealItemMutationResult> {
-		const date = normalizeDate(options.date);
+		const date = DateUtils.validateIsoDate(options.date);
 		const mealKey = normalizeMealKey(options.mealKey);
 
 		if (options.items.length === 0) {
@@ -71,9 +67,9 @@ export class MealItemMutationService {
 	public async updateMealItem(
 		options: UpdateMealItemOptions & { readonly userId: string },
 	): Promise<MealItemMutationResult> {
-		const date = normalizeDate(options.date);
+		const date = DateUtils.validateIsoDate(options.date);
 		const mealKey = normalizeMealKey(options.mealKey);
-		const itemId = normalizeRequiredText(options.itemId, "itemId");
+		const itemId = StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
 
 		if (options.measureQuantity === undefined && options.measureId === undefined && options.eaten === undefined) {
 			throw new DayPlanError("Provide at least one update field");
@@ -86,10 +82,13 @@ export class MealItemMutationService {
 		}
 
 		if (options.measureQuantity !== undefined) {
-			target.item.measureQuantity = normalizePositiveNumber(options.measureQuantity, "measureQuantity");
+			target.item.measureQuantity = NumberUtils.parsePositiveFiniteNumber(
+				options.measureQuantity,
+				"measureQuantity must be > 0",
+			);
 		}
 		if (options.measureId !== undefined) {
-			target.item.measureId = normalizeId(options.measureId, "measureId");
+			target.item.measureId = StringUtils.parseStringOrSafeInteger(options.measureId, "measureId is required");
 		}
 		if (options.eaten !== undefined) {
 			target.item.eaten = options.eaten;
@@ -125,9 +124,9 @@ export class MealItemMutationService {
 	public async removeMealItem(
 		options: RemoveMealItemOptions & { readonly userId: string },
 	): Promise<MealItemMutationResult> {
-		const date = normalizeDate(options.date);
+		const date = DateUtils.validateIsoDate(options.date);
 		const mealKey = normalizeMealKey(options.mealKey);
-		const itemId = normalizeRequiredText(options.itemId, "itemId");
+		const itemId = StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
 		const itemKind = normalizeItemKind(options.itemKind ?? "auto");
 		const dayPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, date);
 		const target = findItemInDietPlan(dayPayload.dietPlan, mealKey, itemId, true);
@@ -173,7 +172,7 @@ export class MealItemMutationService {
 	public async removeMealItems(
 		options: RemoveMealItemsOptions & { readonly userId: string },
 	): Promise<MealItemMutationResult> {
-		const date = normalizeDate(options.date);
+		const date = DateUtils.validateIsoDate(options.date);
 		const productIds = normalizeProductIds(options.productIds);
 		const dayPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, date);
 		const targets = findActiveProductItemsInDietPlan(dayPayload.dietPlan, productIds);
@@ -220,11 +219,11 @@ export class MealItemMutationService {
 	public async moveMealItem(
 		options: MoveMealItemOptions & { readonly userId: string },
 	): Promise<MealItemMutationResult> {
-		const fromDate = normalizeDate(options.fromDate);
-		const toDate = normalizeDate(options.toDate ?? options.fromDate);
+		const fromDate = DateUtils.validateIsoDate(options.fromDate);
+		const toDate = DateUtils.validateIsoDate(options.toDate ?? options.fromDate);
 		const fromMealKey = normalizeMealKey(options.fromMealKey);
 		const toMealKey = normalizeMealKey(options.toMealKey ?? options.fromMealKey);
-		const itemId = normalizeRequiredText(options.itemId, "itemId");
+		const itemId = StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
 		const sourcePayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, fromDate);
 		const source = findItemInDietPlan(sourcePayload.dietPlan, fromMealKey, itemId, true);
 
@@ -288,7 +287,9 @@ function normalizeProductIds(productIds: readonly (string | number)[]): Readonly
 		throw new DayPlanError("productIds must not be empty");
 	}
 
-	return new Set(productIds.map((productId) => String(normalizeId(productId, "productId"))));
+	return new Set(
+		productIds.map((productId) => String(StringUtils.parseStringOrSafeInteger(productId, "productId is required"))),
+	);
 }
 
 function getRequiredItemId(item: Record<string, unknown>): string {

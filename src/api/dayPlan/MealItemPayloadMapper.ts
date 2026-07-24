@@ -1,8 +1,10 @@
+import { NumberUtils } from "../../shared/NumberUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
 import { DayPlanError } from "./DayPlanError.ts";
 import { createPlanDayDietItemId } from "./DayPlanItemIdFactory.ts";
 import { nowTimestamp } from "./DayPlanTimestamps.ts";
 import type { MealItemInput, MealItemOperationSummary } from "./MealItemMutation.ts";
-import { normalizeFoodType, normalizeId, normalizePositiveNumber } from "./DayPlanValidators.ts";
+import { normalizeFoodType } from "./DayPlanValidators.ts";
 
 export interface DayItemPayload {
 	readonly payload: Record<string, unknown>;
@@ -27,9 +29,11 @@ export function toDayItemPayload(item: MealItemInput, mealKey: string, index: nu
 	const payload: Record<string, unknown> = {
 		planDayDietItemId: itemId,
 		foodType,
-		measureId: normalizeId(item.measureId, "measureId"),
+		measureId: StringUtils.parseStringOrSafeInteger(item.measureId, "measureId is required"),
 		measureQuantity:
-			item.measureQuantity === undefined ? 1 : normalizePositiveNumber(item.measureQuantity, "measureQuantity"),
+			item.measureQuantity === undefined
+				? 1
+				: NumberUtils.parsePositiveFiniteNumber(item.measureQuantity, "measureQuantity must be > 0"),
 		ingredientsServing: item.ingredientsServing ?? null,
 		source: "API",
 		eaten: item.eaten ?? false,
@@ -38,9 +42,9 @@ export function toDayItemPayload(item: MealItemInput, mealKey: string, index: nu
 	};
 
 	if (recipeId) {
-		payload.recipeId = normalizeId(recipeId, "recipeId");
+		payload.recipeId = StringUtils.parseStringOrSafeInteger(recipeId, "recipeId is required");
 	} else if (productId) {
-		payload.productId = normalizeId(productId, "productId");
+		payload.productId = StringUtils.parseStringOrSafeInteger(productId, "productId is required");
 	}
 
 	return {

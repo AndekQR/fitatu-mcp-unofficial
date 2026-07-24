@@ -1,5 +1,9 @@
+import { DateUtils } from "../../shared/DateUtils.ts";
+import { NumberUtils } from "../../shared/NumberUtils.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { ResponseUtils } from "../../shared/ResponseUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
-import { FitatuAuthError } from "../auth/FitatuAuthError.ts";
 import { createFitatuApiErrorDetails, getFitatuApiErrors } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
@@ -37,7 +41,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 	public async search(options: FoodSearchOptions): Promise<FoodSearchResult> {
 		const normalized = normalizeOptions(options);
 		const userId = normalized.includeUserFood
-			? normalizeRequiredText(await this.getContextUserId(), "Fitatu user id")
+			? StringUtils.parseNonEmptyString(await this.getContextUserId(), "Fitatu user id is required")
 			: undefined;
 		const results: FoodSearchQueryResult[] = [];
 
@@ -86,8 +90,9 @@ export class FoodSearchClient extends FitatuApiClientBase {
 
 		if (options.includePublicFood) {
 			searchAttemptCount += 1;
+			let rows: readonly Record<string, unknown>[];
 			try {
-				const rows = await this.fetchSearchRows({
+				rows = await this.fetchSearchRows({
 					path: "/search/new/food",
 					query: {
 						phrase: query,
@@ -99,22 +104,25 @@ export class FoodSearchClient extends FitatuApiClientBase {
 					failureMessage: "Fitatu public food search request failed",
 				});
 				searchSuccessCount += 1;
-				items.push(...this.normalizeRows(rows, "public"));
 			} catch (error) {
-				if (error instanceof FitatuAuthError) {
+				if (!(error instanceof FoodSearchError)) {
 					throw error;
 				}
 				const warning = `public search failed for query='${query}': ${safeWarningMessage(error)}`;
 				warnings.push(warning);
 				warningDetails.push(toWarningDetail(warning, error, { query, source: "public" }));
+				rows = [];
 			}
+			items.push(...this.normalizeRows(rows, "public"));
 		}
 
 		if (options.includeUserFood) {
 			searchAttemptCount += 1;
+			const normalizedUserId = StringUtils.parseNonEmptyString(userId, "Fitatu user id is required");
+			let rows: readonly Record<string, unknown>[];
 			try {
-				const rows = await this.fetchSearchRows({
-					path: `/search/food/user/${encodeURIComponent(normalizeRequiredText(userId, "Fitatu user id"))}`,
+				rows = await this.fetchSearchRows({
+					path: `/search/food/user/${encodeURIComponent(normalizedUserId)}`,
 					query: {
 						date: options.date,
 						phrase: query,
@@ -124,15 +132,16 @@ export class FoodSearchClient extends FitatuApiClientBase {
 					failureMessage: "Fitatu user food search request failed",
 				});
 				searchSuccessCount += 1;
-				items.push(...this.normalizeRows(rows, "user"));
 			} catch (error) {
-				if (error instanceof FitatuAuthError) {
+				if (!(error instanceof FoodSearchError)) {
 					throw error;
 				}
 				const warning = `user search failed for query='${query}': ${safeWarningMessage(error)}`;
 				warnings.push(warning);
 				warningDetails.push(toWarningDetail(warning, error, { query, source: "user" }));
+				rows = [];
 			}
+			items.push(...this.normalizeRows(rows, "user"));
 		}
 
 		let scoredItems = deduplicateItems(items).map((item) => ({
@@ -198,7 +207,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			});
 
 			if (response.ok) {
-				return extractRows(await parseJson(response));
+				return extractRows(await response.json());
 			}
 
 			fitatuApiErrors.push(await createFitatuApiErrorDetails(response, { method: "GET", path: variant.path }));
@@ -224,18 +233,20 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				continue;
 			}
 
+			let details: Record<string, unknown>;
 			try {
-				const details = await this.getProductDetails(item.foodId);
-				detailed.push(mergeDetails(item, details));
+				details = await this.getProductDetails(item.foodId);
 			} catch (error) {
-				if (error instanceof FitatuAuthError) {
+				if (!(error instanceof FoodSearchError)) {
 					throw error;
 				}
 				const warning = `${item.source} details failed for foodId=${item.foodId}: ${safeWarningMessage(error)}`;
 				warnings.push(warning);
 				warningDetails.push(toWarningDetail(warning, error, { source: item.source, foodId: item.foodId }));
 				detailed.push(item);
+				continue;
 			}
+			detailed.push(mergeDetails(item, details));
 		}
 
 		return detailed;
@@ -259,7 +270,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			});
 
 			if (response.ok) {
-				return parseJsonObject(response);
+				return ResponseUtils.parseJsonObject(response, "Fitatu response was not a valid JSON object");
 			}
 
 			fitatuApiErrors.push(await createFitatuApiErrorDetails(response, { method: "GET", path }));
@@ -278,41 +289,41 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		const items: NormalizedFoodSearchItem[] = [];
 
 		for (const row of rows) {
-			const foodId = stringOrNull(firstValue(row, "foodId", "id", "productId"));
+			const foodId = StringUtils.stringOrNull(firstValue(row, "foodId", "id", "productId"));
 			if (!foodId) {
 				continue;
 			}
 
 			const measure = recordOrUndefined(row.measure);
-			const measureEnergy = numberOrNull(
+			const measureEnergy = NumberUtils.parseOptionalFiniteNumber(
 				firstValue(row, "measureEnergy", { record: measure, keys: ["measureEnergy", "energy"] }),
 			);
 
 			items.push({
 				source,
 				foodId,
-				foodType: stringOrNull(firstValue(row, "type", "foodType")),
-				name: stringOrNull(row.name),
-				brand: stringOrNull(firstValue(row, "brand", "producer")),
-				measureId: stringOrNull(
+				foodType: StringUtils.stringOrNull(firstValue(row, "type", "foodType")),
+				name: StringUtils.stringOrNull(row.name),
+				brand: StringUtils.stringOrNull(firstValue(row, "brand", "producer")),
+				measureId: StringUtils.stringOrNull(
 					firstValue(row, "measureId", "defaultMeasureId", {
 						record: measure,
 						keys: ["measureId", "defaultMeasureId", "id"],
 					}),
 				),
-				measureName: stringOrNull(
+				measureName: StringUtils.stringOrNull(
 					firstValue(row, "measureName", {
 						record: measure,
 						keys: ["measureName", "name"],
 					}),
 				),
-				measureQuantity: numberOrNull(
+				measureQuantity: NumberUtils.parseOptionalFiniteNumber(
 					firstValue(row, "measureQuantity", "quantity", {
 						record: measure,
 						keys: ["measureQuantity", "quantity"],
 					}),
 				),
-				weightG: numberOrNull(
+				weightG: NumberUtils.parseOptionalFiniteNumber(
 					firstValue(row, "measureWeight", {
 						record: measure,
 						keys: ["measureWeight", "weight", "capacity"],
@@ -370,25 +381,31 @@ export class FoodSearchClient extends FitatuApiClientBase {
 
 function normalizeOptions(options: FoodSearchOptions): NormalizedFoodSearchOptions {
 	const queries = normalizeQueries(options.queries);
-	const limit = options.limit ?? DEFAULT_LIMIT;
-	const detailsLimit = options.detailsLimit ?? DEFAULT_DETAILS_LIMIT;
+	const limit = NumberUtils.parseIntegerInRange(
+		options.limit ?? DEFAULT_LIMIT,
+		1,
+		50,
+		"limit must be between 1 and 50",
+	);
+	const detailsLimit = NumberUtils.parseIntegerInRange(
+		options.detailsLimit ?? DEFAULT_DETAILS_LIMIT,
+		0,
+		50,
+		"detailsLimit must be between 0 and 50",
+	);
 	const includeUserFood = options.includeUserFood ?? true;
 	const includePublicFood = options.includePublicFood ?? true;
 
-	if (limit < 1 || limit > 50) {
-		throw new FoodSearchError("limit must be between 1 and 50");
-	}
-	if (detailsLimit < 0 || detailsLimit > 50) {
-		throw new FoodSearchError("detailsLimit must be between 0 and 50");
-	}
 	if (!includeUserFood && !includePublicFood) {
 		throw new FoodSearchError("At least one food source must be enabled");
 	}
 
 	return {
 		queries,
-		date: normalizeDate(options.date ?? localDateString()),
-		locale: normalizeRequiredText(options.locale ?? DEFAULT_LOCALE, "locale"),
+		date: DateUtils.validateIsoDate(options.date ?? DateUtils.toLocalDateString(), {
+			calendarErrorMessage: "date must use YYYY-MM-DD format",
+		}),
+		locale: StringUtils.parseNonEmptyString(options.locale ?? DEFAULT_LOCALE, "locale is required"),
 		limit,
 		includeUserFood,
 		includePublicFood,
@@ -405,64 +422,22 @@ function normalizeQueries(queries: readonly string[] | undefined): readonly stri
 		throw new FoodSearchError("queries must not be empty");
 	}
 
-	return queries.map((value) => normalizeRequiredText(value, "queries must not contain empty values"));
-}
-
-function normalizeDate(value: string): string {
-	const date = value.trim();
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-		throw new FoodSearchError("date must use YYYY-MM-DD format");
-	}
-
-	const parsed = new Date(`${date}T00:00:00.000Z`);
-	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
-		throw new FoodSearchError("date must use YYYY-MM-DD format");
-	}
-
-	return date;
-}
-
-function localDateString(): string {
-	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, "0");
-	const day = String(now.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-function normalizeRequiredText(value: string | undefined, name: string): string {
-	const normalized = value?.trim();
-	if (!normalized) {
-		throw new FoodSearchError(`${name} is required`);
-	}
-
-	return normalized;
-}
-
-async function parseJsonObject(response: Response): Promise<Record<string, unknown>> {
-	const data: unknown = await response.json();
-	if (!isRecord(data)) {
-		throw new FoodSearchError("Fitatu response was not a valid JSON object");
-	}
-
-	return data;
-}
-
-async function parseJson(response: Response): Promise<unknown> {
-	return response.json();
+	return queries.map((value) =>
+		StringUtils.parseNonEmptyString(value, "queries must not contain empty values is required"),
+	);
 }
 
 function extractRows(data: unknown): readonly Record<string, unknown>[] {
 	if (Array.isArray(data)) {
-		return data.filter(isRecord);
+		return data.filter(ObjectUtils.isRecord);
 	}
-	if (!isRecord(data)) {
+	if (!ObjectUtils.isRecord(data)) {
 		throw new FoodSearchError("Fitatu search response was not a valid JSON object or array");
 	}
 
 	const nested = recordOrUndefined(data.data);
 	const rows = listOrUndefined(data.items) ?? listOrUndefined(data.results) ?? listOrUndefined(nested?.items);
-	return rows?.filter(isRecord) ?? [];
+	return rows?.filter(ObjectUtils.isRecord) ?? [];
 }
 
 function mergeDetails(item: NormalizedFoodSearchItem, details: Record<string, unknown>): NormalizedFoodSearchItem {
@@ -487,11 +462,11 @@ function normalizeMeasures(details: Record<string, unknown>): readonly FoodMeasu
 			continue;
 		}
 		measures.push({
-			measureId: stringOrNull(firstValue(measure, "id", "measureId", "key")),
-			measureName: stringOrNull(firstValue(measure, "name", "measureName")),
-			weightG: numberOrNull(firstValue(measure, "weight", "weightPerUnit", "capacity")),
-			unit: stringOrNull(firstValue(measure, "unit", "unitKey")),
-			energyKcal: numberOrNull(firstValue(measure, "energy", "energyPerUnit")),
+			measureId: StringUtils.stringOrNull(firstValue(measure, "id", "measureId", "key")),
+			measureName: StringUtils.stringOrNull(firstValue(measure, "name", "measureName")),
+			weightG: NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "weight", "weightPerUnit", "capacity")),
+			unit: StringUtils.stringOrNull(firstValue(measure, "unit", "unitKey")),
+			energyKcal: NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "energy", "energyPerUnit")),
 		});
 	}
 
@@ -501,22 +476,22 @@ function normalizeMeasures(details: Record<string, unknown>): readonly FoodMeasu
 			continue;
 		}
 		measures.push({
-			measureId: stringOrNull(firstValue(measure, "measureId", "id", "key")),
-			measureName: stringOrNull(firstValue(measure, "name", "measureName")),
-			weightG: numberOrNull(firstValue(measure, "weight", "capacity")),
-			unit: stringOrNull(firstValue(measure, "unit", "unitKey")),
-			energyKcal: numberOrNull(firstValue(measure, "energy", "energyPerUnit")),
+			measureId: StringUtils.stringOrNull(firstValue(measure, "measureId", "id", "key")),
+			measureName: StringUtils.stringOrNull(firstValue(measure, "name", "measureName")),
+			weightG: NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "weight", "capacity")),
+			unit: StringUtils.stringOrNull(firstValue(measure, "unit", "unitKey")),
+			energyKcal: NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "energy", "energyPerUnit")),
 		});
 	}
 
 	const initial = recordOrUndefined(details.initialMeasure);
 	if (initial) {
 		measures.push({
-			measureId: stringOrNull(firstValue(initial, "key", "id", "measureId")),
-			measureName: stringOrNull(firstValue(initial, "name", "measureName")),
-			weightG: numberOrNull(firstValue(initial, "weight", "capacity")),
-			unit: stringOrNull(firstValue(initial, "unit", "unitKey")),
-			energyKcal: numberOrNull(firstValue(initial, "energy", "energyPerUnit")),
+			measureId: StringUtils.stringOrNull(firstValue(initial, "key", "id", "measureId")),
+			measureName: StringUtils.stringOrNull(firstValue(initial, "name", "measureName")),
+			weightG: NumberUtils.parseOptionalFiniteNumber(firstValue(initial, "weight", "capacity")),
+			unit: StringUtils.stringOrNull(firstValue(initial, "unit", "unitKey")),
+			energyKcal: NumberUtils.parseOptionalFiniteNumber(firstValue(initial, "energy", "energyPerUnit")),
 		});
 	}
 
@@ -557,14 +532,14 @@ function deduplicateMeasures(measures: readonly FoodMeasure[]): readonly FoodMea
 
 function nutritionFromRecord(record: Record<string, unknown>): FoodNutrition {
 	return nutrition({
-		energyKcal: numberOrNull(record.energy),
-		proteinG: numberOrNull(record.protein),
-		fatG: numberOrNull(record.fat),
-		carbsG: numberOrNull(record.carbohydrate),
-		fiberG: numberOrNull(record.fiber),
-		sugarsG: numberOrNull(record.sugars),
-		saltG: numberOrNull(record.salt),
-		saturatedFatG: numberOrNull(record.saturatedFat),
+		energyKcal: NumberUtils.parseOptionalFiniteNumber(record.energy),
+		proteinG: NumberUtils.parseOptionalFiniteNumber(record.protein),
+		fatG: NumberUtils.parseOptionalFiniteNumber(record.fat),
+		carbsG: NumberUtils.parseOptionalFiniteNumber(record.carbohydrate),
+		fiberG: NumberUtils.parseOptionalFiniteNumber(record.fiber),
+		sugarsG: NumberUtils.parseOptionalFiniteNumber(record.sugars),
+		saltG: NumberUtils.parseOptionalFiniteNumber(record.salt),
+		saturatedFatG: NumberUtils.parseOptionalFiniteNumber(record.saturatedFat),
 	});
 }
 
@@ -693,30 +668,6 @@ function firstValue(record: Record<string, unknown>, ...keys: readonly (string |
 	return undefined;
 }
 
-function stringOrNull(value: unknown): string | null {
-	if (typeof value === "string") {
-		const trimmed = value.trim();
-		return trimmed.length > 0 ? trimmed : null;
-	}
-	if (typeof value === "number" || typeof value === "boolean") {
-		return String(value);
-	}
-
-	return null;
-}
-
-function numberOrNull(value: unknown): number | null {
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return value;
-	}
-	if (typeof value === "string" && value.trim()) {
-		const parsed = Number(value);
-		return Number.isFinite(parsed) ? parsed : null;
-	}
-
-	return null;
-}
-
 function booleanOrNull(value: unknown): boolean | null {
 	if (typeof value === "boolean") {
 		return value;
@@ -729,8 +680,8 @@ function photoUrlOrNull(value: unknown): string | null {
 	if (typeof value === "string") {
 		return value.trim() || null;
 	}
-	if (isRecord(value)) {
-		return stringOrNull(value.url) ?? stringOrNull(value.path);
+	if (ObjectUtils.isRecord(value)) {
+		return StringUtils.stringOrNull(value.url) ?? StringUtils.stringOrNull(value.path);
 	}
 
 	return null;
@@ -741,11 +692,7 @@ function listOrUndefined(value: unknown): unknown[] | undefined {
 }
 
 function recordOrUndefined(value: unknown): Record<string, unknown> | undefined {
-	return isRecord(value) ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return ObjectUtils.isRecord(value) ? value : undefined;
 }
 
 function isNonEmptyString(value: string | null): value is string {

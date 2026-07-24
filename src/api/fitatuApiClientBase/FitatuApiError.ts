@@ -1,3 +1,7 @@
+import { JsonUtils } from "../../shared/JsonUtils.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
+
 const MAX_RESPONSE_SNIPPET_LENGTH = 500;
 const SENSITIVE_KEY_PATTERN = /(authorization|auth|cookie|email|password|secret|token|user)/i;
 
@@ -28,7 +32,7 @@ export async function createFitatuApiErrorDetails(
 	request: { readonly method: string; readonly path: string },
 ): Promise<FitatuApiErrorDetails> {
 	const text = await response.text().catch(() => "");
-	const data = parseJsonOrNull(text);
+	const data = text.trim() ? JsonUtils.parse(text, "Fitatu error response was not valid JSON") : null;
 
 	return createFitatuApiErrorDetailsFromData({
 		data,
@@ -53,7 +57,7 @@ export function createFitatuApiErrorDetailsFromData(options: {
 		statusText: options.statusText ?? null,
 		method: options.method,
 		path: options.path,
-		upstreamMessage: firstNonEmptyStringFromData(options.data, "errorMessage", "error", "message"),
+		upstreamMessage: firstStringFromData(options.data, "errorMessage", "error", "message"),
 		upstreamCode: firstScalarFromData(options.data, "code", "errorCode", "statusCode"),
 		responseSnippet: createResponseSnippet(options.data, options.text),
 	};
@@ -69,18 +73,6 @@ export function getFitatuApiErrors(error: unknown): readonly FitatuApiErrorDetai
 	}
 
 	return [...(error.fitatuApiErrors ?? []), ...(error.fitatuApiError ? [error.fitatuApiError] : [])];
-}
-
-function parseJsonOrNull(text: string): unknown {
-	if (!text.trim()) {
-		return null;
-	}
-
-	try {
-		return JSON.parse(text);
-	} catch {
-		return null;
-	}
 }
 
 function createResponseSnippet(data: unknown, text: string | undefined): string | null {
@@ -99,7 +91,7 @@ function redactJsonValue(value: unknown): unknown {
 	if (Array.isArray(value)) {
 		return value.map(redactJsonValue);
 	}
-	if (!isRecord(value)) {
+	if (!ObjectUtils.isRecord(value)) {
 		return typeof value === "string" ? redactText(value) : value;
 	}
 
@@ -120,13 +112,13 @@ function redactText(value: string): string {
 		);
 }
 
-function firstNonEmptyStringFromData(data: unknown, ...keys: readonly string[]): string | null {
+function firstStringFromData(data: unknown, ...keys: readonly string[]): string | null {
 	const scalar = firstScalarFromData(data, ...keys);
-	return typeof scalar === "string" && scalar.trim() ? scalar.trim() : null;
+	return StringUtils.firstNonEmptyString(scalar) ?? null;
 }
 
 function firstScalarFromData(data: unknown, ...keys: readonly string[]): string | number | null {
-	if (!isRecord(data)) {
+	if (!ObjectUtils.isRecord(data)) {
 		return null;
 	}
 
@@ -138,8 +130,4 @@ function firstScalarFromData(data: unknown, ...keys: readonly string[]): string 
 	}
 
 	return null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

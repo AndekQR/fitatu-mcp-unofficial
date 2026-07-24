@@ -1,3 +1,5 @@
+import { DateUtils } from "../../shared/DateUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
@@ -11,7 +13,6 @@ import type {
 	RemoveMealItemsOptions,
 	UpdateMealItemOptions,
 } from "./DayPlanClientTypes.ts";
-import { normalizeDate, normalizeUserId } from "./DayPlanValidators.ts";
 import { DayPlanSyncService } from "./DayPlanSyncService.ts";
 import { MealItemMutationService } from "./MealItemMutationService.ts";
 import type { MealItemMutationResult } from "./MealItemMutation.ts";
@@ -39,8 +40,11 @@ export class DayPlanClient extends FitatuApiClientBase {
 	}
 
 	public async getDayPlan(options: GetDayPlanOptions): Promise<DayPlan> {
-		const date = normalizeDate(options.date);
-		const userId = normalizeUserId(await this.getContextUserId(options.userId));
+		const date = DateUtils.validateIsoDate(options.date);
+		const userId = StringUtils.parseNonEmptyString(
+			await this.getContextUserId(options.userId),
+			"Fitatu user id is required",
+		);
 
 		return DayPlan.fromApiResponse({
 			data: await this.dayPlanSyncService.getDayPlanData({ date, userId, withRating: options.withRating }),
@@ -50,27 +54,42 @@ export class DayPlanClient extends FitatuApiClientBase {
 	}
 
 	public async addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult> {
-		const userId = normalizeUserId(await this.getContextUserId(options.userId));
+		const userId = StringUtils.parseNonEmptyString(
+			await this.getContextUserId(options.userId),
+			"Fitatu user id is required",
+		);
 		return this.mealItemMutationService.addMealItems({ ...options, userId });
 	}
 
 	public async updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
-		const userId = normalizeUserId(await this.getContextUserId(options.userId));
+		const userId = StringUtils.parseNonEmptyString(
+			await this.getContextUserId(options.userId),
+			"Fitatu user id is required",
+		);
 		return this.mealItemMutationService.updateMealItem({ ...options, userId });
 	}
 
 	public async removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
-		const userId = normalizeUserId(await this.getContextUserId(options.userId));
+		const userId = StringUtils.parseNonEmptyString(
+			await this.getContextUserId(options.userId),
+			"Fitatu user id is required",
+		);
 		return this.mealItemMutationService.removeMealItem({ ...options, userId });
 	}
 
 	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
-		const userId = normalizeUserId(await this.getContextUserId(options.userId));
+		const userId = StringUtils.parseNonEmptyString(
+			await this.getContextUserId(options.userId),
+			"Fitatu user id is required",
+		);
 		return this.mealItemMutationService.removeMealItems({ ...options, userId });
 	}
 
 	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {
-		const userId = normalizeUserId(await this.getContextUserId(options.userId));
+		const userId = StringUtils.parseNonEmptyString(
+			await this.getContextUserId(options.userId),
+			"Fitatu user id is required",
+		);
 		return this.mealItemMutationService.moveMealItem({ ...options, userId });
 	}
 }

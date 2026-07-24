@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { DateUtils } from "../../shared/DateUtils.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { DayPlanQueryProvider } from "../../services/dayPlan/DayPlanQueryService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
@@ -98,7 +99,7 @@ export class GetDayPlanItemsTool {
 			async ({ date, withRating }) => {
 				try {
 					const dayPlan = await this.dayPlanQueryService.getDayPlan({
-						date: date ?? localDateString(),
+						date: date ?? DateUtils.toLocalDateString(),
 						withRating: withRating === true,
 					});
 					return createTextResult({
@@ -120,12 +121,4 @@ export class GetDayPlanItemsTool {
 function toDayPlanItemForMcp(item: DayPlanItem): Omit<DayPlanItem, "productId"> & { productId?: string } {
 	const { productId, ...otherFields } = item;
 	return productId === null ? otherFields : { ...otherFields, productId: String(productId) };
-}
-
-function localDateString(): string {
-	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, "0");
-	const day = String(now.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
 }

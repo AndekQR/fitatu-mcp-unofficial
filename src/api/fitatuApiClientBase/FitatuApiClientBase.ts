@@ -1,3 +1,4 @@
+import { StringUtils } from "../../shared/StringUtils.ts";
 import type { FitatuAuthSession } from "../auth/FitatuAuthSession.ts";
 import type { FitatuUserProfile } from "../users/FitatuUserProfile.ts";
 import {
@@ -76,7 +77,7 @@ export abstract class FitatuApiClientBase {
 		user: FitatuUserProfile | undefined,
 		session: FitatuAuthSession | undefined,
 	): string | undefined {
-		return nonEmptyString(userId) ?? nonEmptyString(user?.id) ?? nonEmptyString(session?.fitatuUserId);
+		return StringUtils.firstNonEmptyString(userId, user?.id, session?.fitatuUserId);
 	}
 
 	private async getProvidedSession(): Promise<FitatuAuthSession | undefined> {
@@ -92,11 +93,7 @@ export abstract class FitatuApiClientBase {
 			return undefined;
 		}
 
-		try {
-			return await this.userClient.getCurrentUser();
-		} catch {
-			return undefined;
-		}
+		return this.userClient.getCurrentUser();
 	}
 
 	private canRefreshAuthentication(options: FitatuApiRequestOptions): boolean {
@@ -121,10 +118,10 @@ export abstract class FitatuApiClientBase {
 		clusterUserId: string | undefined,
 		sessionToken: string | undefined,
 	): Record<string, string> {
-		const appLocale = nonEmptyString(user?.locale) ?? DEFAULT_APP_LOCALE;
-		const searchLocale = nonEmptyString(user?.searchLocale) ?? nonEmptyString(user?.locale);
-		const storageLocale = nonEmptyString(user?.storageLocale) ?? nonEmptyString(user?.locale);
-		const timezone = nonEmptyString(user?.timezone) ?? DEFAULT_APP_TIMEZONE;
+		const appLocale = StringUtils.firstNonEmptyString(user?.locale) ?? DEFAULT_APP_LOCALE;
+		const searchLocale = StringUtils.firstNonEmptyString(user?.searchLocale, user?.locale);
+		const storageLocale = StringUtils.firstNonEmptyString(user?.storageLocale, user?.locale);
+		const timezone = StringUtils.firstNonEmptyString(user?.timezone) ?? DEFAULT_APP_TIMEZONE;
 
 		return filterHeaders({
 			...DEFAULT_FITATU_HEADERS,
@@ -138,7 +135,7 @@ export abstract class FitatuApiClientBase {
 	}
 
 	private createAuthorizationValue(sessionToken: string | undefined): string | undefined {
-		const token = nonEmptyString(sessionToken);
+		const token = StringUtils.firstNonEmptyString(sessionToken);
 		if (!token) {
 			return undefined;
 		}
@@ -147,7 +144,7 @@ export abstract class FitatuApiClientBase {
 	}
 
 	private createApiCluster(userId: string | undefined, user?: FitatuUserProfile): string | undefined {
-		const normalizedUserId = nonEmptyString(userId);
+		const normalizedUserId = StringUtils.firstNonEmptyString(userId);
 		if (!normalizedUserId) {
 			return undefined;
 		}
@@ -168,7 +165,7 @@ function headersToRecord(headers: Record<string, string | null | undefined> | un
 function filterHeaders(headers: Record<string, string | null | undefined>): Record<string, string> {
 	return Object.fromEntries(
 		Object.entries(headers).flatMap(([name, value]) => {
-			const headerValue = nonEmptyString(value);
+			const headerValue = StringUtils.firstNonEmptyString(value);
 			return headerValue ? [[name, headerValue]] : [];
 		}),
 	);
@@ -205,13 +202,4 @@ function createUrl(baseUrl: string, path: string, query: FitatuApiRequestOptions
 
 function toLocaleSegment(locale: string): string {
 	return locale.replaceAll("_", "-").toLowerCase();
-}
-
-function nonEmptyString(value: string | null | undefined): string | undefined {
-	if (!value) {
-		return undefined;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
 }

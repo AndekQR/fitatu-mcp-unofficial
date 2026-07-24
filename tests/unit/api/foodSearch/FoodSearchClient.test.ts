@@ -147,7 +147,7 @@ describe("FoodSearchClient.search", () => {
 		expect(fetchStub.calls).toHaveLength(4);
 	});
 
-	it("treats malformed successful JSON as a failed search boundary", async () => {
+	it("propagates malformed successful JSON as a syntax error", async () => {
 		const fetchStub = createFetchStub(
 			new Response("not-json", { status: 200, headers: { "content-type": "application/json" } }),
 		);
@@ -160,9 +160,6 @@ describe("FoodSearchClient.search", () => {
 
 		await expect(
 			client.search({ queries: ["granola"], includePublicFood: true, includeUserFood: false }),
-		).rejects.toMatchObject({
-			name: "FoodSearchError",
-			message: "All Fitatu food search requests failed",
-		});
+		).rejects.toBeInstanceOf(SyntaxError);
 	});
 });

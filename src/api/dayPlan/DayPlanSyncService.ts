@@ -1,7 +1,8 @@
 import { DayClient } from "../dietAndActivityPlan/DayClient.ts";
 import { DaysClient } from "../dietPlan/DaysClient.ts";
 import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
-import { asRecord, isRecord } from "./DayPlanApiResponse.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { asRecord } from "./DayPlanApiResponse.ts";
 import { DayPlanError } from "./DayPlanError.ts";
 import type { GetDayPlanOptions } from "./DayPlanClientTypes.ts";
 
@@ -33,7 +34,7 @@ export class DayPlanSyncService implements DayPlanSyncProvider {
 
 	public async getDaySyncPayload(userId: string, date: string): Promise<DaySyncPayload> {
 		const data = await this.getDayPlanData({ date, userId });
-		if (!isRecord(data)) {
+		if (!ObjectUtils.isRecord(data)) {
 			throw new DayPlanError("DayPlan response was not a valid JSON object");
 		}
 
@@ -50,19 +51,6 @@ export class DayPlanSyncService implements DayPlanSyncProvider {
 	}
 
 	public async syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<void> {
-		try {
-			await this.daysClient.syncDays({ userId, daysPayload });
-		} catch (error) {
-			if (error instanceof DayPlanError) {
-				throw new DayPlanError(
-					error.fitatuApiError?.upstreamMessage ?? "Fitatu day synchronization request failed",
-					{
-						statusCode: error.statusCode,
-						fitatuApiError: error.fitatuApiError,
-					},
-				);
-			}
-			throw new DayPlanError("Fitatu day synchronization request failed");
-		}
+		await this.daysClient.syncDays({ userId, daysPayload });
 	}
 }

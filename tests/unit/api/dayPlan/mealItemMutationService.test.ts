@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MealItemMutationService } from "../../../../src/api/dayPlan/MealItemMutationService.ts";
-import type { DaySyncPayload, DayPlanSyncProvider } from "../../../../src/api/dayPlan/DayPlanSyncService.ts";
+import type { DayPlanSyncProvider, DaySyncPayload } from "../../../../src/api/dayPlan/DayPlanSyncService.ts";
 
 describe("MealItemMutationService single-day mutations", () => {
 	it("adds a product item and synchronizes the changed day", async () => {
@@ -235,12 +235,12 @@ class RecordingDayPlanSyncService implements DayPlanSyncProvider {
 
 	private readonly payloads: Record<string, DaySyncPayload>;
 
-	public get currentPayload(): DaySyncPayload {
-		return this.getPayload("2026-07-01");
-	}
-
 	public constructor(payload: DaySyncPayload | Record<string, DaySyncPayload>) {
 		this.payloads = isDaySyncPayload(payload) ? { "2026-07-01": payload } : payload;
+	}
+
+	public get currentPayload(): DaySyncPayload {
+		return this.getPayload("2026-07-01");
 	}
 
 	public async getDaySyncPayload(_userId: string, date: string): Promise<DaySyncPayload> {

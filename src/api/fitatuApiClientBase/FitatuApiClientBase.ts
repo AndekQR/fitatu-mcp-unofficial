@@ -30,6 +30,12 @@ export abstract class FitatuApiClientBase {
 		this.userClient = resolvedOptions.userClient;
 	}
 
+	public async getContextUserId(userId?: string): Promise<string | undefined> {
+		const [session, user] = await Promise.all([this.getProvidedSession(), this.getProvidedCurrentUser()]);
+
+		return this.resolveContextUserId(userId, user, session);
+	}
+
 	protected async fetchFitatuApi(options: FitatuApiRequestOptions): Promise<Response> {
 		const response = await this.fetchFitatuApiOnce(options);
 
@@ -41,10 +47,9 @@ export abstract class FitatuApiClientBase {
 		return this.fetchFitatuApiOnce(options);
 	}
 
-	protected async getContextUserId(userId?: string): Promise<string | undefined> {
-		const [session, user] = await Promise.all([this.getProvidedSession(), this.getProvidedCurrentUser()]);
-
-		return this.resolveContextUserId(userId, user, session);
+	protected async getContextSearchLocale(): Promise<string> {
+		const user = await this.getProvidedCurrentUser();
+		return StringUtils.firstNonEmptyString(user?.searchLocale, user?.locale) ?? DEFAULT_APP_LOCALE;
 	}
 
 	protected async createRequestContext(options: FitatuApiRequestOptions): Promise<FitatuRequestContext> {

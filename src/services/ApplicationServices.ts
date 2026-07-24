@@ -2,12 +2,14 @@ import { FitatuAuthClient } from "../api/auth/FitatuAuthClient.ts";
 import { DayPlanClient } from "../api/dayPlan/DayPlanClient.ts";
 import { SummaryClient } from "../api/dietPlan/SummaryClient.ts";
 import { FoodSearchClient } from "../api/foodSearch/FoodSearchClient.ts";
+import { RecipeClient } from "../api/recipes/RecipeClient.ts";
 import { FitatuUserClient } from "../api/users/FitatuUserClient.ts";
 import { CurrentUserService } from "./currentUser/CurrentUserService.ts";
 import { DayPlanQueryService } from "./dayPlan/DayPlanQueryService.ts";
 import { DietSummaryService } from "./dietSummary/DietSummaryService.ts";
 import { MealItemMutationService } from "./dayPlan/MealItemMutationService.ts";
 import { FoodSearchService } from "./foodSearch/FoodSearchService.ts";
+import { RecipeService } from "./recipes/RecipeService.ts";
 
 /**
  * Process-wide composition root. MCP tools receive services from this class
@@ -19,6 +21,7 @@ export class ApplicationServices {
 	public readonly dietSummaryService: DietSummaryService;
 	public readonly mealItemMutationService: MealItemMutationService;
 	public readonly foodSearchService: FoodSearchService;
+	public readonly recipeService: RecipeService;
 
 	public constructor() {
 		const authClient = FitatuAuthClient.getInstance();
@@ -26,11 +29,13 @@ export class ApplicationServices {
 		const dayPlanClient = new DayPlanClient({ authClient, userClient });
 		const summaryClient = new SummaryClient({ authClient, userClient });
 		const foodSearchClient = new FoodSearchClient({ authClient, userClient });
+		const recipeClient = new RecipeClient({ authClient, userClient });
 
 		this.currentUserService = new CurrentUserService(userClient);
 		this.dayPlanQueryService = new DayPlanQueryService(dayPlanClient);
 		this.dietSummaryService = new DietSummaryService(summaryClient, userClient);
 		this.mealItemMutationService = new MealItemMutationService(dayPlanClient);
 		this.foodSearchService = new FoodSearchService(foodSearchClient);
+		this.recipeService = new RecipeService(recipeClient);
 	}
 }

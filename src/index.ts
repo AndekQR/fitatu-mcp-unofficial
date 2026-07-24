@@ -13,6 +13,11 @@ import { MoveMealItemTool } from "./tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "./tools/mealItems/RemoveMealItemsTool.ts";
 import { UpdateMealItemTool } from "./tools/mealItems/UpdateMealItemTool.ts";
 import { SearchFoodTool } from "./tools/searchFood/SearchFoodTool.ts";
+import { CreateRecipeTool } from "./tools/recipes/CreateRecipeTool.ts";
+import { DeleteRecipeTool } from "./tools/recipes/DeleteRecipeTool.ts";
+import { GetRecipeTool } from "./tools/recipes/GetRecipeTool.ts";
+import { SearchRecipesTool } from "./tools/recipes/SearchRecipesTool.ts";
+import { UpdateRecipeTool } from "./tools/recipes/UpdateRecipeTool.ts";
 import { ApplicationServices } from "./services/ApplicationServices.ts";
 
 const applicationServices = new ApplicationServices();
@@ -32,6 +37,11 @@ const getServer = () => {
 	new UpdateMealItemTool(applicationServices.mealItemMutationService).register(server);
 	new RemoveMealItemsTool(applicationServices.mealItemMutationService).register(server);
 	new MoveMealItemTool(applicationServices.mealItemMutationService).register(server);
+	new CreateRecipeTool(applicationServices.recipeService).register(server);
+	new GetRecipeTool(applicationServices.recipeService).register(server);
+	new SearchRecipesTool(applicationServices.recipeService).register(server);
+	new UpdateRecipeTool(applicationServices.recipeService).register(server);
+	new DeleteRecipeTool(applicationServices.recipeService).register(server);
 
 	return server;
 };

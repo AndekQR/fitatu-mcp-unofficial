@@ -4,6 +4,7 @@ import { FitatuAuthError } from "../../api/auth/FitatuAuthError.ts";
 import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
 import { getFitatuApiErrors, isErrorWithFitatuApiDetails } from "../../api/fitatuApiClientBase/FitatuApiError.ts";
 import { FoodSearchError } from "../../api/foodSearch/FoodSearchError.ts";
+import { RecipeError } from "../../api/recipes/RecipeError.ts";
 import { FitatuUserError } from "../../api/users/FitatuUserError.ts";
 import { createErrorResult } from "./ToolResult.ts";
 import { logger } from "../../logger.ts";
@@ -26,7 +27,9 @@ export function createToolErrorResult(toolName: string, fallbackMessage: string,
 function toToolErrorResponse(toolName: string, fallbackMessage: string, error: unknown): Record<string, unknown> {
 	const errorName = error instanceof Error ? error.name : "UnknownError";
 	const message = isKnownToolError(error) ? error.message : fallbackMessage;
-	const fitatuApiErrors = getFitatuApiErrors(error);
+	const fitatuApiErrors = getFitatuApiErrors(error).map((details) =>
+		error instanceof RecipeError ? sanitizeRecipeApiError(details) : details,
+	);
 	const statusCode = isErrorWithFitatuApiDetails(error) ? error.statusCode : undefined;
 	const response: Record<string, unknown> = {
 		status: "error",
@@ -46,11 +49,23 @@ function toToolErrorResponse(toolName: string, fallbackMessage: string, error: u
 	return response;
 }
 
+function sanitizeRecipeApiError(details: ReturnType<typeof getFitatuApiErrors>[number]) {
+	return {
+		...details,
+		path: details.path
+			.replace(/(\/recipes-and-user-action\/[^/]+)\/[^/?]+/, "$1/:userId")
+			.replace(/(\/search\/food\/user)\/[^/?]+/, "$1/:userId"),
+		upstreamMessage: null,
+		responseSnippet: null,
+	};
+}
+
 function isKnownToolError(error: unknown): error is Error {
 	return (
 		error instanceof FitatuAuthError ||
 		error instanceof DayPlanError ||
 		error instanceof FoodSearchError ||
+		error instanceof RecipeError ||
 		error instanceof FitatuUserError
 	);
 }

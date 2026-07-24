@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { RecipeCreateResult } from "../../../../src/api/recipes/RecipeCreateResult.ts";
 import type { RecipeDeleteResult } from "../../../../src/api/recipes/RecipeDeleteResult.ts";
 import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
-import type { RecipeReplaceResult } from "../../../../src/api/recipes/RecipeReplaceResult.ts";
 import type { RecipeSearchOptions } from "../../../../src/api/recipes/RecipeSearchOptions.ts";
 import type { RecipeSearchResult } from "../../../../src/api/recipes/RecipeSearchResult.ts";
 import type { RecipeUpdateInput } from "../../../../src/api/recipes/RecipeUpdateInput.ts";
-import type { RecipeWarning } from "../../../../src/api/recipes/RecipeWarning.ts";
 import type { RecipeWriteInput } from "../../../../src/api/recipes/RecipeWriteInput.ts";
 import { RecipeError } from "../../../../src/api/recipes/RecipeError.ts";
 import type { RecipeProvider } from "../../../../src/services/recipes/RecipeService.ts";
+import type {
+	RecipeServiceCreateResult,
+	RecipeServiceReplaceResult,
+} from "../../../../src/services/recipes/RecipeServiceResult.ts";
+import type { RecipeWarning } from "../../../../src/services/recipes/RecipeWarning.ts";
 import { CreateRecipeTool } from "../../../../src/tools/recipes/CreateRecipeTool.ts";
 import { DeleteRecipeTool } from "../../../../src/tools/recipes/DeleteRecipeTool.ts";
 import { GetRecipeTool } from "../../../../src/tools/recipes/GetRecipeTool.ts";
@@ -273,7 +275,7 @@ class RecordingRecipeService implements RecipeProvider {
 
 	public constructor(private readonly error?: Error) {}
 
-	public async createRecipe(input: RecipeWriteInput): Promise<RecipeCreateResult> {
+	public async createRecipe(input: RecipeWriteInput): Promise<RecipeServiceCreateResult> {
 		this.throwWhenConfigured();
 		this.createInputs.push(input);
 		return { recipeId: "100", details: details(), warnings: [...this.writeWarnings] };
@@ -298,7 +300,10 @@ class RecordingRecipeService implements RecipeProvider {
 		};
 	}
 
-	public async updateRecipe(recipeId: string | number, input: RecipeUpdateInput): Promise<RecipeReplaceResult> {
+	public async updateRecipe(
+		recipeId: string | number,
+		input: RecipeUpdateInput,
+	): Promise<RecipeServiceReplaceResult> {
 		this.throwWhenConfigured();
 		this.updateInputs.push({ recipeId, input });
 		return {

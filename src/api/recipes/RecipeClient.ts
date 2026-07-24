@@ -58,7 +58,7 @@ export class RecipeClient extends FitatuApiClientBase {
 		});
 		const recipeId = StringUtils.parseStringValue(created.id, "Recipe creation response id is required");
 
-		return { recipeId, details: await this.getRecipeAfterWrite(recipeId), warnings: [] };
+		return { recipeId, details: await this.getRecipeAfterWrite(recipeId) };
 	}
 
 	public async replaceRecipe(recipeId: string | number, input: RecipeReplacementInput): Promise<RecipeReplaceResult> {
@@ -79,7 +79,6 @@ export class RecipeClient extends FitatuApiClientBase {
 			recipeId: nextRecipeId,
 			identityChanged: nextRecipeId !== previousRecipeId,
 			details: await this.getRecipeAfterWrite(nextRecipeId),
-			warnings: [],
 		};
 	}
 

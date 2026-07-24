@@ -1,21 +1,20 @@
 import { RecipeClient } from "../../api/recipes/RecipeClient.ts";
-import type { RecipeCreateResult } from "../../api/recipes/RecipeCreateResult.ts";
 import type { RecipeDeleteResult } from "../../api/recipes/RecipeDeleteResult.ts";
 import type { RecipeDetails } from "../../api/recipes/RecipeDetails.ts";
 import { RecipeError } from "../../api/recipes/RecipeError.ts";
-import type { RecipeReplaceResult } from "../../api/recipes/RecipeReplaceResult.ts";
 import type { RecipeSearchOptions } from "../../api/recipes/RecipeSearchOptions.ts";
 import type { RecipeSearchResult } from "../../api/recipes/RecipeSearchResult.ts";
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
-import type { RecipeWarning } from "../../api/recipes/RecipeWarning.ts";
 import type { RecipeWriteInput } from "../../api/recipes/RecipeWriteInput.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
+import type { RecipeServiceCreateResult, RecipeServiceReplaceResult } from "./RecipeServiceResult.ts";
+import type { RecipeWarning } from "./RecipeWarning.ts";
 
 export interface RecipeProvider {
-	createRecipe(input: RecipeWriteInput): Promise<RecipeCreateResult>;
+	createRecipe(input: RecipeWriteInput): Promise<RecipeServiceCreateResult>;
 	getRecipe(recipeId: string | number): Promise<RecipeDetails>;
 	searchRecipes(options?: RecipeSearchOptions): Promise<RecipeSearchResult>;
-	updateRecipe(recipeId: string | number, input: RecipeUpdateInput): Promise<RecipeReplaceResult>;
+	updateRecipe(recipeId: string | number, input: RecipeUpdateInput): Promise<RecipeServiceReplaceResult>;
 	deleteRecipe(recipeId: string | number, expectedName: string): Promise<RecipeDeleteResult>;
 }
 
@@ -26,7 +25,7 @@ export class RecipeService implements RecipeProvider {
 		this.recipeClient = recipeClient;
 	}
 
-	public async createRecipe(input: RecipeWriteInput): Promise<RecipeCreateResult> {
+	public async createRecipe(input: RecipeWriteInput): Promise<RecipeServiceCreateResult> {
 		const result = await this.recipeClient.createRecipe(input);
 		return { ...result, warnings: findDuplicateIngredientWarnings(input.ingredients) };
 	}
@@ -39,7 +38,10 @@ export class RecipeService implements RecipeProvider {
 		return this.recipeClient.searchRecipes(options);
 	}
 
-	public async updateRecipe(recipeId: string | number, input: RecipeUpdateInput): Promise<RecipeReplaceResult> {
+	public async updateRecipe(
+		recipeId: string | number,
+		input: RecipeUpdateInput,
+	): Promise<RecipeServiceReplaceResult> {
 		const current = await this.recipeClient.getRecipe(recipeId);
 		await this.assertOwnedEditable(current);
 

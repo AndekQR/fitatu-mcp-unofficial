@@ -34,6 +34,8 @@ Before relying on any command, confirm that it exists in `package.json`.
 
 Use TypeScript with ES module syntax.
 
+Only use TypeScript syntax that Node.js supports in strip-only mode. Do not use parameter properties such as `constructor(public readonly value: string)`.
+
 Prefer:
 
 - Explicit types for public APIs.

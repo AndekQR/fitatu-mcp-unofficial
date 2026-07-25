@@ -1,6 +1,6 @@
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { DayPlanError } from "./DayPlanError.ts";
-import type { MealItemKind } from "./MealItemMutation.ts";
+import type { MealItemKind } from "./RemoveMealItemOptions.ts";
 
 export const FITATU_MEAL_KEYS = ["breakfast", "second_breakfast", "lunch", "snack", "supper"] as const;
 
@@ -18,13 +18,4 @@ export function normalizeItemKind(value: MealItemKind): MealItemKind {
 	}
 
 	throw new DayPlanError("itemKind must be one of: auto, normal_item, custom_add_item, custom_recipe_item");
-}
-
-export function normalizeFoodType(value: string | undefined, recipeId: string | number | null): string {
-	const foodType = value?.trim().toUpperCase();
-	if (foodType) {
-		return foodType;
-	}
-
-	return recipeId ? "RECIPE" : "PRODUCT";
 }

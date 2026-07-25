@@ -6,8 +6,10 @@ import {
 	createSafeMealItemErrorResult,
 	mealItemInputSchema,
 	mealItemMutationOutputSchema,
+	toMealItemMutationForMcp,
 	toMealItemInput,
 } from "../mealItems/MealItemToolSupport.ts";
+import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
 export class AddMealItemsTool {
 	public readonly name = "add_meal_items";
@@ -24,23 +26,24 @@ export class AddMealItemsTool {
 			{
 				title: "Add Fitatu Meal Items",
 				description:
-					"Adds one or more products or recipes to an existing Fitatu meal for a YYYY-MM-DD date. Each item requires the foodId and measureId returned by search_food; pass foodType when available, including RECIPE for recipes. A status of accepted only confirms that Fitatu accepted the synchronization request; it does not confirm that individual items were persisted. After accepted, wait for synchronization and call get_day_plan_items to verify the result before reporting that the items were added. An immediate read may still return the previous day plan state.",
-				inputSchema: {
-					date: z
-						.string()
-						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
-						.describe("Target day in YYYY-MM-DD format where the meal items should be added."),
-					mealKey: z
-						.string()
-						.min(1)
-						.describe(
-							"Fitatu meal key to add items into. Use mealKey values returned by get_day_plan_items.",
+					"Validates and submits products, recipes, or custom items to a Fitatu meal. Every item requires foodType and a foodId/measureId pair returned by search_food; recipe foodId values use recipe:<digits>. Deleted recipes and mismatched measures are rejected before synchronization. provisionalItemIds are not proof of persistence: wait and verify with get_day_plan_items.",
+				inputSchema: z
+					.object({
+						date: isoCalendarDateSchema().describe(
+							"Target day in YYYY-MM-DD format where the meal items should be added.",
 						),
-					items: z
-						.array(mealItemInputSchema)
-						.min(1)
-						.describe("One or more products or recipes to add. Batch multiple meal items in one call."),
-				},
+						mealKey: z
+							.string()
+							.min(1)
+							.describe(
+								"Fitatu meal key to add items into. Use mealKey values returned by get_day_plan_items.",
+							),
+						items: z
+							.array(mealItemInputSchema)
+							.min(1)
+							.describe("One or more products or recipes to add. Batch multiple meal items in one call."),
+					})
+					.strict(),
 				outputSchema: mealItemMutationOutputSchema,
 				annotations: {
 					title: "Add Fitatu Meal Items",
@@ -57,7 +60,7 @@ export class AddMealItemsTool {
 						mealKey,
 						items: items.map(toMealItemInput),
 					});
-					return createTextResult(result);
+					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(this.name, "Unable to add Fitatu meal items.", error);
 				}

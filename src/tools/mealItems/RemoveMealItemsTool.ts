@@ -2,7 +2,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
-import { createSafeMealItemErrorResult, mealItemMutationOutputSchema } from "./MealItemToolSupport.ts";
+import {
+	createSafeMealItemErrorResult,
+	mealItemMutationOutputSchema,
+	toMealItemMutationForMcp,
+} from "./MealItemToolSupport.ts";
+import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
 export class RemoveMealItemsTool {
 	public readonly name = "remove_meal_items";
@@ -19,19 +24,21 @@ export class RemoveMealItemsTool {
 			{
 				title: "Remove Fitatu Meal Items",
 				description:
-					"Removes all active PRODUCT meal items matching one or more productIds from a YYYY-MM-DD date. Copy productId strings from get_day_plan_items. This is destructive. The items are removed in one Fitatu day sync; accepted means Fitatu accepted the sync request.",
-				inputSchema: {
-					date: z
-						.string()
-						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
-						.describe("Day containing the products to remove, in YYYY-MM-DD format."),
-					productIds: z
-						.array(z.string().min(1))
-						.min(1)
-						.describe(
-							"One or more Fitatu product id strings copied from get_day_plan_items. All active occurrences of each productId are removed from the whole day.",
-						),
-				},
+					"Atomically removes exact Fitatu day-plan entries of any food type. Copy itemId UUID values from get_day_plan_items; do not pass productId or recipeId. mealKey is unnecessary because each itemId identifies one concrete entry. If any requested active item is missing, nothing is synchronized. This operation is destructive and must be verified with get_day_plan_items.",
+				inputSchema: z
+					.object({
+						date: isoCalendarDateSchema().describe("Day containing the exact meal items to remove."),
+						itemIds: z
+							.array(z.string().uuid())
+							.min(1)
+							.refine((itemIds) => new Set(itemIds).size === itemIds.length, {
+								message: "itemIds must contain unique UUID values",
+							})
+							.describe(
+								"Unique itemId UUID values copied from get_day_plan_items. Each identifies one exact PRODUCT, RECIPE, or CUSTOM_ITEM entry; productId and recipeId are not accepted.",
+							),
+					})
+					.strict(),
 				outputSchema: mealItemMutationOutputSchema,
 				annotations: {
 					title: "Remove Fitatu Meal Items",
@@ -41,13 +48,13 @@ export class RemoveMealItemsTool {
 					openWorldHint: true,
 				},
 			},
-			async ({ date, productIds }) => {
+			async ({ date, itemIds }) => {
 				try {
 					const result = await this.mealItemMutationService.removeMealItems({
 						date,
-						productIds,
+						itemIds,
 					});
-					return createTextResult(result);
+					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(this.name, "Unable to remove Fitatu meal items.", error);
 				}

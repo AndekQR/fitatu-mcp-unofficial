@@ -1,36 +1,49 @@
 import { z } from "zod";
+import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
 import type { MealItemInput, MealItemKind } from "../../services/dayPlan/MealItemTypes.ts";
+import { RecipeIdMapper } from "../recipes/RecipeIdMapper.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 
 const optionalIdSchema = z.union([z.string(), z.number()]).optional();
 
-export const mealItemInputSchema = z.object({
-	foodId: z
-		.string()
-		.min(1)
-		.describe("Fitatu food id returned by search_food. Use this field for both products and recipes."),
-	foodType: z
-		.string()
-		.min(1)
-		.optional()
-		.describe("Fitatu food type returned by search_food, for example PRODUCT, RECIPE, or CUSTOM_ITEM."),
-	measureId: z
-		.string()
-		.min(1)
-		.describe("Measure id to use for this item. Prefer a measureId returned by search_food."),
-	measureQuantity: z
-		.number()
-		.positive()
-		.optional()
-		.describe("Positive quantity of the selected measure to add, for example 1 for one serving."),
-	ingredientsServing: z
-		.number()
-		.positive()
-		.nullable()
-		.optional()
-		.describe("Optional positive recipe serving multiplier. Use null or omit for ordinary products."),
-	eaten: z.boolean().optional().describe("Whether Fitatu should mark the added item as eaten."),
-});
+export const mealItemInputSchema = z
+	.object({
+		foodId: z
+			.string()
+			.min(1)
+			.describe(
+				"Fitatu food id returned by search_food. Recipe values must use recipe:<digits>; product and custom-item values remain unprefixed.",
+			),
+		foodType: z
+			.enum(["PRODUCT", "RECIPE", "CUSTOM_ITEM"])
+			.describe("Required Fitatu food type copied from search_food."),
+		measureId: z
+			.string()
+			.min(1)
+			.describe("Measure id to use for this item. Prefer a measureId returned by search_food."),
+		measureQuantity: z
+			.number()
+			.positive()
+			.optional()
+			.describe("Positive quantity of the selected measure to add, for example 1 for one serving."),
+		ingredientsServing: z
+			.number()
+			.positive()
+			.nullable()
+			.optional()
+			.describe("Optional positive recipe serving multiplier. Use null or omit for ordinary products."),
+		eaten: z.boolean().optional().describe("Whether Fitatu should mark the added item as eaten."),
+	})
+	.strict()
+	.superRefine((item, context) => {
+		if (item.foodType === "RECIPE" && !RecipeIdMapper.mcpPattern.test(item.foodId)) {
+			context.addIssue({
+				code: "custom",
+				path: ["foodId"],
+				message: "RECIPE foodId must use recipe:<digits> format",
+			});
+		}
+	});
 
 export const mealItemMutationOutputSchema = {
 	status: z
@@ -60,16 +73,20 @@ export const mealItemMutationOutputSchema = {
 			index: z.number().int().describe("Zero-based index of the item in the accepted request."),
 			itemId: z.string().describe("Meal item id submitted in the accepted request."),
 			productId: optionalIdSchema.describe("Submitted product id, when applicable."),
-			recipeId: optionalIdSchema.describe("Submitted recipe id, when applicable."),
-			foodType: z.string().describe("Submitted Fitatu food type."),
+			recipeId: z
+				.string()
+				.regex(RecipeIdMapper.mcpPattern)
+				.optional()
+				.describe("Submitted recipe id in recipe:<digits> format, when applicable."),
+			foodType: z.enum(["PRODUCT", "RECIPE", "CUSTOM_ITEM"]).describe("Submitted Fitatu food type."),
 			mealKey: z.string().describe("Meal key targeted by the submitted item."),
 		}),
 	),
-	createdItemIds: z
+	provisionalItemIds: z
 		.array(z.string())
 		.optional()
 		.describe(
-			"Client-generated meal item ids submitted for creation in the accepted request. Their persistence is not confirmed by this response.",
+			"Client-generated item ids submitted for creation. They remain provisional until get_day_plan_items confirms persistence.",
 		),
 	updatedItemIds: z
 		.array(z.string())
@@ -92,12 +109,23 @@ export const itemKindSchema = z
 
 export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): MealItemInput {
 	return {
-		foodId: input.foodId,
+		foodId: input.foodType === "RECIPE" ? RecipeIdMapper.fromMcp(input.foodId) : input.foodId,
 		foodType: input.foodType,
 		measureId: input.measureId,
 		measureQuantity: input.measureQuantity,
 		ingredientsServing: input.ingredientsServing,
 		eaten: input.eaten,
+	};
+}
+
+export function toMealItemMutationForMcp(result: MealItemMutationResult) {
+	return {
+		...result,
+		acceptedItems: result.acceptedItems.map((item) => ({
+			...item,
+			productId: item.productId ?? undefined,
+			recipeId: item.recipeId === null ? undefined : RecipeIdMapper.toMcp(item.recipeId),
+		})),
 	};
 }
 

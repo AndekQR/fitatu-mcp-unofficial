@@ -1,28 +1,20 @@
 import { DateUtils } from "../../shared/DateUtils.ts";
 import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
-import {
-	createDeletedItemMarker,
-	findActiveProductItemsInDietPlan,
-	findItemInDietPlan,
-	getMealItems,
-	resolveItemKind,
-	toOperationSummary,
-} from "./DayPlanDietPlanMapper.ts";
+import type { AddMealItemsOptions } from "./AddMealItemsOptions.ts";
+import { DayItemPayload } from "./DayItemPayload.ts";
+import { DayPlanDietPlan } from "./DayPlanDietPlan.ts";
 import { DayPlanError } from "./DayPlanError.ts";
 import { createPlanDayDietItemId } from "./DayPlanItemIdFactory.ts";
 import { nowTimestamp } from "./DayPlanTimestamps.ts";
-import type {
-	AddMealItemsOptions,
-	MoveMealItemOptions,
-	RemoveMealItemOptions,
-	RemoveMealItemsOptions,
-	UpdateMealItemOptions,
-} from "./DayPlanClientTypes.ts";
 import { normalizeItemKind, normalizeMealKey } from "./DayPlanValidators.ts";
-import type { MealItemMutationResult } from "./MealItemMutation.ts";
-import { toDayItemPayload } from "./MealItemPayloadMapper.ts";
+import { FoundDietItem } from "./FoundDietItem.ts";
+import { MealItemMutationResult } from "./MealItemMutationResult.ts";
+import type { MoveMealItemOptions } from "./MoveMealItemOptions.ts";
+import type { RemoveMealItemOptions } from "./RemoveMealItemOptions.ts";
+import type { RemoveMealItemsOptions } from "./RemoveMealItemsOptions.ts";
 import type { DayPlanSyncProvider } from "./DayPlanSyncService.ts";
+import type { UpdateMealItemOptions } from "./UpdateMealItemOptions.ts";
 
 export class MealItemMutationService {
 	private readonly dayPlanSyncService: DayPlanSyncProvider;
@@ -41,27 +33,19 @@ export class MealItemMutationService {
 			throw new DayPlanError("items must not be empty");
 		}
 
-		const acceptedItems = options.items.map((item, index) => toDayItemPayload(item, mealKey, index));
+		const acceptedItems = options.items.map((item, index) => DayItemPayload.from(item, mealKey, index));
 		const dayPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, date);
-		getMealItems(dayPayload.dietPlan, mealKey).push(...acceptedItems.map(({ payload }) => payload));
+		new DayPlanDietPlan(dayPayload.dietPlan)
+			.getMealItems(mealKey)
+			.push(...acceptedItems.map(({ payload }) => payload));
 
 		await this.dayPlanSyncService.syncSingleDay(options.userId, date, dayPayload);
 
-		return {
-			status: "accepted",
-			operation: "add",
-			message: "Meal item add request accepted by Fitatu.",
-			targetDate: date,
+		return MealItemMutationResult.acceptedAdd(
+			date,
 			mealKey,
-			operationCount: acceptedItems.length,
-			acceptedItems: acceptedItems.map(({ summary }) => summary),
-			createdItemIds: acceptedItems.map(({ summary }) => summary.itemId),
-			updatedItemIds: [],
-			deletedItemIds: [],
-			oldItemId: null,
-			newItemId: null,
-			itemIdChanged: false,
-		};
+			acceptedItems.map(({ summary }) => summary),
+		);
 	}
 
 	public async updateMealItem(
@@ -76,7 +60,7 @@ export class MealItemMutationService {
 		}
 
 		const dayPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, date);
-		const target = findItemInDietPlan(dayPayload.dietPlan, mealKey, itemId, true);
+		const target = new DayPlanDietPlan(dayPayload.dietPlan).findItem(mealKey, itemId, true);
 		if (!target) {
 			throw new DayPlanError("Meal item not found");
 		}
@@ -97,88 +81,39 @@ export class MealItemMutationService {
 
 		await this.dayPlanSyncService.syncSingleDay(options.userId, date, dayPayload);
 
-		return {
-			status: "accepted",
-			operation: "update",
-			message: "Meal item update request accepted by Fitatu.",
-			targetDate: date,
-			mealKey: target.mealKey,
-			operationCount: 1,
-			acceptedItems: [
-				toOperationSummary({
-					index: 0,
-					item: target.item,
-					itemId,
-					mealKey: target.mealKey,
-				}),
-			],
-			createdItemIds: [],
-			updatedItemIds: [itemId],
-			deletedItemIds: [],
-			oldItemId: null,
-			newItemId: null,
-			itemIdChanged: false,
-		};
+		return MealItemMutationResult.acceptedUpdate(date, target.toOperationSummary(0, itemId));
 	}
 
 	public async removeMealItem(
 		options: RemoveMealItemOptions & { readonly userId: string },
 	): Promise<MealItemMutationResult> {
-		const date = DateUtils.validateIsoDate(options.date);
-		const mealKey = normalizeMealKey(options.mealKey);
-		const itemId = StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
-		const itemKind = normalizeItemKind(options.itemKind ?? "auto");
-		const dayPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, date);
-		const target = findItemInDietPlan(dayPayload.dietPlan, mealKey, itemId, true);
-
-		if (!target) {
-			throw new DayPlanError("Meal item not found");
-		}
-
-		const resolvedKind = itemKind === "auto" ? resolveItemKind(target.item) : itemKind;
-		target.item.deletedAt = nowTimestamp();
-		target.item.updatedAt = nowTimestamp();
-		target.item.measureQuantity = 0.01;
-		if (resolvedKind === "custom_recipe_item") {
-			target.item.visible = false;
-		}
-
-		await this.dayPlanSyncService.syncSingleDay(options.userId, date, dayPayload);
-
-		return {
-			status: "accepted",
-			operation: "remove",
-			message: "Meal item remove request accepted by Fitatu.",
-			targetDate: date,
-			mealKey: target.mealKey,
-			operationCount: 1,
-			acceptedItems: [
-				toOperationSummary({
-					index: 0,
-					item: target.item,
-					itemId,
-					mealKey: target.mealKey,
-				}),
-			],
-			createdItemIds: [],
-			updatedItemIds: [],
-			deletedItemIds: [itemId],
-			oldItemId: null,
-			newItemId: null,
-			itemIdChanged: false,
-		};
+		normalizeMealKey(options.mealKey);
+		normalizeItemKind(options.itemKind ?? "auto");
+		const result = await this.removeMealItems({
+			date: options.date,
+			itemIds: [StringUtils.parseNonEmptyString(options.itemId, "itemId is required")],
+			itemKinds: { [options.itemId]: options.itemKind ?? "auto" },
+			userId: options.userId,
+		});
+		return MealItemMutationResult.acceptedRemove(
+			result.targetDate,
+			result.acceptedItems,
+			result.acceptedItems[0]?.mealKey ?? null,
+		);
 	}
 
 	public async removeMealItems(
 		options: RemoveMealItemsOptions & { readonly userId: string },
 	): Promise<MealItemMutationResult> {
 		const date = DateUtils.validateIsoDate(options.date);
-		const productIds = normalizeProductIds(options.productIds);
+		const itemIds = normalizeItemIds(options.itemIds);
 		const dayPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, date);
-		const targets = findActiveProductItemsInDietPlan(dayPayload.dietPlan, productIds);
+		const targets = new DayPlanDietPlan(dayPayload.dietPlan).findActiveItems(itemIds);
 
-		if (targets.length === 0) {
-			throw new DayPlanError("Meal item not found");
+		const foundIds = new Set(targets.map(({ item }) => getRequiredItemId(item)));
+		const missingIds = [...itemIds].filter((itemId) => !foundIds.has(itemId));
+		if (missingIds.length > 0) {
+			throw new DayPlanError(`Active meal items were not found: ${missingIds.join(", ")}`);
 		}
 
 		const deletedAt = nowTimestamp();
@@ -186,34 +121,21 @@ export class MealItemMutationService {
 			target.item.deletedAt = deletedAt;
 			target.item.updatedAt = deletedAt;
 			target.item.measureQuantity = 0.01;
+			const targetId = getRequiredItemId(target.item);
+			const requestedKind = normalizeItemKind(options.itemKinds?.[targetId] ?? "auto");
+			const resolvedKind = requestedKind === "auto" ? target.resolveKind() : requestedKind;
+			if (resolvedKind === "custom_recipe_item") {
+				target.item.visible = false;
+			}
 		}
 
 		await this.dayPlanSyncService.syncSingleDay(options.userId, date, dayPayload);
 
 		const acceptedItems = targets.map((target, index) =>
-			toOperationSummary({
-				index,
-				item: target.item,
-				itemId: getRequiredItemId(target.item),
-				mealKey: target.mealKey,
-			}),
+			target.toOperationSummary(index, getRequiredItemId(target.item)),
 		);
 
-		return {
-			status: "accepted",
-			operation: "remove",
-			message: "Meal item remove request accepted by Fitatu.",
-			targetDate: date,
-			mealKey: null,
-			operationCount: acceptedItems.length,
-			acceptedItems,
-			createdItemIds: [],
-			updatedItemIds: [],
-			deletedItemIds: acceptedItems.map((item) => item.itemId),
-			oldItemId: null,
-			newItemId: null,
-			itemIdChanged: false,
-		};
+		return MealItemMutationResult.acceptedRemove(date, acceptedItems);
 	}
 
 	public async moveMealItem(
@@ -225,7 +147,8 @@ export class MealItemMutationService {
 		const toMealKey = normalizeMealKey(options.toMealKey ?? options.fromMealKey);
 		const itemId = StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
 		const sourcePayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, fromDate);
-		const source = findItemInDietPlan(sourcePayload.dietPlan, fromMealKey, itemId, true);
+		const sourceDietPlan = new DayPlanDietPlan(sourcePayload.dietPlan);
+		const source = sourceDietPlan.findItem(fromMealKey, itemId, true);
 
 		if (!source) {
 			throw new DayPlanError("Meal item not found");
@@ -239,57 +162,47 @@ export class MealItemMutationService {
 		};
 		delete newItem.deletedAt;
 
-		const deleteMarker = createDeletedItemMarker(source.item);
+		const deleteMarker = source.createDeletedMarker();
 		const daysPayload: Record<string, unknown> = {};
+		let destinationItems: Record<string, unknown>[];
 
 		if (toDate === fromDate) {
 			source.items.splice(source.index, 1, deleteMarker);
-			getMealItems(sourcePayload.dietPlan, toMealKey).push(newItem);
+			destinationItems = sourceDietPlan.getMealItems(toMealKey);
+			destinationItems.push(newItem);
 			daysPayload[fromDate] = sourcePayload;
 		} else {
 			source.items.splice(source.index, 1, deleteMarker);
 			daysPayload[fromDate] = sourcePayload;
 
 			const targetPayload = await this.dayPlanSyncService.getDaySyncPayload(options.userId, toDate);
-			getMealItems(targetPayload.dietPlan, toMealKey).push(newItem);
+			destinationItems = new DayPlanDietPlan(targetPayload.dietPlan).getMealItems(toMealKey);
+			destinationItems.push(newItem);
 			daysPayload[toDate] = targetPayload;
 		}
 
 		await this.dayPlanSyncService.syncDays(options.userId, daysPayload);
 
-		return {
-			status: "accepted",
-			operation: "move",
-			message: "Meal item move request accepted by Fitatu.",
-			targetDate: fromDate,
-			mealKey: fromMealKey,
-			operationCount: 1,
-			acceptedItems: [
-				toOperationSummary({
-					index: 0,
-					item: newItem,
-					itemId: newItemId,
-					mealKey: toMealKey,
-				}),
-			],
-			createdItemIds: [newItemId],
-			updatedItemIds: [],
-			deletedItemIds: [itemId],
-			oldItemId: itemId,
-			newItemId,
-			itemIdChanged: true,
-		};
+		const acceptedItem = new FoundDietItem(
+			toMealKey,
+			newItem,
+			destinationItems,
+			destinationItems.length - 1,
+		).toOperationSummary(0, newItemId);
+		return MealItemMutationResult.acceptedMove(fromDate, fromMealKey, itemId, acceptedItem);
 	}
 }
 
-function normalizeProductIds(productIds: readonly (string | number)[]): ReadonlySet<string> {
-	if (productIds.length === 0) {
-		throw new DayPlanError("productIds must not be empty");
+function normalizeItemIds(itemIds: readonly string[]): ReadonlySet<string> {
+	if (itemIds.length === 0) {
+		throw new DayPlanError("itemIds must not be empty");
 	}
-
-	return new Set(
-		productIds.map((productId) => String(StringUtils.parseStringOrSafeInteger(productId, "productId is required"))),
-	);
+	const normalized = itemIds.map((itemId) => StringUtils.parseNonEmptyString(itemId, "itemId is required"));
+	const unique = new Set(normalized);
+	if (unique.size !== normalized.length) {
+		throw new DayPlanError("itemIds must not contain duplicates");
+	}
+	return unique;
 }
 
 function getRequiredItemId(item: Record<string, unknown>): string {

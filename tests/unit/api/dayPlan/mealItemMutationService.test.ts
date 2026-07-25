@@ -15,7 +15,7 @@ describe("MealItemMutationService single-day mutations", () => {
 		});
 
 		expect(result).toMatchObject({ operation: "add", operationCount: 1, itemIdChanged: false });
-		expect(result.createdItemIds).toHaveLength(1);
+		expect(result.provisionalItemIds).toHaveLength(1);
 		expect(syncService.syncCalls).toHaveLength(1);
 		expect(mealItems(syncService.currentPayload, "breakfast")[0]).toMatchObject({
 			productId: 101,
@@ -87,10 +87,28 @@ describe("MealItemMutationService single-day mutations", () => {
 		).rejects.toThrow("Provide at least one update field");
 		expect(syncService.syncCalls).toHaveLength(0);
 	});
+
+	it("does not resolve an item by its productId", async () => {
+		const syncService = new RecordingDayPlanSyncService(
+			createPayload({ breakfast: [createProductItem({ itemId: "item-1", productId: 101 })] }),
+		);
+		const service = new MealItemMutationService(syncService);
+
+		await expect(
+			service.updateMealItem({
+				date: "2026-07-01",
+				mealKey: "breakfast",
+				itemId: "101",
+				eaten: true,
+				userId: "user-1",
+			}),
+		).rejects.toThrow("Meal item not found");
+		expect(syncService.syncCalls).toHaveLength(0);
+	});
 });
 
 describe("MealItemMutationService.removeMealItems", () => {
-	it("removes multiple product items across meals in a single day sync", async () => {
+	it("removes exact product and recipe items across meals in a single day sync", async () => {
 		const payload = createPayload({
 			breakfast: [
 				createProductItem({ itemId: "breakfast-1", productId: 101 }),
@@ -107,16 +125,17 @@ describe("MealItemMutationService.removeMealItems", () => {
 		const result = await service.removeMealItems({
 			userId: "user-1",
 			date: "2026-07-01",
-			productIds: [101, 202, 303],
+			itemIds: ["breakfast-1", "lunch-1", "recipe-1"],
 		});
 
 		expect(result.operation).toBe("remove");
 		expect(result.mealKey).toBeNull();
-		expect(result.operationCount).toBe(2);
-		expect(result.deletedItemIds).toEqual(["breakfast-1", "lunch-1"]);
+		expect(result.operationCount).toBe(3);
+		expect(result.deletedItemIds).toEqual(["breakfast-1", "lunch-1", "recipe-1"]);
 		expect(result.acceptedItems).toMatchObject([
 			{ itemId: "breakfast-1", productId: 101, foodType: "PRODUCT", mealKey: "breakfast" },
 			{ itemId: "lunch-1", productId: 202, foodType: "PRODUCT", mealKey: "lunch" },
+			{ itemId: "recipe-1", recipeId: 101, foodType: "RECIPE", mealKey: "lunch" },
 		]);
 		expect(syncService.syncCalls).toHaveLength(1);
 		expect(syncService.syncCalls[0]).toMatchObject({ userId: "user-1", date: "2026-07-01" });
@@ -125,7 +144,7 @@ describe("MealItemMutationService.removeMealItems", () => {
 		expect(syncService.item("breakfast", "breakfast-2")?.deletedAt).toBe("2026-07-01 10:00:00");
 	});
 
-	it("removes every active occurrence of a duplicated product id", async () => {
+	it("removes only the exact selected duplicate entries", async () => {
 		const payload = createPayload({
 			breakfast: [
 				createProductItem({ itemId: "breakfast-1", productId: 101 }),
@@ -139,15 +158,15 @@ describe("MealItemMutationService.removeMealItems", () => {
 		const result = await service.removeMealItems({
 			userId: "user-1",
 			date: "2026-07-01",
-			productIds: [101],
+			itemIds: ["breakfast-2"],
 		});
 
-		expect(result.operationCount).toBe(3);
-		expect(result.deletedItemIds).toEqual(["breakfast-1", "breakfast-2", "lunch-1"]);
+		expect(result.operationCount).toBe(1);
+		expect(result.deletedItemIds).toEqual(["breakfast-2"]);
 		expect(syncService.syncCalls).toHaveLength(1);
 	});
 
-	it("fails when no active product id matches", async () => {
+	it("fails atomically when any requested item is missing or inactive", async () => {
 		const payload = createPayload({
 			breakfast: [createProductItem({ itemId: "breakfast-1", productId: 101 })],
 			lunch: [createProductItem({ itemId: "lunch-1", productId: 202, deletedAt: "2026-07-01 10:00:00" })],
@@ -159,9 +178,9 @@ describe("MealItemMutationService.removeMealItems", () => {
 			service.removeMealItems({
 				userId: "user-1",
 				date: "2026-07-01",
-				productIds: [202, 303],
+				itemIds: ["breakfast-1", "lunch-1", "missing-1"],
 			}),
-		).rejects.toThrow("Meal item not found");
+		).rejects.toThrow("Active meal items were not found");
 		expect(syncService.syncCalls).toHaveLength(0);
 	});
 });

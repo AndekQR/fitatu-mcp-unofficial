@@ -5,6 +5,8 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import type { DayPlanQueryProvider } from "../../services/dayPlan/DayPlanQueryService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
+import { RecipeIdMapper } from "../recipes/RecipeIdMapper.ts";
+import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
 const dayPlanItemSchema = z.object({
 	itemId: z
@@ -19,11 +21,12 @@ const dayPlanItemSchema = z.object({
 	productId: z
 		.string()
 		.optional()
-		.describe("Fitatu product id string to pass to remove_meal_items, when applicable."),
+		.describe("Fitatu product definition id, when applicable. This is not a removable day-plan itemId."),
 	recipeId: z
-		.union([z.number(), z.string()])
+		.string()
+		.regex(RecipeIdMapper.mcpPattern)
 		.optional()
-		.describe("Fitatu recipe id for recipe items, when applicable."),
+		.describe("Typed recipe:<digits> definition id for recipe items, when applicable."),
 	brand: z.string().optional().describe("Product brand or producer name, when available."),
 	measureId: z
 		.union([z.number(), z.string()])
@@ -75,19 +78,21 @@ export class GetDayPlanItemsTool {
 			{
 				title: "Get Fitatu Day Plan Items",
 				description:
-					"Fetches the authenticated Fitatu user's day plan meals and added food items for a YYYY-MM-DD date. Product items include productId strings that can be passed directly to remove_meal_items. Defaults to today's local date when omitted.",
-				inputSchema: {
-					date: z
-						.string()
-						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
-						.optional()
-						.describe("Day to fetch in YYYY-MM-DD format. Defaults to today's local date when omitted."),
-					withRating: z
-						.boolean()
-						.default(false)
-						.optional()
-						.describe("Whether to ask Fitatu for rating-related day plan data when supported."),
-				},
+					"Fetches Fitatu meals and concrete day-plan entries. Copy itemId UUID values to update_meal_item, move_meal_item, or remove_meal_items; productId and typed recipeId identify food definitions, not removable entries. Defaults to today's local date.",
+				inputSchema: z
+					.object({
+						date: isoCalendarDateSchema()
+							.optional()
+							.describe(
+								"Day to fetch in YYYY-MM-DD format. Defaults to today's local date when omitted.",
+							),
+						withRating: z
+							.boolean()
+							.default(false)
+							.optional()
+							.describe("Whether to ask Fitatu for rating-related day plan data when supported."),
+					})
+					.strict(),
 				outputSchema: dayPlanOutputSchema,
 				annotations: {
 					title: "Get Fitatu Day Plan Items",
@@ -118,7 +123,13 @@ export class GetDayPlanItemsTool {
 	}
 }
 
-function toDayPlanItemForMcp(item: DayPlanItem): Omit<DayPlanItem, "productId"> & { productId?: string } {
-	const { productId, ...otherFields } = item;
-	return productId === null ? otherFields : { ...otherFields, productId: String(productId) };
+function toDayPlanItemForMcp(
+	item: DayPlanItem,
+): Omit<DayPlanItem, "productId" | "recipeId"> & { productId?: string; recipeId?: string } {
+	const { productId, recipeId, ...otherFields } = item;
+	return {
+		...otherFields,
+		...(productId === null ? {} : { productId: String(productId) }),
+		...(recipeId === null ? {} : { recipeId: RecipeIdMapper.toMcp(recipeId) }),
+	};
 }

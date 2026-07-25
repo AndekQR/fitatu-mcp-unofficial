@@ -34,7 +34,7 @@ export class ApplicationServices {
 		this.currentUserService = new CurrentUserService(userClient);
 		this.dayPlanQueryService = new DayPlanQueryService(dayPlanClient);
 		this.dietSummaryService = new DietSummaryService(summaryClient, userClient);
-		this.mealItemMutationService = new MealItemMutationService(dayPlanClient);
+		this.mealItemMutationService = new MealItemMutationService(dayPlanClient, foodSearchClient, recipeClient);
 		this.foodSearchService = new FoodSearchService(foodSearchClient);
 		this.recipeService = new RecipeService(recipeClient, foodSearchClient);
 	}

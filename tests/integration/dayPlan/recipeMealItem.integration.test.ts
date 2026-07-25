@@ -38,7 +38,7 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 			{ foodType: "RECIPE", productId: null, recipeId: RECIPE_ID, mealKey: MEAL_KEY },
 		]);
 
-		const itemId = addResult.createdItemIds[0];
+		const itemId = addResult.provisionalItemIds[0];
 		expect(itemId).toBeTruthy();
 		cleanup.track(date, MEAL_KEY, itemId);
 

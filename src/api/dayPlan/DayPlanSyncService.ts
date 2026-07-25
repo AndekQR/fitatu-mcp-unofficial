@@ -4,7 +4,7 @@ import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuAp
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { asRecord } from "./DayPlanApiResponse.ts";
 import { DayPlanError } from "./DayPlanError.ts";
-import type { GetDayPlanOptions } from "./DayPlanClientTypes.ts";
+import type { GetDayPlanOptions } from "./GetDayPlanOptions.ts";
 
 export interface DaySyncPayload {
 	dietPlan: Record<string, unknown>;

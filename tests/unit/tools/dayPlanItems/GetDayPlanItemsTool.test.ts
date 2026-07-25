@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DayPlan } from "../../../../src/api/dayPlan/DayPlan.ts";
-import type { GetDayPlanOptions } from "../../../../src/api/dayPlan/DayPlanClientTypes.ts";
+import type { GetDayPlanOptions } from "../../../../src/api/dayPlan/GetDayPlanOptions.ts";
 import type { DayPlanQueryProvider } from "../../../../src/services/dayPlan/DayPlanQueryService.ts";
 import { GetDayPlanItemsTool } from "../../../../src/tools/dayPlanItems/GetDayPlanItemsTool.ts";
 import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
@@ -43,6 +43,16 @@ describe("GetDayPlanItemsTool", () => {
 		const registered = await registerToolForTest(new GetDayPlanItemsTool(service));
 
 		const result = await registered.invoke({ date: "14-07-2026" });
+
+		expect(result.isError).toBe(true);
+		expect(service.requests).toHaveLength(0);
+	});
+
+	it("rejects an impossible calendar date before calling the service", async () => {
+		const service = new FakeDayPlanQueryService(createDayPlan());
+		const registered = await registerToolForTest(new GetDayPlanItemsTool(service));
+
+		const result = await registered.invoke({ date: "2026-02-30" });
 
 		expect(result.isError).toBe(true);
 		expect(service.requests).toHaveLength(0);

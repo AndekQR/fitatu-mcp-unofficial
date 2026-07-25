@@ -1,6 +1,6 @@
 import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
 import type { DayPlan } from "../../api/dayPlan/DayPlan.ts";
-import type { GetDayPlanOptions } from "../../api/dayPlan/DayPlanClientTypes.ts";
+import type { GetDayPlanOptions } from "../../api/dayPlan/GetDayPlanOptions.ts";
 
 export interface DayPlanQueryProvider {
 	getDayPlan(options: GetDayPlanOptions): Promise<DayPlan>;

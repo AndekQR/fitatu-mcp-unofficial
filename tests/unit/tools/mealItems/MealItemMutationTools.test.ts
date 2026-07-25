@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type {
-	AddMealItemsOptions,
-	MoveMealItemOptions,
-	RemoveMealItemsOptions,
-	UpdateMealItemOptions,
-} from "../../../../src/api/dayPlan/DayPlanClientTypes.ts";
-import type { MealItemMutationResult } from "../../../../src/api/dayPlan/MealItemMutation.ts";
-import type { MealItemMutationProvider } from "../../../../src/services/dayPlan/MealItemMutationService.ts";
+import type { AddMealItemsOptions } from "../../../../src/api/dayPlan/AddMealItemsOptions.ts";
+import type { MealItemMutationResult } from "../../../../src/api/dayPlan/MealItemMutationResult.ts";
+import type { DayPlanClient } from "../../../../src/api/dayPlan/DayPlanClient.ts";
+import type { MoveMealItemOptions } from "../../../../src/api/dayPlan/MoveMealItemOptions.ts";
+import type { RemoveMealItemsOptions } from "../../../../src/api/dayPlan/RemoveMealItemsOptions.ts";
+import type { UpdateMealItemOptions } from "../../../../src/api/dayPlan/UpdateMealItemOptions.ts";
+import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
+import {
+	MealItemMutationService,
+	type MealItemMutationProvider,
+} from "../../../../src/services/dayPlan/MealItemMutationService.ts";
 import { AddMealItemsTool } from "../../../../src/tools/addMealItems/AddMealItemsTool.ts";
 import { MoveMealItemTool } from "../../../../src/tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "../../../../src/tools/mealItems/RemoveMealItemsTool.ts";
@@ -17,6 +20,9 @@ type TestedMealItemMutationProvider = Pick<
 	MealItemMutationProvider,
 	"addMealItems" | "updateMealItem" | "removeMealItems" | "moveMealItem"
 >;
+
+const REMOVE_ITEM_ID_1 = "11111111-1111-4111-8111-111111111111";
+const REMOVE_ITEM_ID_2 = "22222222-2222-4222-8222-222222222222";
 
 const successCases = [
 	{
@@ -58,7 +64,7 @@ const successCases = [
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			itemId: "new-item-1",
-			createdItemIds: ["new-item-1"],
+			provisionalItemIds: ["new-item-1"],
 		}),
 		expectedStructuredContent: {
 			status: "accepted",
@@ -76,7 +82,7 @@ const successCases = [
 					mealKey: "breakfast",
 				},
 			],
-			createdItemIds: ["new-item-1"],
+			provisionalItemIds: ["new-item-1"],
 			itemIdChanged: false,
 		},
 		destructiveHint: false,
@@ -134,10 +140,10 @@ const successCases = [
 	{
 		name: "remove_meal_items",
 		createTool: (service: TestedMealItemMutationProvider) => new RemoveMealItemsTool(service),
-		input: { date: "2026-07-14", productIds: ["food-1", "food-2"] },
+		input: { date: "2026-07-14", itemIds: [REMOVE_ITEM_ID_1, REMOVE_ITEM_ID_2] },
 		expectedCall: {
 			operation: "remove",
-			options: { date: "2026-07-14", productIds: ["food-1", "food-2"] },
+			options: { date: "2026-07-14", itemIds: [REMOVE_ITEM_ID_1, REMOVE_ITEM_ID_2] },
 		},
 		result: createMutationResult({
 			operation: "remove",
@@ -228,6 +234,15 @@ const invalidInputCases = [
 		input: { date: "2026-07-14", mealKey: "breakfast", items: [] },
 	},
 	{
+		name: "add_meal_items",
+		createTool: (service: TestedMealItemMutationProvider) => new AddMealItemsTool(service),
+		input: {
+			date: "2026-07-14",
+			mealKey: "breakfast",
+			items: [{ foodId: "100", foodType: "RECIPE", measureId: "39" }],
+		},
+	},
+	{
 		name: "update_meal_item",
 		createTool: (service: TestedMealItemMutationProvider) => new UpdateMealItemTool(service),
 		input: { date: "14-07-2026", mealKey: "breakfast", itemId: "item-1", eaten: true },
@@ -235,7 +250,7 @@ const invalidInputCases = [
 	{
 		name: "remove_meal_items",
 		createTool: (service: TestedMealItemMutationProvider) => new RemoveMealItemsTool(service),
-		input: { date: "2026-07-14", productIds: [] },
+		input: { date: "2026-07-14", itemIds: [] },
 	},
 	{
 		name: "move_meal_item",
@@ -288,6 +303,52 @@ describe("meal item mutation tools", () => {
 		expect(result.content).toEqual([
 			{ type: "text", text: JSON.stringify(testCase.expectedStructuredContent, null, 2) },
 		]);
+	});
+
+	it("rejects a deleted recipe before delegating the day-plan write", async () => {
+		const calls: AddMealItemsOptions[] = [];
+		const service = new MealItemMutationService(
+			{
+				addMealItems: async (options: AddMealItemsOptions) => {
+					calls.push(options);
+					return successCases[0].result;
+				},
+			} as unknown as DayPlanClient,
+			{ getAvailableMeasureIds: async () => new Set(["39"]) },
+			{ getRecipe: async () => recipeDetails({ deleted: true }) },
+		);
+
+		await expect(
+			service.addMealItems({
+				date: "2026-07-14",
+				mealKey: "lunch",
+				items: [{ foodId: "100", foodType: "RECIPE", measureId: "39" }],
+			}),
+		).rejects.toThrow("Deleted recipe at items[0].foodId cannot be added to a day plan.");
+		expect(calls).toEqual([]);
+	});
+
+	it("rejects a mismatched food measure before delegating the day-plan write", async () => {
+		const calls: AddMealItemsOptions[] = [];
+		const service = new MealItemMutationService(
+			{
+				addMealItems: async (options: AddMealItemsOptions) => {
+					calls.push(options);
+					return successCases[0].result;
+				},
+			} as unknown as DayPlanClient,
+			{ getAvailableMeasureIds: async () => new Set(["1"]) },
+			{ getRecipe: async () => recipeDetails() },
+		);
+
+		await expect(
+			service.addMealItems({
+				date: "2026-07-14",
+				mealKey: "lunch",
+				items: [{ foodId: "100", foodType: "PRODUCT", measureId: "999" }],
+			}),
+		).rejects.toThrow("Measure at items[0].measureId does not belong to the selected food.");
+		expect(calls).toEqual([]);
 	});
 
 	it.each(invalidInputCases)("$name rejects invalid input before delegation", async (testCase) => {
@@ -361,13 +422,40 @@ class FakeMealItemMutationService {
 	}
 }
 
+function recipeDetails(overrides: Partial<RecipeDetails> = {}): RecipeDetails {
+	return {
+		recipeId: "100",
+		userId: "test-user",
+		name: "Test recipe",
+		servings: 1,
+		shared: false,
+		editable: true,
+		deleted: false,
+		description: null,
+		cookingTimeMinutes: null,
+		preparationTimeMinutes: null,
+		mealSchema: [],
+		tags: [],
+		ingredients: [],
+		nutritionPerServing: {
+			energyKcal: null,
+			proteinG: null,
+			fatG: null,
+			carbohydrateG: null,
+		},
+		weightPerServingG: null,
+		categories: null,
+		...overrides,
+	};
+}
+
 function createMutationResult(options: {
 	readonly operation: MealItemMutationResult["operation"];
 	readonly message: string;
 	readonly targetDate: string;
 	readonly mealKey: string;
 	readonly itemId: string;
-	readonly createdItemIds?: readonly string[];
+	readonly provisionalItemIds?: readonly string[];
 	readonly updatedItemIds?: readonly string[];
 	readonly deletedItemIds?: readonly string[];
 	readonly oldItemId?: string;
@@ -390,7 +478,7 @@ function createMutationResult(options: {
 				mealKey: options.mealKey,
 			},
 		],
-		createdItemIds: options.createdItemIds ?? [],
+		provisionalItemIds: options.provisionalItemIds ?? [],
 		updatedItemIds: options.updatedItemIds ?? [],
 		deletedItemIds: options.deletedItemIds ?? [],
 		oldItemId: options.oldItemId ?? null,

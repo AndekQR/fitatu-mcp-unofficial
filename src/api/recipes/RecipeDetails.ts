@@ -32,8 +32,8 @@ export class RecipeDetails {
 			"Recipe response serving must be a positive integer",
 		);
 		this.shared = booleanOrDefault(response.shared, false);
-		this.editable = booleanOrDefault(response.editable, false);
 		this.deleted = booleanOrDefault(response.deleted, false);
+		this.editable = booleanOrDefault(response.editable, false) && !this.deleted;
 		this.description = StringUtils.stringOrNull(response.recipeDescription);
 		this.cookingTimeMinutes = optionalNonNegativeInteger(
 			response.cookingTime,

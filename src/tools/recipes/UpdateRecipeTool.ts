@@ -5,6 +5,7 @@ import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import {
 	RECIPE_EMPTY_ARRAY_KEYS,
+	normalizeRecipeToolError,
 	recipeDetailsOutputSchema,
 	recipeUpdateInputSchema,
 	recipeWarningOutputSchema,
@@ -27,7 +28,7 @@ export class UpdateRecipeTool {
 			{
 				title: "Update Fitatu Recipe",
 				description:
-					"Partially updates an owned active recipe identified by recipe:<digits>. The same create limits apply. Omitted fields are preserved, null clears nullable text/time fields, and [] clears lists. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned typed id.",
+					"Partially updates an owned active recipe identified by recipe:<digits>. The same create limits apply. Omitted fields, including mealSchema, are preserved; null clears nullable text/time fields, and [] clears lists. Raw public mealSchema values returned by get_recipe are not necessarily accepted mutation inputs. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned typed id. Returns { previousRecipeId, recipeId, identityChanged, details, warnings }.",
 				inputSchema: recipeUpdateInputSchema,
 				outputSchema: {
 					previousRecipeId: recipeDetailsOutputSchema.shape.recipeId.describe(
@@ -76,7 +77,11 @@ export class UpdateRecipeTool {
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to update Fitatu recipe.", error);
+					return createToolErrorResult(
+						this.name,
+						"Unable to update Fitatu recipe.",
+						normalizeRecipeToolError(error, { operation: "update", recipeId }),
+					);
 				}
 			},
 		);

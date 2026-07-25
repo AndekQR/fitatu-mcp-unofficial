@@ -182,7 +182,7 @@ describe("FoodSearchClient.search", () => {
 		expect(result.warnings).toContain("low_confidence_results");
 	});
 
-	it("keeps the low-confidence warning when only some candidates have a zero score", async () => {
+	it("does not warn about low confidence when a useful positive match is returned", async () => {
 		const fetchStub = createFetchStub(
 			createJsonResponse([
 				{ id: "food-1", name: "Granola" },
@@ -203,7 +203,8 @@ describe("FoodSearchClient.search", () => {
 		});
 
 		expect(result.items.map((item) => item.foodId)).toEqual(["food-1"]);
-		expect(result.warnings).toContain("low_confidence_results");
+		expect(result.items[0]?.matchScore).toBe(1);
+		expect(result.warnings).not.toContain("low_confidence_results");
 	});
 
 	it("matches Polish letters when the query omits diacritics", async () => {

@@ -109,6 +109,26 @@ describe("RecipeClient", () => {
 		});
 	});
 
+	it("reports a deleted recipe as non-editable even when Fitatu returns editable=true", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse({
+				...recipeResponse({ id: 159081309, name: "Deleted dish" }),
+				editable: true,
+				deleted: true,
+				mealSchema: ["breakfast", "dinner"],
+			}),
+		);
+		const client = createClient(fetchStub);
+
+		const recipe = await client.getRecipe("159081309");
+
+		expect(recipe).toMatchObject({
+			editable: false,
+			deleted: true,
+			mealSchema: ["breakfast", "dinner"],
+		});
+	});
+
 	it("creates a private recipe and returns canonical details from read-after-write", async () => {
 		const fetchStub = createFetchStub(
 			createJsonResponse(

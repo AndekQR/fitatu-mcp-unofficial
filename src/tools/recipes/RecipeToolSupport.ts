@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
+import { RecipeError } from "../../api/recipes/RecipeError.ts";
 import type { RecipeDetails } from "../../api/recipes/RecipeDetails.ts";
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
 import { RecipeIdMapper } from "./RecipeIdMapper.ts";
@@ -37,7 +38,7 @@ export const recipeTagInputSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"Fitatu tag key. For a custom tag, use its label; when replacing existing tags, copy this value from get_recipe.",
+				"Fitatu tag key. For a custom tag, use its label; when replacing existing tags, copy this value from get_recipe. Fitatu may normalize custom tag text to lowercase; compare returned custom tags case-insensitively.",
 			),
 		category: z
 			.string()
@@ -51,7 +52,7 @@ export const recipeTagInputSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"Human-readable tag label. For a custom tag, normally use the same text as name; otherwise copy it from get_recipe.",
+				"Human-readable tag label. For a custom tag, normally use the same text as name; otherwise copy it from get_recipe. Fitatu may normalize custom tag text to lowercase; compare returned custom tags case-insensitively.",
 			),
 	})
 	.strict()
@@ -103,7 +104,7 @@ export const recipeWriteInputShape = {
 		.default([])
 		.optional()
 		.describe(
-			`Fitatu meal keys for which the recipe is suggested: ${FITATU_MEAL_KEYS.join(", ")}. Omit for no suggestions.`,
+			`Fitatu meal keys for which the recipe is suggested: ${FITATU_MEAL_KEYS.join(", ")}. Omit for no suggestions. Use only this declared enum; raw public catalog values returned by get_recipe may not be valid mutation inputs.`,
 		),
 };
 
@@ -179,7 +180,11 @@ export const recipeDetailsOutputShape = {
 	name: z.string().describe("Recipe display name."),
 	servings: z.number().int().positive().describe("Positive integer number of servings produced by the recipe."),
 	shared: z.boolean().describe("Whether Fitatu marks the recipe as shared with its public catalog."),
-	editable: z.boolean().describe("Whether Fitatu reports that the authenticated user may edit this recipe."),
+	editable: z
+		.boolean()
+		.describe(
+			"True only when this recipe is active and the authenticated user may currently update or delete it. Deleted and unowned recipes are false.",
+		),
 	deleted: z.boolean().describe("Whether Fitatu reports that the recipe has been deleted."),
 	description: z.string().optional().describe("Preparation instructions; omitted when unavailable."),
 	cookingTimeMinutes: z
@@ -194,7 +199,11 @@ export const recipeDetailsOutputShape = {
 		.nonnegative()
 		.optional()
 		.describe("Preparation time in whole minutes; omitted when unavailable."),
-	mealSchema: z.array(z.string()).describe("Fitatu meal keys for which the recipe is suggested."),
+	mealSchema: z
+		.array(z.string())
+		.describe(
+			"Raw Fitatu meal keys stored with the recipe. Public catalog values such as dinner are preserved and are not the accepted input enum for recipe mutations.",
+		),
 	tags: z.array(tagOutputSchema).describe("Complete tag list; an empty array means the recipe has no tags."),
 	ingredients: z
 		.array(ingredientOutputSchema)
@@ -243,7 +252,7 @@ export const recipeUpdateInputSchema = z
 		mealSchema: recipeMutableInputSchema.mealSchema
 			.optional()
 			.describe(
-				"Complete replacement list of suggested Fitatu meal keys. Omit to preserve; use [] to remove all suggestions.",
+				"Complete replacement list of suggested Fitatu meal keys using only this declared enum. Omit to preserve the stored value, including raw public catalog values; use [] to remove all suggestions.",
 			),
 	})
 	.strict()
@@ -312,3 +321,34 @@ export function toRecipeUpdateInput(input: {
 }
 
 export const RECIPE_EMPTY_ARRAY_KEYS = ["mealSchema", "tags", "ingredients", "items", "warnings"] as const;
+
+export function normalizeRecipeToolError(
+	error: unknown,
+	options: {
+		readonly operation: "get" | "search" | "update" | "delete";
+		readonly recipeId?: string;
+	},
+): unknown {
+	if (!(error instanceof RecipeError)) {
+		return error;
+	}
+
+	if (options.recipeId && RecipeError.isNotFound(error)) {
+		return copyRecipeError(error, `Recipe ${options.recipeId} was not found or is not accessible.`);
+	}
+
+	if (error.statusCode === 504) {
+		const subject = options.operation === "search" ? "search" : "request";
+		return copyRecipeError(error, `Fitatu recipe ${subject} timed out. Retry the request.`);
+	}
+
+	return error;
+}
+
+function copyRecipeError(error: RecipeError, message: string): RecipeError {
+	return new RecipeError(message, {
+		statusCode: error.statusCode,
+		fitatuApiError: error.fitatuApiError,
+		fitatuApiErrors: error.fitatuApiErrors,
+	});
+}

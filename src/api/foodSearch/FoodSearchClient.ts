@@ -158,10 +158,11 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			matchScore: matchScore(query, item),
 		}));
 
-		if (scoredItems.some((item) => item.matchScore <= 0)) {
+		const hadCandidates = scoredItems.length > 0;
+		scoredItems = scoredItems.filter((item) => item.matchScore > 0);
+		if (hadCandidates && scoredItems.length === 0) {
 			warnings.push("low_confidence_results");
 		}
-		scoredItems = scoredItems.filter((item) => item.matchScore > 0);
 
 		if (options.includeDetails && options.detailsLimit > 0) {
 			scoredItems = await this.withDetails(scoredItems, options.detailsLimit, warnings, warningDetails);

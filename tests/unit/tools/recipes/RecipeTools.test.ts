@@ -36,6 +36,14 @@ describe("Recipe MCP tools", () => {
 			destructiveHint: false,
 			idempotentHint: false,
 		});
+		expect(registered.config.description).toContain("Returns { recipeId, details, warnings }");
+		expect(registered.config.outputSchema).toMatchObject({ type: "object" });
+		expect(registered.config.outputSchema?.required).toEqual(
+			expect.arrayContaining(["recipeId", "details", "warnings"]),
+		);
+		expect(JSON.stringify(registered.config.inputSchema)).toContain(
+			"Fitatu may normalize custom tag text to lowercase",
+		);
 		expect(service.createInputs[0]).toEqual({
 			name: "Test recipe",
 			ingredients: [{ itemId: "10", measureId: "2", measureQuantity: 1, type: "PRODUCT" }],
@@ -48,6 +56,11 @@ describe("Recipe MCP tools", () => {
 			mealSchema: [],
 		});
 		expect(parseTextContent(result)).toMatchObject({
+			recipeId: "recipe:100",
+			details: { name: "Test recipe" },
+			warnings: [],
+		});
+		expect(result.structuredContent).toMatchObject({
 			recipeId: "recipe:100",
 			details: { name: "Test recipe" },
 			warnings: [],
@@ -92,8 +105,26 @@ describe("Recipe MCP tools", () => {
 		const result = await registered.invoke({ recipeId: "recipe:100" });
 
 		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
+		expect(registered.config.description).toContain("Returns canonical recipe details");
+		expect(registered.config.outputSchema?.required).toEqual(
+			expect.arrayContaining(["recipeId", "name", "editable", "deleted", "mealSchema"]),
+		);
 		expect(service.getIds).toEqual(["100"]);
 		expect(parseTextContent(result)).toMatchObject({ recipeId: "recipe:100", name: "Test recipe" });
+		expect(result.structuredContent).toMatchObject({ recipeId: "recipe:100", name: "Test recipe" });
+	});
+
+	it("get_recipe preserves catalog meal schema values that are not mutation inputs", async () => {
+		const service = new RecordingRecipeService();
+		service.detailsValue = details({ mealSchema: ["breakfast", "dinner"] });
+		const registered = await registerToolForTest(new GetRecipeTool(service));
+
+		const result = await registered.invoke({ recipeId: "recipe:100" });
+
+		expect(parseTextContent(result)).toMatchObject({ mealSchema: ["breakfast", "dinner"] });
+		expect(JSON.stringify(registered.config.outputSchema)).toContain(
+			"not the accepted input enum for recipe mutations",
+		);
 	});
 
 	it("get_recipe rejects an untyped numeric id before delegation", async () => {
@@ -111,6 +142,12 @@ describe("Recipe MCP tools", () => {
 		const registered = await registerToolForTest(new SearchRecipesTool(service));
 		const result = await registered.invoke({ scope: "mine", page: 1, limit: 10 });
 
+		expect(registered.config.description).toContain(
+			"Returns { query, scope, page, limit, count, items, warnings }",
+		);
+		expect(registered.config.outputSchema?.required).toEqual(
+			expect.arrayContaining(["query", "scope", "page", "limit", "count", "items", "warnings"]),
+		);
 		expect(service.searchInputs).toEqual([{ scope: "mine", page: 1, limit: 10 }]);
 		expect(parseTextContent(result)).toEqual({
 			query: "",
@@ -121,6 +158,7 @@ describe("Recipe MCP tools", () => {
 			items: [{ recipeId: "recipe:100", name: "Test recipe", source: "mine", energyKcal: 100 }],
 			warnings: [],
 		});
+		expect(result.structuredContent).toMatchObject({ count: 1, items: [{ recipeId: "recipe:100" }] });
 	});
 
 	it("search_recipes returns a concise SDK validation error for an invalid query type", async () => {
@@ -144,12 +182,23 @@ describe("Recipe MCP tools", () => {
 		const result = await registered.invoke({ recipeId: "recipe:100", name: "Changed", servings: 3 });
 
 		expect(registered.config.annotations).toMatchObject({ destructiveHint: true, idempotentHint: false });
+		expect(registered.config.description).toContain(
+			"Returns { previousRecipeId, recipeId, identityChanged, details, warnings }",
+		);
+		expect(registered.config.outputSchema?.required).toEqual(
+			expect.arrayContaining(["previousRecipeId", "recipeId", "identityChanged", "details", "warnings"]),
+		);
 		expect(service.updateInputs).toEqual([{ recipeId: "100", input: { name: "Changed", servings: 3 } }]);
 		expect(parseTextContent(result)).toMatchObject({
 			previousRecipeId: "recipe:100",
 			recipeId: "recipe:200",
 			identityChanged: true,
 			warnings: [],
+		});
+		expect(result.structuredContent).toMatchObject({
+			previousRecipeId: "recipe:100",
+			recipeId: "recipe:200",
+			identityChanged: true,
 		});
 	});
 
@@ -159,8 +208,17 @@ describe("Recipe MCP tools", () => {
 		const result = await registered.invoke({ recipeId: "recipe:100", expectedName: "Test recipe" });
 
 		expect(registered.config.annotations).toMatchObject({ destructiveHint: true, idempotentHint: false });
+		expect(registered.config.description).toContain("Returns { recipeId, name, deleted }");
+		expect(registered.config.outputSchema?.required).toEqual(
+			expect.arrayContaining(["recipeId", "name", "deleted"]),
+		);
 		expect(service.deleteInputs).toEqual([{ recipeId: "100", expectedName: "Test recipe" }]);
 		expect(parseTextContent(result)).toEqual({
+			recipeId: "recipe:100",
+			name: "Test recipe",
+			deleted: true,
+		});
+		expect(result.structuredContent).toEqual({
 			recipeId: "recipe:100",
 			name: "Test recipe",
 			deleted: true,
@@ -187,12 +245,12 @@ describe("Recipe MCP tools", () => {
 			},
 		],
 		[
-			"invalid meal key",
+			"catalog-only meal key",
 			{
 				name: "Test",
 				ingredients: [{ itemId: "10", measureId: "2", measureQuantity: 1 }],
 				servings: 2,
-				mealSchema: ["brunch"],
+				mealSchema: ["dinner"],
 			},
 		],
 		[
@@ -229,7 +287,7 @@ describe("Recipe MCP tools", () => {
 		["empty ingredients", { ingredients: [] }],
 		["invalid tag", { tags: [{ name: "", category: "RECIPE_TAG_USERS_TYPE", translation: "tag" }] }],
 		["invalid cooking time", { cookingTimeMinutes: -1 }],
-		["invalid meal key", { mealSchema: ["brunch"] }],
+		["catalog-only meal key", { mealSchema: ["dinner"] }],
 		["unknown field", { name: "Changed", unexpected: true }],
 	])("update_recipe rejects %s at the MCP boundary", async (_name, patch) => {
 		const service = new RecordingRecipeService();
@@ -286,6 +344,52 @@ describe("Recipe MCP tools", () => {
 			},
 		});
 	});
+
+	it("maps missing recipe messages consistently without adding wrapper fields", async () => {
+		const missing = recipeApiError(404, "Not Found");
+		const cases = [
+			{
+				tool: new GetRecipeTool(new RecordingRecipeService(missing)),
+				input: { recipeId: "recipe:999" },
+			},
+			{
+				tool: new UpdateRecipeTool(new RecordingRecipeService(missing)),
+				input: { recipeId: "recipe:999", name: "Missing" },
+			},
+			{
+				tool: new DeleteRecipeTool(new RecordingRecipeService(missing)),
+				input: { recipeId: "recipe:999", expectedName: "Missing" },
+			},
+		];
+
+		for (const testCase of cases) {
+			const registered = await registerToolForTest(testCase.tool);
+			const result = await registered.invoke(testCase.input);
+			const payload = parseTextContent(result) as Record<string, unknown>;
+
+			expect(result.isError).toBe(true);
+			expect(payload.message).toBe("Recipe recipe:999 was not found or is not accessible.");
+			expect(payload).not.toHaveProperty("code");
+			expect(payload).not.toHaveProperty("field");
+			expect(payload).not.toHaveProperty("retryable");
+			expect(payload).not.toHaveProperty("parameter");
+		}
+	});
+
+	it("maps a recipe search timeout to an actionable message without changing the wrapper", async () => {
+		const service = new RecordingRecipeService(recipeApiError(504, "Gateway Timeout"));
+		const registered = await registerToolForTest(new SearchRecipesTool(service));
+
+		const result = await registered.invoke({ query: "naleśniki", scope: "public" });
+		const payload = parseTextContent(result) as Record<string, unknown>;
+
+		expect(result.isError).toBe(true);
+		expect(payload.message).toBe("Fitatu recipe search timed out. Retry the request.");
+		expect(payload).not.toHaveProperty("code");
+		expect(payload).not.toHaveProperty("field");
+		expect(payload).not.toHaveProperty("retryable");
+		expect(payload).not.toHaveProperty("parameter");
+	});
 });
 
 class RecordingRecipeService implements RecipeProvider {
@@ -295,6 +399,7 @@ class RecordingRecipeService implements RecipeProvider {
 	public readonly updateInputs: { recipeId: string | number; input: RecipeUpdateInput }[] = [];
 	public readonly deleteInputs: { recipeId: string | number; expectedName: string }[] = [];
 	public readonly writeWarnings: RecipeWarning[] = [];
+	public detailsValue: RecipeDetails = details();
 
 	public constructor(private readonly error?: Error) {}
 
@@ -307,7 +412,7 @@ class RecordingRecipeService implements RecipeProvider {
 	public async getRecipe(recipeId: string | number): Promise<RecipeDetails> {
 		this.throwWhenConfigured();
 		this.getIds.push(recipeId);
-		return details();
+		return this.detailsValue;
 	}
 
 	public async searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeSearchResult> {
@@ -372,4 +477,19 @@ function details(overrides: Partial<RecipeDetails> = {}): RecipeDetails {
 		categories: null,
 		...overrides,
 	};
+}
+
+function recipeApiError(statusCode: number, statusText: string): RecipeError {
+	return new RecipeError("Fitatu recipe request failed", {
+		statusCode,
+		fitatuApiError: {
+			statusCode,
+			statusText,
+			method: "GET",
+			path: "/recipes-and-user-action/999/test-user",
+			upstreamMessage: null,
+			upstreamCode: null,
+			responseSnippet: null,
+		},
+	});
 }

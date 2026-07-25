@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
-import { RECIPE_EMPTY_ARRAY_KEYS } from "./RecipeToolSupport.ts";
+import { RECIPE_EMPTY_ARRAY_KEYS, normalizeRecipeToolError } from "./RecipeToolSupport.ts";
 import { RecipeIdMapper } from "./RecipeIdMapper.ts";
 
 const searchItemOutputSchema = z
@@ -34,7 +34,7 @@ export class SearchRecipesTool {
 			{
 				title: "Search Fitatu Recipes",
 				description:
-					"Searches active recipes by a trimmed, case-insensitive name substring and returns typed recipe:<digits> ids. Empty or whitespace-only query lists recipes. scope=all combines catalogs and returns partial results with warnings when one catalog is unavailable; a single-source scope still fails when that source is unavailable.",
+					"Searches active recipes by a trimmed, case-insensitive name substring and returns typed recipe:<digits> ids. Empty or whitespace-only query lists recipes. scope=all combines catalogs and returns partial results with warnings when one catalog is unavailable; a single-source scope still fails when that source is unavailable. Returns { query, scope, page, limit, count, items, warnings }.",
 				inputSchema: z
 					.object({
 						query: z
@@ -127,7 +127,11 @@ export class SearchRecipesTool {
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to search Fitatu recipes.", error);
+					return createToolErrorResult(
+						this.name,
+						"Unable to search Fitatu recipes.",
+						normalizeRecipeToolError(error, { operation: "search" }),
+					);
 				}
 			},
 		);

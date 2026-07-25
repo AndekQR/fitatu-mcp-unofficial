@@ -6,7 +6,7 @@ import { request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { McpHttpServer } from "../../../src/server/McpHttpServer.ts";
+import { McpHttpServer } from "../../../src/McpHttpServer.ts";
 import { createTextResult } from "../../../src/tools/shared/ToolResult.ts";
 import { getTextContent, registerToolForTest } from "./mcpToolTestDouble.ts";
 

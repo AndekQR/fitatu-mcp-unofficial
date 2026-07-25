@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { logger } from "./logger.ts";
 import { getConfig } from "./config.ts";
-import { McpHttpServer } from "./server/McpHttpServer.ts";
+import { McpHttpServer } from "./McpHttpServer.ts";
 import { AddMealItemsTool } from "./tools/addMealItems/AddMealItemsTool.ts";
 import { GetCurrentUserTool } from "./tools/currentUser/GetCurrentUserTool.ts";
 import { GetDayPlanItemsTool } from "./tools/dayPlanItems/GetDayPlanItemsTool.ts";

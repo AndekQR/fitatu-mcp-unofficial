@@ -1,11 +1,12 @@
 import type { FoodMeasure } from "./FoodMeasure.ts";
 import type { FoodNutrition } from "./FoodNutrition.ts";
 import type { FoodSearchSource } from "./FoodSearchSource.ts";
+import type { FoodTypeName } from "../dayPlan/FoodType.ts";
 
 export interface NormalizedFoodSearchItem {
 	readonly source: FoodSearchSource;
 	readonly foodId: string;
-	readonly foodType: string | null;
+	readonly foodType: FoodTypeName;
 	readonly name: string | null;
 	readonly brand: string | null;
 	readonly measureId: string | null;

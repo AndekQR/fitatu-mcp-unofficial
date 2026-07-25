@@ -1,12 +1,14 @@
 import type { FoodSearchItem } from "../../services/foodSearch/FoodSearchTypes.ts";
 import { FoodMeasureForMcp } from "./FoodMeasureForMcp.ts";
+import { RecipeIdMapper } from "../recipes/RecipeIdMapper.ts";
 
 export class FoodSearchItemForMcp {
 	public readonly index: number;
 	public readonly source: FoodSearchItem["source"];
 	public readonly foodId: string;
-	public readonly productId: string;
-	public readonly foodType: string | null;
+	public readonly productId: string | null;
+	public readonly recipeId: string | null;
+	public readonly foodType: "PRODUCT" | "RECIPE" | "CUSTOM_ITEM";
 	public readonly name: string | null;
 	public readonly displayName: string;
 	public readonly brand: string | null;
@@ -23,8 +25,10 @@ export class FoodSearchItemForMcp {
 	public constructor(item: FoodSearchItem) {
 		this.index = item.index;
 		this.source = item.source;
-		this.foodId = item.foodId;
-		this.productId = item.productId;
+		const isRecipe = item.foodType === "RECIPE";
+		this.foodId = isRecipe ? RecipeIdMapper.toMcp(item.foodId) : item.foodId;
+		this.productId = isRecipe ? null : item.productId;
+		this.recipeId = isRecipe ? RecipeIdMapper.toMcp(item.foodId) : null;
 		this.foodType = item.foodType;
 		this.name = item.name;
 		this.displayName = item.displayName;

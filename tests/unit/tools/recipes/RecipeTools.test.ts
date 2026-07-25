@@ -48,7 +48,7 @@ describe("Recipe MCP tools", () => {
 			mealSchema: [],
 		});
 		expect(parseTextContent(result)).toMatchObject({
-			recipeId: "100",
+			recipeId: "recipe:100",
 			details: { name: "Test recipe" },
 			warnings: [],
 		});
@@ -89,11 +89,21 @@ describe("Recipe MCP tools", () => {
 	it("get_recipe publishes a read-only contract", async () => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new GetRecipeTool(service));
-		const result = await registered.invoke({ recipeId: "100" });
+		const result = await registered.invoke({ recipeId: "recipe:100" });
 
 		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
 		expect(service.getIds).toEqual(["100"]);
-		expect(parseTextContent(result)).toMatchObject({ recipeId: "100", name: "Test recipe" });
+		expect(parseTextContent(result)).toMatchObject({ recipeId: "recipe:100", name: "Test recipe" });
+	});
+
+	it("get_recipe rejects an untyped numeric id before delegation", async () => {
+		const service = new RecordingRecipeService();
+		const registered = await registerToolForTest(new GetRecipeTool(service));
+
+		const result = await registered.invoke({ recipeId: "100" });
+
+		expect(result.isError).toBe(true);
+		expect(service.getIds).toEqual([]);
 	});
 
 	it("search_recipes supports listing with an omitted query", async () => {
@@ -108,7 +118,8 @@ describe("Recipe MCP tools", () => {
 			page: 1,
 			limit: 10,
 			count: 1,
-			items: [{ recipeId: "100", name: "Test recipe", source: "mine", energyKcal: 100 }],
+			items: [{ recipeId: "recipe:100", name: "Test recipe", source: "mine", energyKcal: 100 }],
+			warnings: [],
 		});
 	});
 
@@ -130,13 +141,13 @@ describe("Recipe MCP tools", () => {
 	it("update_recipe forwards only fields selected by the caller", async () => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new UpdateRecipeTool(service));
-		const result = await registered.invoke({ recipeId: "100", name: "Changed", servings: 3 });
+		const result = await registered.invoke({ recipeId: "recipe:100", name: "Changed", servings: 3 });
 
 		expect(registered.config.annotations).toMatchObject({ destructiveHint: true, idempotentHint: false });
 		expect(service.updateInputs).toEqual([{ recipeId: "100", input: { name: "Changed", servings: 3 } }]);
 		expect(parseTextContent(result)).toMatchObject({
-			previousRecipeId: "100",
-			recipeId: "200",
+			previousRecipeId: "recipe:100",
+			recipeId: "recipe:200",
 			identityChanged: true,
 			warnings: [],
 		});
@@ -145,11 +156,15 @@ describe("Recipe MCP tools", () => {
 	it("delete_recipe requires exact-name confirmation and is marked destructive", async () => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new DeleteRecipeTool(service));
-		const result = await registered.invoke({ recipeId: "100", expectedName: "Test recipe" });
+		const result = await registered.invoke({ recipeId: "recipe:100", expectedName: "Test recipe" });
 
 		expect(registered.config.annotations).toMatchObject({ destructiveHint: true, idempotentHint: false });
 		expect(service.deleteInputs).toEqual([{ recipeId: "100", expectedName: "Test recipe" }]);
-		expect(parseTextContent(result)).toEqual({ recipeId: "100", name: "Test recipe", deleted: true });
+		expect(parseTextContent(result)).toEqual({
+			recipeId: "recipe:100",
+			name: "Test recipe",
+			deleted: true,
+		});
 	});
 
 	it.each([
@@ -180,6 +195,15 @@ describe("Recipe MCP tools", () => {
 				mealSchema: ["brunch"],
 			},
 		],
+		[
+			"unknown field",
+			{
+				name: "Test",
+				ingredients: [{ itemId: "10", measureId: "2", measureQuantity: 1 }],
+				servings: 2,
+				unexpected: true,
+			},
+		],
 	])("create_recipe rejects %s at the MCP boundary", async (_name, input) => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new CreateRecipeTool(service));
@@ -194,7 +218,7 @@ describe("Recipe MCP tools", () => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new UpdateRecipeTool(service));
 
-		const result = await registered.invoke({ recipeId: "100" });
+		const result = await registered.invoke({ recipeId: "recipe:100" });
 
 		expect(result.isError).toBe(true);
 		expect(service.updateInputs).toHaveLength(0);
@@ -206,11 +230,12 @@ describe("Recipe MCP tools", () => {
 		["invalid tag", { tags: [{ name: "", category: "RECIPE_TAG_USERS_TYPE", translation: "tag" }] }],
 		["invalid cooking time", { cookingTimeMinutes: -1 }],
 		["invalid meal key", { mealSchema: ["brunch"] }],
+		["unknown field", { name: "Changed", unexpected: true }],
 	])("update_recipe rejects %s at the MCP boundary", async (_name, patch) => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new UpdateRecipeTool(service));
 
-		const result = await registered.invoke({ recipeId: "100", ...patch });
+		const result = await registered.invoke({ recipeId: "recipe:100", ...patch });
 
 		expect(result.isError).toBe(true);
 		expect(service.updateInputs).toHaveLength(0);
@@ -220,7 +245,7 @@ describe("Recipe MCP tools", () => {
 		const service = new RecordingRecipeService(new Error("Bearer secret-token"));
 		const registered = await registerToolForTest(new GetRecipeTool(service));
 
-		const result = await registered.invoke({ recipeId: "100" });
+		const result = await registered.invoke({ recipeId: "recipe:100" });
 
 		expect(result.isError).toBe(true);
 		expect(getTextContent(result)).not.toContain("secret-token");
@@ -248,14 +273,12 @@ describe("Recipe MCP tools", () => {
 		);
 		const registered = await registerToolForTest(new GetRecipeTool(service));
 
-		const result = await registered.invoke({ recipeId: "100" });
+		const result = await registered.invoke({ recipeId: "recipe:100" });
 		const text = getTextContent(result);
 
 		expect(text).not.toContain("sensitive-user-id");
 		expect(text).not.toContain("daniel@example.com");
 		expect(parseTextContent(result)).toMatchObject({
-			code: "UPSTREAM_ERROR",
-			retryable: false,
 			fitatuApiError: {
 				path: "/recipes-and-user-action/100/:userId",
 				upstreamMessage: null,
@@ -297,6 +320,7 @@ class RecordingRecipeService implements RecipeProvider {
 			limit: options.limit ?? 20,
 			count: 1,
 			items: [{ recipeId: "100", name: "Test recipe", source: "mine", energyKcal: 100 }],
+			warnings: [],
 		};
 	}
 

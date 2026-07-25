@@ -6,9 +6,10 @@ import {
 	RECIPE_EMPTY_ARRAY_KEYS,
 	recipeDetailsOutputSchema,
 	recipeWarningOutputSchema,
-	recipeWriteInputShape,
+	recipeWriteInputSchema,
 	toRecipeDetailsForMcp,
 } from "./RecipeToolSupport.ts";
+import { RecipeIdMapper } from "./RecipeIdMapper.ts";
 
 export class CreateRecipeTool {
 	public readonly name = "create_recipe";
@@ -24,8 +25,8 @@ export class CreateRecipeTool {
 			{
 				title: "Create Fitatu Recipe",
 				description:
-					"Creates a Fitatu recipe from products selected with search_food. For each ingredient, pass the candidate's productId as itemId and a measureId from that candidate. Recipes are private unless shared=true is explicitly provided. Returns canonical per-serving details after Fitatu accepts the write.",
-				inputSchema: recipeWriteInputShape,
+					"Creates a Fitatu recipe from validated products selected with search_food. A non-empty name, at least one ingredient, and a positive whole number of servings are required. Ingredient quantities must be positive finite numbers. For custom tags use RECIPE_TAG_USERS_TYPE. Recipes are private unless shared=true. Returns a canonical recipe:<digits> id; repeating the same request creates another recipe.",
+				inputSchema: recipeWriteInputSchema,
 				outputSchema: {
 					recipeId: recipeDetailsOutputSchema.shape.recipeId.describe(
 						"Canonical id for subsequent operations. This is always identical to details.recipeId.",
@@ -35,9 +36,7 @@ export class CreateRecipeTool {
 					),
 					warnings: recipeWarningOutputSchema
 						.array()
-						.describe(
-							"Non-fatal write warnings; empty when no duplicate ingredient selections were found.",
-						),
+						.describe("Non-fatal write warnings; currently empty for validated recipe creation."),
 				},
 				annotations: {
 					title: "Create Fitatu Recipe",
@@ -65,7 +64,7 @@ export class CreateRecipeTool {
 					});
 					return createTextResult(
 						{
-							recipeId: result.recipeId,
+							recipeId: RecipeIdMapper.toMcp(result.recipeId),
 							details: toRecipeDetailsForMcp(result.details),
 							warnings: result.warnings,
 						},

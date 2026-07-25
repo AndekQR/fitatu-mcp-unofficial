@@ -11,6 +11,7 @@ import {
 	toRecipeDetailsForMcp,
 	toRecipeUpdateInput,
 } from "./RecipeToolSupport.ts";
+import { RecipeIdMapper } from "./RecipeIdMapper.ts";
 
 export class UpdateRecipeTool {
 	public readonly name = "update_recipe";
@@ -26,7 +27,7 @@ export class UpdateRecipeTool {
 			{
 				title: "Update Fitatu Recipe",
 				description:
-					"Partially updates an owned editable recipe. Provide at least one field besides recipeId. Omitted fields are preserved; null clears nullable text or time fields, while [] clears tags or mealSchema. Fitatu may replace the recipe with a new id; use the returned recipeId for later operations.",
+					"Partially updates an owned active recipe identified by recipe:<digits>. The same create limits apply. Omitted fields are preserved, null clears nullable text/time fields, and [] clears lists. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned typed id.",
 				inputSchema: recipeUpdateInputSchema,
 				outputSchema: {
 					previousRecipeId: recipeDetailsOutputSchema.shape.recipeId.describe(
@@ -45,9 +46,7 @@ export class UpdateRecipeTool {
 					),
 					warnings: recipeWarningOutputSchema
 						.array()
-						.describe(
-							"Non-fatal write warnings; empty when no duplicate ingredient selections were found.",
-						),
+						.describe("Non-fatal write warnings; currently empty for validated recipe updates."),
 				},
 				annotations: {
 					title: "Update Fitatu Recipe",
@@ -62,11 +61,14 @@ export class UpdateRecipeTool {
 					if (Object.values(patch).every((value) => value === undefined)) {
 						throw new Error("At least one recipe field must be provided");
 					}
-					const result = await this.recipeService.updateRecipe(recipeId, toRecipeUpdateInput(patch));
+					const result = await this.recipeService.updateRecipe(
+						RecipeIdMapper.fromMcp(recipeId),
+						toRecipeUpdateInput(patch),
+					);
 					return createTextResult(
 						{
-							previousRecipeId: result.previousRecipeId,
-							recipeId: result.recipeId,
+							previousRecipeId: RecipeIdMapper.toMcp(result.previousRecipeId),
+							recipeId: RecipeIdMapper.toMcp(result.recipeId),
 							identityChanged: result.identityChanged,
 							details: toRecipeDetailsForMcp(result.details),
 							warnings: result.warnings,

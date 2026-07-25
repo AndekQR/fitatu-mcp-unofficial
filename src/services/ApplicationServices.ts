@@ -36,6 +36,6 @@ export class ApplicationServices {
 		this.dietSummaryService = new DietSummaryService(summaryClient, userClient);
 		this.mealItemMutationService = new MealItemMutationService(dayPlanClient);
 		this.foodSearchService = new FoodSearchService(foodSearchClient);
-		this.recipeService = new RecipeService(recipeClient);
+		this.recipeService = new RecipeService(recipeClient, foodSearchClient);
 	}
 }

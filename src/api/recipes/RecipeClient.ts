@@ -112,15 +112,35 @@ export class RecipeClient extends FitatuApiClientBase {
 			`limit must be between 1 and ${MAX_SEARCH_LIMIT}`,
 		);
 		const matchLocale = query ? normalizeCaseLocale(await this.getContextSearchLocale()) : undefined;
-		const limited =
+		const searched =
 			scope === "all"
 				? await this.searchCombinedRecipePage({ query, page, limit, matchLocale })
 				: query
-					? await this.searchFilteredRecipePage({ query, source: scope, page, limit, matchLocale })
-					: RecipeSearchResult.deduplicateItems(
-							await this.searchRecipeSource({ query, source: scope, page, limit }),
-						).slice(0, limit);
-		return { query, scope, page, limit, count: limited.length, items: limited };
+					? {
+							items: await this.searchFilteredRecipePage({
+								query,
+								source: scope,
+								page,
+								limit,
+								matchLocale,
+							}),
+							warnings: [],
+						}
+					: {
+							items: RecipeSearchResult.deduplicateItems(
+								await this.searchRecipeSource({ query, source: scope, page, limit }),
+							).slice(0, limit),
+							warnings: [],
+						};
+		return {
+			query,
+			scope,
+			page,
+			limit,
+			count: searched.items.length,
+			items: searched.items,
+			warnings: searched.warnings,
+		};
 	}
 
 	private async searchFilteredRecipePage(options: {
@@ -212,45 +232,78 @@ export class RecipeClient extends FitatuApiClientBase {
 		readonly page: number;
 		readonly limit: number;
 		readonly matchLocale?: string;
-	}): Promise<readonly RecipeSearchItem[]> {
+	}): Promise<{
+		readonly items: readonly RecipeSearchItem[];
+		readonly warnings: RecipeSearchResult["warnings"];
+	}> {
 		const requestedEnd = options.page * options.limit;
+		let mineResult: PromiseSettledResult<readonly RecipeSearchItem[]>;
+		let publicResult: PromiseSettledResult<readonly RecipeSearchItem[]>;
 		if (options.query) {
-			const mine = await this.collectMatchingRecipeItems({
-				...options,
-				source: "mine",
-				count: requestedEnd,
-			});
-			const publicItems = await this.collectMatchingRecipeItems({
-				...options,
-				source: "public",
-				count: requestedEnd,
-			});
-			const combined = RecipeSearchResult.deduplicateItems(interleave(mine, publicItems));
-			const offset = (options.page - 1) * options.limit;
-			return combined.slice(offset, offset + options.limit);
+			mineResult = await settle(
+				this.collectMatchingRecipeItems({ ...options, source: "mine", count: requestedEnd }),
+			);
+			publicResult = await settle(
+				this.collectMatchingRecipeItems({ ...options, source: "public", count: requestedEnd }),
+			);
+		} else {
+			const mine: RecipeSearchItem[] = [];
+			const publicItems: RecipeSearchItem[] = [];
+			let mineFailure: unknown;
+			let publicFailure: unknown;
+			for (let sourcePage = 1; sourcePage <= options.page; sourcePage += 1) {
+				if (mineFailure === undefined) {
+					try {
+						mine.push(
+							...(await this.searchRecipeSource({
+								...options,
+								source: "mine",
+								page: sourcePage,
+							})),
+						);
+					} catch (error) {
+						mineFailure = error;
+					}
+				}
+				if (publicFailure === undefined) {
+					try {
+						publicItems.push(
+							...(await this.searchRecipeSource({
+								...options,
+								source: "public",
+								page: sourcePage,
+							})),
+						);
+					} catch (error) {
+						publicFailure = error;
+					}
+				}
+			}
+			mineResult =
+				mineFailure === undefined
+					? { status: "fulfilled", value: mine }
+					: { status: "rejected", reason: mineFailure };
+			publicResult =
+				publicFailure === undefined
+					? { status: "fulfilled", value: publicItems }
+					: { status: "rejected", reason: publicFailure };
 		}
-
-		const mine: RecipeSearchItem[] = [];
-		const publicItems: RecipeSearchItem[] = [];
-
-		for (let sourcePage = 1; sourcePage <= options.page; sourcePage += 1) {
-			const minePage = await this.searchRecipeSource({
-				...options,
-				source: "mine",
-				page: sourcePage,
-			});
-			const publicPage = await this.searchRecipeSource({
-				...options,
-				source: "public",
-				page: sourcePage,
-			});
-			mine.push(...minePage);
-			publicItems.push(...publicPage);
+		if (mineResult.status === "rejected" && publicResult.status === "rejected") {
+			throw mineResult.reason;
 		}
-
+		const mine = mineResult.status === "fulfilled" ? mineResult.value : [];
+		const publicItems = publicResult.status === "fulfilled" ? publicResult.value : [];
+		const warnings = [
+			...(mineResult.status === "rejected" ? [sourceWarning("mine")] : []),
+			...(publicResult.status === "rejected" ? [sourceWarning("public")] : []),
+		];
 		const combined = RecipeSearchResult.deduplicateItems(interleave(mine, publicItems));
 		const offset = (options.page - 1) * options.limit;
-		return combined.slice(offset, offset + options.limit);
+
+		if (options.query) {
+			return { items: combined.slice(offset, offset + options.limit), warnings };
+		}
+		return { items: combined.slice(offset, offset + options.limit), warnings };
 	}
 
 	private async requestJsonObject(options: {
@@ -291,6 +344,22 @@ export class RecipeClient extends FitatuApiClientBase {
 			}
 		}
 		throw lastError;
+	}
+}
+
+function sourceWarning(source: RecipeSearchSource): RecipeSearchResult["warnings"][number] {
+	return {
+		code: "RECIPE_SOURCE_UNAVAILABLE",
+		source,
+		message: `${source} recipe catalog was unavailable; results are partial.`,
+	};
+}
+
+async function settle<T>(promise: Promise<T>): Promise<PromiseSettledResult<T>> {
+	try {
+		return { status: "fulfilled", value: await promise };
+	} catch (reason) {
+		return { status: "rejected", reason };
 	}
 }
 

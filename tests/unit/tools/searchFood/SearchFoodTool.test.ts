@@ -74,12 +74,37 @@ describe("SearchFoodTool", () => {
 		expect(result.structuredContent).toBeUndefined();
 		expect(getTextContent(result)).not.toContain("secret upstream response");
 	});
+
+	it("publishes recipe candidates with typed recipe ids instead of product ids", async () => {
+		const service = new FakeFoodSearchService(undefined, true);
+		const registered = await registerToolForTest(new SearchFoodTool(service));
+
+		const result = await registered.invoke({ queries: ["test recipe"] });
+
+		expect(parseTextContent(result)).toMatchObject({
+			results: [
+				{
+					items: [
+						{
+							foodId: "recipe:100",
+							recipeId: "recipe:100",
+							foodType: "RECIPE",
+						},
+					],
+				},
+			],
+		});
+		expect(JSON.stringify(parseTextContent(result))).not.toContain('"productId"');
+	});
 });
 
 class FakeFoodSearchService implements FoodSearchProvider {
 	public readonly requests: FoodSearchOptions[] = [];
 
-	public constructor(private readonly error?: Error) {}
+	public constructor(
+		private readonly error?: Error,
+		private readonly includeRecipe = false,
+	) {}
 
 	public async search(options: FoodSearchOptions): Promise<FoodSearchResult> {
 		this.requests.push(options);
@@ -91,10 +116,49 @@ class FakeFoodSearchService implements FoodSearchProvider {
 			date: "2026-07-14",
 			queries: options.queries,
 			queryCount: options.queries.length,
-			count: 0,
-			items: [],
+			count: this.includeRecipe ? 1 : 0,
+			items: this.includeRecipe
+				? [
+						{
+							index: 0,
+							queryIndex: 0,
+							query: options.queries[0] ?? "",
+							source: "user",
+							foodId: "100",
+							productId: "100",
+							foodType: "RECIPE",
+							name: "Test recipe",
+							displayName: "Test recipe",
+							brand: null,
+							measureId: "39",
+							measureName: "portion",
+							measureQuantity: 1,
+							weightG: 100,
+							kcal: 100,
+							nutritionPer100g: emptyNutrition(),
+							nutritionPerDefaultMeasure: emptyNutrition(),
+							verified: false,
+							photoUrl: null,
+							matchScore: 1,
+							measures: [],
+						},
+					]
+				: [],
 			warnings: [],
 			warningDetails: [],
 		};
 	}
+}
+
+function emptyNutrition() {
+	return {
+		energyKcal: null,
+		proteinG: null,
+		fatG: null,
+		carbsG: null,
+		fiberG: null,
+		sugarsG: null,
+		saltG: null,
+		saturatedFatG: null,
+	};
 }

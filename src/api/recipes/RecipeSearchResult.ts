@@ -4,6 +4,12 @@ import { RecipeSearchItem } from "./RecipeSearchItem.ts";
 import type { RecipeSearchScope } from "./RecipeSearchScope.ts";
 import type { RecipeSearchSource } from "./RecipeSearchSource.ts";
 
+export interface RecipeSearchWarning {
+	readonly code: "RECIPE_SOURCE_UNAVAILABLE";
+	readonly source: RecipeSearchSource;
+	readonly message: string;
+}
+
 export class RecipeSearchResult {
 	declare public readonly query: string;
 	declare public readonly scope: RecipeSearchScope;
@@ -11,6 +17,7 @@ export class RecipeSearchResult {
 	declare public readonly limit: number;
 	declare public readonly count: number;
 	declare public readonly items: readonly RecipeSearchItem[];
+	declare public readonly warnings: readonly RecipeSearchWarning[];
 
 	public static extractItems(response: unknown, source: RecipeSearchSource): readonly RecipeSearchItem[] {
 		return RecipeSearchResult.extractRows(response).flatMap((row) => {

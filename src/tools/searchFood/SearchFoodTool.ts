@@ -4,6 +4,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import type { FoodSearchProvider } from "../../services/foodSearch/FoodSearchService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { FoodSearchResultForMcp } from "./FoodSearchResultForMcp.ts";
+import { RecipeIdMapper } from "../recipes/RecipeIdMapper.ts";
 
 const measureOutputSchema = z.object({
 	measureId: z.string().optional().describe("Measure id to pass to add_meal_items or update_meal_item."),
@@ -60,14 +61,21 @@ const foodSearchOutputSchema = {
 							source: z.enum(["public", "user"]).describe("Fitatu catalog source for this candidate."),
 							foodId: z
 								.string()
-								.describe("Canonical food id to pass to add_meal_items for products and recipes."),
+								.describe(
+									"Canonical food id to pass to add_meal_items. Recipe values use recipe:<digits>.",
+								),
 							productId: z
 								.string()
-								.describe("Fitatu product id retained for product inspection and other operations."),
-							foodType: z
-								.string()
 								.optional()
-								.describe("Fitatu food type to pass to add_meal_items when available."),
+								.describe("Fitatu product id for PRODUCT candidates; omitted for recipes."),
+							recipeId: z
+								.string()
+								.regex(RecipeIdMapper.mcpPattern)
+								.optional()
+								.describe("Typed recipe:<digits> id for RECIPE candidates; omitted for products."),
+							foodType: z
+								.enum(["PRODUCT", "RECIPE", "CUSTOM_ITEM"])
+								.describe("Required Fitatu food type to pass unchanged to add_meal_items."),
 							name: z.string().optional().describe("Raw product or recipe name returned by Fitatu."),
 							displayName: z
 								.string()
@@ -170,8 +178,8 @@ export class SearchFoodTool {
 			{
 				title: "Search Fitatu Food",
 				description:
-					"Searches Fitatu food catalogs for food ids and measure ids. Provide one precise query per desired product; use a single-element queries array for one product. Results are grouped by input query and default to 3 candidates per query per source to keep responses compact. For each result group, compare displayName/name, brand, source, matchScore, verified, kcal, default measureId/measureName/weightG, and measures[].measureId/measureName/weightG/energyKcal. Choose the candidate whose name, brand, weight, kcal, and measure best match that query and the user's requested portion. Next action: call add_meal_items with the selected foodId, foodType when present, and the most appropriate measureId; use a measure from measures[] when the default measure is unsuitable. Only run follow-up searches for products that remain unresolved, using improved or simplified query text.",
-				inputSchema,
+					"Searches Fitatu catalogs for validated food ids, required foodType values, and measures. Recipe candidates expose recipeId and foodId as recipe:<digits>, while products expose productId. Candidates with no positive local text match are omitted and reported as low-confidence warnings. Pass foodId, foodType, and a listed measureId together to add_meal_items.",
+				inputSchema: z.object(inputSchema).strict(),
 				outputSchema: foodSearchOutputSchema,
 				annotations: {
 					title: "Search Fitatu Food",

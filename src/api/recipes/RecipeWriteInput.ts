@@ -17,15 +17,13 @@ export class RecipeWriteInput {
 
 	public static toRecipePayload(input: RecipeWriteInput, categories: unknown): Record<string, unknown> {
 		if (input.ingredients.length === 0) {
-			throw new RecipeError("ingredients must not be empty", {
-				code: "INVALID_ARGUMENT",
-				parameter: "ingredients",
-				retryable: false,
-			});
+			throw new RecipeError("ingredients must not be empty");
 		}
+		const name = StringUtils.parseNonEmptyString(input.name, "name is required");
+		const servings = NumberUtils.parsePositiveInteger(input.servings, "servings must be a positive integer");
 
 		return {
-			name: StringUtils.parseNonEmptyString(input.name, "name is required"),
+			name,
 			items: input.ingredients.map((ingredient) => ({
 				itemId: StringUtils.parseStringOrSafeInteger(ingredient.itemId, "ingredient itemId is required"),
 				measureId: StringUtils.parseStringOrSafeInteger(
@@ -43,7 +41,7 @@ export class RecipeWriteInput {
 				category: StringUtils.parseNonEmptyString(tag.category, "tag category is required"),
 				translation: StringUtils.parseNonEmptyString(tag.translation, "tag translation is required"),
 			})),
-			serving: String(NumberUtils.parsePositiveInteger(input.servings, "servings must be a positive integer")),
+			serving: String(servings),
 			shared: input.shared,
 			recipeDescription: input.description,
 			cookingTime:

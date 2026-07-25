@@ -99,14 +99,12 @@ describe("RecipeClient", () => {
 		});
 	});
 
-	it("classifies a missing recipe as non-retryable", async () => {
+	it("reports the upstream status for a missing recipe", async () => {
 		const fetchStub = createFetchStub(createJsonResponse({ message: "missing" }, { status: 404 }));
 		const client = createClient(fetchStub);
 
 		await expect(client.getRecipe("999")).rejects.toMatchObject({
 			name: "RecipeError",
-			code: "RECIPE_NOT_FOUND",
-			retryable: false,
 			statusCode: 404,
 		});
 	});
@@ -387,6 +385,25 @@ describe("RecipeClient", () => {
 
 		expect(result.items).toEqual([{ recipeId: "21", name: "Public 1", source: "public", energyKcal: null }]);
 		expect(fetchStub.calls).toHaveLength(4);
+	});
+
+	it("returns owned recipes with a warning when the public catalog is unavailable", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([{ foodId: 11, name: "Mine recipe", type: "RECIPE" }]),
+			createJsonResponse({ message: "gateway timeout" }, { status: 504 }),
+		);
+		const client = createClient(fetchStub);
+
+		const result = await client.searchRecipes({ query: "recipe", scope: "all", page: 1, limit: 10 });
+
+		expect(result.items).toEqual([{ recipeId: "11", name: "Mine recipe", source: "mine", energyKcal: null }]);
+		expect(result.warnings).toEqual([
+			{
+				code: "RECIPE_SOURCE_UNAVAILABLE",
+				source: "public",
+				message: "public recipe catalog was unavailable; results are partial.",
+			},
+		]);
 	});
 
 	it.each([

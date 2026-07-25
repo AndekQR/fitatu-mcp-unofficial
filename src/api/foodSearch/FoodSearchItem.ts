@@ -1,6 +1,7 @@
 import type { FoodMeasure } from "./FoodMeasure.ts";
 import type { FoodNutrition } from "./FoodNutrition.ts";
 import type { FoodSearchSource } from "./FoodSearchSource.ts";
+import type { FoodTypeName } from "../dayPlan/FoodType.ts";
 
 export interface FoodSearchItem {
 	readonly index: number;
@@ -9,7 +10,7 @@ export interface FoodSearchItem {
 	readonly source: FoodSearchSource;
 	readonly foodId: string;
 	readonly productId: string;
-	readonly foodType: string | null;
+	readonly foodType: FoodTypeName;
 	readonly name: string | null;
 	readonly displayName: string;
 	readonly brand: string | null;

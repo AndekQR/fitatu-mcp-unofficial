@@ -4,13 +4,14 @@ import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import { RECIPE_EMPTY_ARRAY_KEYS } from "./RecipeToolSupport.ts";
+import { RecipeIdMapper } from "./RecipeIdMapper.ts";
 
 const searchItemOutputSchema = z
 	.object({
 		recipeId: z
 			.string()
-			.regex(/^[1-9]\d*$/)
-			.describe("Canonical Fitatu recipe id to pass to get_recipe, update_recipe, or delete_recipe."),
+			.regex(RecipeIdMapper.mcpPattern)
+			.describe("Typed recipe:<digits> id to pass to get_recipe, update_recipe, or delete_recipe."),
 		name: z.string().describe("Recipe display name."),
 		source: z
 			.enum(["mine", "public"])
@@ -33,38 +34,40 @@ export class SearchRecipesTool {
 			{
 				title: "Search Fitatu Recipes",
 				description:
-					"Searches recipes using a case-insensitive substring match over recipe names in the authenticated user's Fitatu search locale. Searches the user's catalog, Fitatu's public catalog, or both. Diacritics are preserved. Omit query to list recipes. Results are paginated from page 1; scope=all interleaves and deduplicates owned and public results.",
-				inputSchema: {
-					query: z
-						.string()
-						.trim()
-						.optional()
-						.describe(
-							"Optional case-insensitive substring matched against recipe names. Omit or use an empty string to list recipes.",
-						),
-					scope: z
-						.enum(["mine", "public", "all"])
-						.default("mine")
-						.optional()
-						.describe(
-							'Catalog scope: "mine" searches owned recipes, "public" searches Fitatu, and "all" combines both. Defaults to "mine".',
-						),
-					page: z
-						.number()
-						.int()
-						.positive()
-						.default(1)
-						.optional()
-						.describe("One-based result page number. Defaults to 1."),
-					limit: z
-						.number()
-						.int()
-						.min(1)
-						.max(50)
-						.default(20)
-						.optional()
-						.describe("Maximum recipes returned on this page, from 1 to 50. Defaults to 20."),
-				},
+					"Searches active recipes by a trimmed, case-insensitive name substring and returns typed recipe:<digits> ids. Empty or whitespace-only query lists recipes. scope=all combines catalogs and returns partial results with warnings when one catalog is unavailable; a single-source scope still fails when that source is unavailable.",
+				inputSchema: z
+					.object({
+						query: z
+							.string()
+							.trim()
+							.optional()
+							.describe(
+								"Optional case-insensitive substring matched against recipe names. Omit or use an empty string to list recipes.",
+							),
+						scope: z
+							.enum(["mine", "public", "all"])
+							.default("mine")
+							.optional()
+							.describe(
+								'Catalog scope: "mine" searches owned recipes, "public" searches Fitatu, and "all" combines both. Defaults to "mine".',
+							),
+						page: z
+							.number()
+							.int()
+							.positive()
+							.default(1)
+							.optional()
+							.describe("One-based result page number. Defaults to 1."),
+						limit: z
+							.number()
+							.int()
+							.min(1)
+							.max(50)
+							.default(20)
+							.optional()
+							.describe("Maximum recipes returned on this page, from 1 to 50. Defaults to 20."),
+					})
+					.strict(),
 				outputSchema: {
 					query: z.string().describe("Normalized search phrase used for the request; empty when listing."),
 					scope: z.enum(["mine", "public", "all"]).describe("Catalog scope used for this result page."),
@@ -87,6 +90,15 @@ export class SearchRecipesTool {
 						.array(searchItemOutputSchema)
 						.max(50)
 						.describe("Deduplicated recipe summaries on this page; empty when no recipes match."),
+					warnings: z
+						.array(
+							z.object({
+								code: z.literal("RECIPE_SOURCE_UNAVAILABLE"),
+								source: z.enum(["mine", "public"]),
+								message: z.string(),
+							}),
+						)
+						.describe("Non-fatal source failures; empty when every requested catalog succeeded."),
 				},
 				annotations: {
 					title: "Search Fitatu Recipes",
@@ -104,7 +116,16 @@ export class SearchRecipesTool {
 						page,
 						limit,
 					});
-					return createTextResult(result, { keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS });
+					return createTextResult(
+						{
+							...result,
+							items: result.items.map((item) => ({
+								...item,
+								recipeId: RecipeIdMapper.toMcp(item.recipeId),
+							})),
+						},
+						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
+					);
 				} catch (error) {
 					return createToolErrorResult(this.name, "Unable to search Fitatu recipes.", error);
 				}

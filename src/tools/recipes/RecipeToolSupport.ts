@@ -2,12 +2,12 @@ import { z } from "zod";
 import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
 import type { RecipeDetails } from "../../api/recipes/RecipeDetails.ts";
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
+import { RecipeIdMapper } from "./RecipeIdMapper.ts";
 
 export const recipeIdInputSchema = z
-	.union([z.string().regex(/^[1-9]\d*$/), z.number().int().positive()])
-	.describe(
-		"Positive numeric Fitatu recipe id, provided as a digit string or integer. Use recipeId returned by search_recipes or get_recipe.",
-	);
+	.string()
+	.regex(RecipeIdMapper.mcpPattern, "recipeId must use recipe:<digits> format")
+	.describe("Typed recipe id in recipe:<digits> format returned by a recipe-aware MCP tool.");
 
 export const recipeIngredientInputSchema = z
 	.object({
@@ -24,8 +24,10 @@ export const recipeIngredientInputSchema = z
 		measureQuantity: z
 			.number()
 			.positive()
-			.describe("Quantity of the selected measure to include. Must be greater than zero."),
+			.finite()
+			.describe("Quantity of the selected measure to include. Must be a positive finite number."),
 	})
+	.strict()
 	.describe("Product and measure selection for one recipe ingredient.");
 
 export const recipeTagInputSchema = z
@@ -52,6 +54,7 @@ export const recipeTagInputSchema = z
 				"Human-readable tag label. For a custom tag, normally use the same text as name; otherwise copy it from get_recipe.",
 			),
 	})
+	.strict()
 	.describe("Complete Fitatu recipe tag.");
 
 const recipeMutableInputSchema = {
@@ -71,17 +74,15 @@ const recipeMutableInputSchema = {
 };
 
 export const recipeWriteInputShape = {
-	name: recipeMutableInputSchema.name.describe("Non-empty recipe name."),
+	name: recipeMutableInputSchema.name.describe("Non-empty recipe name after trimming."),
 	ingredients: recipeMutableInputSchema.ingredients.describe(
-		"Products included in the recipe. At least one ingredient is required.",
+		"Products included in the recipe. Provide at least one validated product/measure selection.",
 	),
 	tags: recipeMutableInputSchema.tags
 		.default([])
 		.optional()
 		.describe("Complete list of system or custom recipe tags. Omit to create the recipe without tags."),
-	servings: recipeMutableInputSchema.servings.describe(
-		"Positive integer number of portions produced by the complete recipe.",
-	),
+	servings: recipeMutableInputSchema.servings.describe("Positive integer number of portions produced by the recipe."),
 	shared: recipeMutableInputSchema.shared
 		.default(false)
 		.optional()
@@ -106,6 +107,8 @@ export const recipeWriteInputShape = {
 		),
 };
 
+export const recipeWriteInputSchema = z.object(recipeWriteInputShape).strict();
+
 const nutritionOutputSchema = z
 	.object({
 		energyKcal: z.number().optional().describe("Energy per serving in kilocalories, when Fitatu provides it."),
@@ -128,9 +131,9 @@ const ingredientOutputSchema = z
 			.describe("Underlying Fitatu product id, when the upstream recipe includes it."),
 		recipeId: z
 			.string()
-			.regex(/^[1-9]\d*$/)
+			.regex(RecipeIdMapper.mcpPattern)
 			.optional()
-			.describe("Underlying recipe id when supplied by Fitatu; omitted for ordinary product ingredients."),
+			.describe("Underlying recipe id in recipe:<digits> format; omitted for ordinary product ingredients."),
 		name: z.string().optional().describe("Ingredient display name, when Fitatu provides it."),
 		type: z
 			.literal("PRODUCT")
@@ -170,8 +173,8 @@ export const recipeWarningOutputSchema = z
 export const recipeDetailsOutputShape = {
 	recipeId: z
 		.string()
-		.regex(/^[1-9]\d*$/)
-		.describe("Canonical Fitatu recipe id for subsequent recipe operations."),
+		.regex(RecipeIdMapper.mcpPattern)
+		.describe("Canonical typed recipe id in recipe:<digits> format for subsequent MCP operations."),
 	userId: z.string().optional().describe("Owning Fitatu user id, when the upstream response exposes it."),
 	name: z.string().describe("Recipe display name."),
 	servings: z.number().int().positive().describe("Positive integer number of servings produced by the recipe."),
@@ -243,6 +246,7 @@ export const recipeUpdateInputSchema = z
 				"Complete replacement list of suggested Fitatu meal keys. Omit to preserve; use [] to remove all suggestions.",
 			),
 	})
+	.strict()
 	.refine(
 		({ recipeId: _recipeId, ...patch }) => Object.values(patch).some((value) => value !== undefined),
 		"At least one recipe field must be provided in addition to recipeId.",
@@ -251,7 +255,7 @@ export const recipeUpdateInputSchema = z
 
 export function toRecipeDetailsForMcp(recipe: RecipeDetails): z.infer<typeof recipeDetailsOutputSchema> {
 	return {
-		recipeId: recipe.recipeId,
+		recipeId: RecipeIdMapper.toMcp(recipe.recipeId),
 		userId: recipe.userId ?? undefined,
 		name: recipe.name,
 		servings: recipe.servings,
@@ -266,7 +270,7 @@ export function toRecipeDetailsForMcp(recipe: RecipeDetails): z.infer<typeof rec
 		ingredients: recipe.ingredients.map((ingredient) => ({
 			itemId: ingredient.itemId,
 			productId: ingredient.productId ?? undefined,
-			recipeId: ingredient.recipeId ?? undefined,
+			recipeId: ingredient.recipeId === null ? undefined : RecipeIdMapper.toMcp(ingredient.recipeId),
 			name: ingredient.name ?? undefined,
 			type: ingredient.type,
 			measureId: ingredient.measureId,

@@ -8,6 +8,8 @@ import {
 	recipeIdInputSchema,
 	toRecipeDetailsForMcp,
 } from "./RecipeToolSupport.ts";
+import { RecipeIdMapper } from "./RecipeIdMapper.ts";
+import { z } from "zod";
 
 export class GetRecipeTool {
 	public readonly name = "get_recipe";
@@ -23,8 +25,8 @@ export class GetRecipeTool {
 			{
 				title: "Get Fitatu Recipe",
 				description:
-					"Gets canonical per-serving details for a Fitatu recipe id returned by search_recipes, create_recipe, update_recipe, or a previous get_recipe call.",
-				inputSchema: { recipeId: recipeIdInputSchema },
+					"Gets canonical per-serving details for a typed recipe:<digits> id returned by a recipe-aware MCP tool. Soft-deleted recipes remain readable and are marked deleted=true; product ids are rejected.",
+				inputSchema: z.object({ recipeId: recipeIdInputSchema }).strict(),
 				outputSchema: recipeDetailsOutputShape,
 				annotations: {
 					title: "Get Fitatu Recipe",
@@ -36,7 +38,7 @@ export class GetRecipeTool {
 			},
 			async ({ recipeId }) => {
 				try {
-					const recipe = await this.recipeService.getRecipe(recipeId);
+					const recipe = await this.recipeService.getRecipe(RecipeIdMapper.fromMcp(recipeId));
 					return createTextResult(toRecipeDetailsForMcp(recipe), {
 						keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS,
 					});

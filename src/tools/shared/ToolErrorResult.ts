@@ -36,13 +36,6 @@ function toToolErrorResponse(toolName: string, fallbackMessage: string, error: u
 		toolName,
 		errorName,
 		message,
-		...(error instanceof RecipeError
-			? {
-					code: error.code,
-					retryable: error.retryable,
-					...(error.parameter ? { parameter: error.parameter } : {}),
-				}
-			: {}),
 	};
 
 	if (fitatuApiErrors.length === 1) {

@@ -150,7 +150,7 @@ Runtime configuration is read from environment variables and validated at startu
 | `PORT`            | No       | `3000`        | No        | HTTP server port.                       |
 | `NODE_ENV`        | No       | `development` | No        | `development`, `production`, or `test`. |
 | `SERVER_NAME`     | No       | `fitatu-mcp`  | No        | MCP server name.                        |
-| `SERVER_VERSION`  | No       | `1.0.0`       | No        | MCP server version.                     |
+| `SERVER_VERSION`  | No       | `2.0.0`       | No        | MCP server version.                     |
 | `LOG_LEVEL`       | No       | `info`        | No        | `error`, `warn`, `info`, or `debug`.    |
 
 Do not commit `.env`. The repository keeps `.env.example` as documentation only.

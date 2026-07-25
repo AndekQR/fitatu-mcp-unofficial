@@ -98,43 +98,46 @@ http://localhost:3000/mcp
 | `add_meal_items`     | Adds one or more products or recipes to a meal.                                     | Yes                 |
 | `update_meal_item`   | Updates quantity, measure, or eaten state for an existing meal item.                | Yes                 |
 | `move_meal_item`     | Moves a meal item to another meal, date, or both.                                   | Yes                 |
-| `remove_meal_items`  | Removes active product meal items by `productIds` across the whole day.             | Yes                 |
+| `remove_meal_items`  | Atomically removes exact day-plan entries of any food type by item UUID.             | Yes                 |
 | `search_recipes`     | Lists or searches the user's recipes, public recipes, or both catalogs.             | No                  |
 | `get_recipe`         | Returns canonical per-serving details for a recipe.                                 | No                  |
 | `create_recipe`      | Creates a private recipe by default from product and measure identifiers.           | Yes                 |
 | `update_recipe`      | Partially updates an owned, editable recipe and returns its resulting recipe ID.    | Yes                 |
-| `delete_recipe`      | Permanently deletes an owned, editable recipe after exact-name confirmation.        | Yes                 |
+| `delete_recipe`      | Soft-deletes a recipe definition after exact-name confirmation.                     | Yes                 |
 
 Typical workflow:
 
-1. Call `get_day_plan_items` to inspect available meals, items, and canonical string `productId` values for a specific day.
-2. Call `search_food` to find a matching `foodId`, `foodType`, and `measureId`.
-3. Call `add_meal_items` with the canonical `foodId` and `measureId` strings (plus `foodType` when available), or use another mutation tool. Pass `productId`
-   strings from `get_day_plan_items` directly to `remove_meal_items.productIds`.
-4. After `add_meal_items` returns `accepted`, wait for synchronization and call `get_day_plan_items` again. Treat `accepted` only as confirmation that Fitatu
-   accepted the synchronization request, and verify that each requested item is present before reporting that it was added.
+1. Call `get_day_plan_items` to inspect available meals and their exact `itemId` UUIDs for a specific day.
+2. Call `search_food` to find a matching `foodId`, required `foodType`, and `measureId`. Recipe identifiers use the `recipe:<digits>` format.
+3. Call `add_meal_items` with the canonical `foodId`, `foodType`, and `measureId` strings. Its preflight validates every food and measure before synchronizing
+   the whole batch.
+4. After `add_meal_items` returns `accepted`, use its `provisionalItemIds` only as provisional identifiers. Call `get_day_plan_items` again and verify each
+   requested item.
+5. Use an `itemId` returned by `get_day_plan_items` with `update_meal_item` or `move_meal_item`.
+6. To delete entries, pass `date` and exact `itemIds` UUIDs to `remove_meal_items`. Do not pass product or recipe definition IDs. The destructive operation
+   does not require `mealKey`, validates every UUID first, and performs one atomic synchronization.
 
 An agent may also use `get_diet_summary` to fetch periodic diet data and track nutrition over time.
 
-Fitatu applies some mutations asynchronously, so a very fast follow-up read may briefly return the previous state. An accepted synchronization request can still
-omit an individual item when its `foodId`, `measureId`, or `foodType` is not recognized by Fitatu.
+Fitatu applies some mutations asynchronously, so a very fast follow-up read may briefly return the previous state. Always verify accepted mutations with a
+subsequent day-plan read.
 
 ### Recipe Workflow
 
 1. Call `search_food` to find product `foodId` and `measureId` values for recipe ingredients.
-2. Call `create_recipe`; recipes are private unless `shared: true` is explicitly requested. Use only `breakfast`, `second_breakfast`, `lunch`, `snack`, or
-   `supper` in `mealSchema`.
-3. Use `search_recipes` to list or search the authenticated user's recipes, the public catalog, or both. A non-empty `query` performs a case-insensitive
-   substring match over recipe names using the authenticated user's Fitatu search locale while preserving diacritics. No matches returns `count: 0` and
-   `items: []`; `count` always means the number of items on the returned page, not a catalog-wide total. Call `get_recipe` for canonical per-serving details.
-4. Call `update_recipe` only for an owned, editable recipe. Always use the returned `recipeId` afterward because Fitatu may replace the recipe and assign a new
-   ID.
-5. Call `delete_recipe` only when permanent deletion is intended. It requires the current recipe name in `expectedName` and rejects recipes not owned by the
-   authenticated user.
+2. Call `create_recipe`; recipes are private unless `shared: true` is explicitly requested. A trimmed name must contain 1–255 characters, servings must be
+   1–1000, a recipe may contain at most 50 ingredients, and each `measureQuantity` must be greater than zero and no more than 1,000,000.
+3. Store the returned `recipe:<digits>` identifier. All recipe-tool inputs require that prefixed form; raw numeric recipe IDs are rejected.
+4. Use `search_recipes` to list or search the authenticated user's recipes, the public catalog, or both. Queries are trimmed before matching. For
+   `scope=all`, results from an available source are returned with `warnings[]` when the other source fails; the search fails only if both sources fail.
+5. Call `update_recipe` only for an owned, editable recipe. Always use the returned prefixed `recipeId` afterward because Fitatu may replace the recipe and
+   assign a new ID.
+6. Call `delete_recipe` to soft-delete the catalog definition. It requires the current recipe name in `expectedName`; existing and historical day-plan
+   snapshots are retained, while the deleted definition cannot be added again.
 
-All recipe tools publish an MCP `outputSchema`. Successful create and update responses include `warnings`; the array is empty unless the same
-`itemId`/`measureId` selection occurs more than once. Recipe execution errors include a stable `code` and `retryable` flag. Invalid tool arguments are rejected
-by the MCP SDK with protocol error `-32602` before the tool handler runs.
+Recipe ingredient `itemId`/`measureId` pairs must be unique, and each measure must belong to its selected product. Custom tags are accepted only with Fitatu's
+user-tag category; updates also accept categories already present on the current recipe. All recipe tools publish an MCP `outputSchema`. Invalid tool
+arguments are rejected by the MCP SDK with protocol error `-32602` before the tool handler runs.
 
 ## Configuration
 
@@ -253,7 +256,8 @@ Cloudflare will print a public tunnel URL. Use that URL with the `/mcp` path as 
 - Do not expose full upstream Fitatu responses in issues, logs, tests, fixtures, or MCP responses.
 - Captured HTTP traffic should be used only for legitimate work with your own account and your own network traffic.
 - Review mutation tool calls carefully before allowing an MCP client to execute them.
-- Treat `delete_recipe` as permanent. `update_recipe` may replace a recipe with a new ID, so retain the ID returned by the tool.
+- Treat `remove_meal_items` as destructive and atomic for its selected day-plan UUIDs.
+- `delete_recipe` soft-deletes only the catalog definition and leaves existing or historical day-plan snapshots intact.
 
 ## Contributing
 

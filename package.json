@@ -34,23 +34,23 @@
 		"node": ">=22.18.0"
 	},
 	"devDependencies": {
-		"@types/node": "^22.19.1",
-		"@typescript-eslint/eslint-plugin": "^8.54.0",
-		"@typescript-eslint/parser": "^8.49.0",
-		"@vitest/coverage-v8": "^4.0.18",
-		"concurrently": "^9.2.1",
-		"eslint": "^9.39.2",
-		"globals": "^16.5.0",
-		"prettier": "^3.7.3",
-		"typescript": "^5.9.3",
-		"vite": "^7.3.1",
-		"vitest": "^4.0.18"
+		"@types/node": "^26.1.1",
+		"@typescript-eslint/eslint-plugin": "^8.65.0",
+		"@typescript-eslint/parser": "^8.65.0",
+		"@vitest/coverage-v8": "^4.1.10",
+		"concurrently": "^10.0.4",
+		"eslint": "^10.8.0",
+		"globals": "^17.7.0",
+		"prettier": "^3.9.6",
+		"typescript": "~6.0.3",
+		"vite": "^8.1.5",
+		"vitest": "^4.1.10"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.26.0",
-		"@types/express": "^5.0.5",
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"@types/express": "^5.0.6",
 		"express": "^5.2.1",
-		"pino": "^10.1.0",
-		"pino-pretty": "^13.1.2"
+		"pino": "^10.3.1",
+		"pino-pretty": "^13.1.3"
 	}
 }

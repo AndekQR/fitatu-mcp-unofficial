@@ -8,8 +8,8 @@ import {
 	recipeWarningOutputSchema,
 	recipeWriteInputSchema,
 	toRecipeDetailsForMcp,
+	toRecipeWarningsForMcp,
 } from "./RecipeToolSupport.ts";
-import { RecipeIdMapper } from "./RecipeIdMapper.ts";
 
 export class CreateRecipeTool {
 	public readonly name = "create_recipe";
@@ -50,8 +50,9 @@ export class CreateRecipeTool {
 				try {
 					const result = await this.recipeService.createRecipe({
 						name: input.name,
-						ingredients: input.ingredients.map((ingredient) => ({
+						ingredients: input.ingredients.map(({ productId, ...ingredient }) => ({
 							...ingredient,
+							itemId: productId,
 							type: "PRODUCT",
 						})),
 						tags: input.tags ?? [],
@@ -64,9 +65,9 @@ export class CreateRecipeTool {
 					});
 					return createTextResult(
 						{
-							recipeId: RecipeIdMapper.toMcp(result.recipeId),
+							recipeId: result.recipeId,
 							details: toRecipeDetailsForMcp(result.details),
-							warnings: result.warnings,
+							warnings: toRecipeWarningsForMcp(result.warnings),
 						},
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);

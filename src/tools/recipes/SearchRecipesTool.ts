@@ -3,15 +3,12 @@ import { z } from "zod";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
+import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 import { RECIPE_EMPTY_ARRAY_KEYS, normalizeRecipeToolError } from "./RecipeToolSupport.ts";
-import { RecipeIdMapper } from "./RecipeIdMapper.ts";
 
 const searchItemOutputSchema = z
 	.object({
-		recipeId: z
-			.string()
-			.regex(RecipeIdMapper.mcpPattern)
-			.describe("Typed recipe:<digits> id to pass to get_recipe, update_recipe, or delete_recipe."),
+		recipeId: rawRecipeIdSchema.describe("Raw recipe id to pass to get_recipe, update_recipe, or delete_recipe."),
 		name: z.string().describe("Recipe display name."),
 		source: z
 			.enum(["mine", "public"])
@@ -34,7 +31,7 @@ export class SearchRecipesTool {
 			{
 				title: "Search Fitatu Recipes",
 				description:
-					"Searches active recipes by a trimmed, case-insensitive name substring and returns typed recipe:<digits> ids. Empty or whitespace-only query lists recipes. scope=all combines catalogs and returns partial results with warnings when one catalog is unavailable; a single-source scope still fails when that source is unavailable. Returns { query, scope, page, limit, count, items, warnings }.",
+					"Searches active recipes by a trimmed, case-insensitive name substring and returns raw recipeId values. Empty or whitespace-only query lists recipes. scope=all combines catalogs and returns partial results with warnings when one catalog is unavailable; a single-source scope still fails when that source is unavailable. Returns { query, scope, page, limit, count, items, warnings }.",
 				inputSchema: z
 					.object({
 						query: z
@@ -119,10 +116,7 @@ export class SearchRecipesTool {
 					return createTextResult(
 						{
 							...result,
-							items: result.items.map((item) => ({
-								...item,
-								recipeId: RecipeIdMapper.toMcp(item.recipeId),
-							})),
+							items: result.items,
 						},
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);

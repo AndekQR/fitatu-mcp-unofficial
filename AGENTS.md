@@ -41,6 +41,7 @@ Prefer:
 - Explicit types for public APIs.
 - `camelCase` for variables, functions, methods, and object properties.
 - `PascalCase` for classes, interfaces, and types.
+- Prefer classes over interfaces. Each class in its own file.
 - Descriptive names over abbreviations.
 - Small modules with clear responsibilities.
 - `zod` for validating external input.

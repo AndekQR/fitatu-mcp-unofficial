@@ -75,7 +75,7 @@ describe("SearchFoodTool", () => {
 		expect(getTextContent(result)).not.toContain("secret upstream response");
 	});
 
-	it("publishes recipe candidates with typed recipe ids instead of product ids", async () => {
+	it("publishes recipe candidates with raw recipe ids and no generic food id", async () => {
 		const service = new FakeFoodSearchService(undefined, true);
 		const registered = await registerToolForTest(new SearchFoodTool(service));
 
@@ -86,15 +86,45 @@ describe("SearchFoodTool", () => {
 				{
 					items: [
 						{
-							foodId: "recipe:100",
-							recipeId: "recipe:100",
-							foodType: "RECIPE",
+							recipeId: "100",
 						},
 					],
 				},
 			],
 		});
 		expect(JSON.stringify(parseTextContent(result))).not.toContain('"productId"');
+		expect(JSON.stringify(parseTextContent(result))).not.toContain('"foodId"');
+		expect(JSON.stringify(parseTextContent(result))).not.toContain('"foodType"');
+	});
+
+	it("publishes product candidates with productId and no generic food id", async () => {
+		const service = new FakeFoodSearchService(undefined, false, true);
+		const registered = await registerToolForTest(new SearchFoodTool(service));
+
+		const result = await registered.invoke({ queries: ["test product"] });
+		const payload = JSON.stringify(parseTextContent(result));
+
+		expect(parseTextContent(result)).toMatchObject({
+			results: [{ items: [{ productId: "200" }] }],
+		});
+		expect(payload).not.toContain('"recipeId"');
+		expect(payload).not.toContain('"foodId"');
+		expect(payload).not.toContain('"foodType"');
+	});
+
+	it("omits non-reusable custom candidates and reports a warning", async () => {
+		const service = new FakeFoodSearchService(undefined, false, false, true);
+		const registered = await registerToolForTest(new SearchFoodTool(service));
+
+		const result = await registered.invoke({ queries: ["quick add"] });
+		const payload = JSON.stringify(parseTextContent(result));
+
+		expect(parseTextContent(result)).toMatchObject({
+			resultCount: 0,
+			results: [{ count: 0, items: [] }],
+			warnings: [expect.stringContaining("CUSTOM_ITEM")],
+		});
+		expect(payload).not.toContain('"foodId"');
 	});
 });
 
@@ -104,6 +134,8 @@ class FakeFoodSearchService implements FoodSearchProvider {
 	public constructor(
 		private readonly error?: Error,
 		private readonly includeRecipe = false,
+		private readonly includeProduct = false,
+		private readonly includeCustom = false,
 	) {}
 
 	public async search(options: FoodSearchOptions): Promise<FoodSearchResult> {
@@ -116,7 +148,7 @@ class FakeFoodSearchService implements FoodSearchProvider {
 			date: "2026-07-14",
 			queries: options.queries,
 			queryCount: options.queries.length,
-			count: this.includeRecipe ? 1 : 0,
+			count: this.includeRecipe || this.includeProduct || this.includeCustom ? 1 : 0,
 			items: this.includeRecipe
 				? [
 						{
@@ -143,7 +175,59 @@ class FakeFoodSearchService implements FoodSearchProvider {
 							measures: [],
 						},
 					]
-				: [],
+				: this.includeProduct
+					? [
+							{
+								index: 0,
+								queryIndex: 0,
+								query: options.queries[0] ?? "",
+								source: "public",
+								foodId: "200",
+								productId: "200",
+								foodType: "PRODUCT",
+								name: "Test product",
+								displayName: "Test product",
+								brand: null,
+								measureId: "1",
+								measureName: "portion",
+								measureQuantity: 1,
+								weightG: 100,
+								kcal: 200,
+								nutritionPer100g: emptyNutrition(),
+								nutritionPerDefaultMeasure: emptyNutrition(),
+								verified: true,
+								photoUrl: null,
+								matchScore: 1,
+								measures: [],
+							},
+						]
+					: this.includeCustom
+						? [
+								{
+									index: 0,
+									queryIndex: 0,
+									query: options.queries[0] ?? "",
+									source: "user",
+									foodId: "custom-1",
+									productId: "custom-1",
+									foodType: "CUSTOM_ITEM",
+									name: "Quick add",
+									displayName: "Quick add",
+									brand: null,
+									measureId: "1",
+									measureName: "portion",
+									measureQuantity: 1,
+									weightG: 100,
+									kcal: 100,
+									nutritionPer100g: emptyNutrition(),
+									nutritionPerDefaultMeasure: emptyNutrition(),
+									verified: false,
+									photoUrl: null,
+									matchScore: 1,
+									measures: [],
+								},
+							]
+						: [],
 			warnings: [],
 			warningDetails: [],
 		};

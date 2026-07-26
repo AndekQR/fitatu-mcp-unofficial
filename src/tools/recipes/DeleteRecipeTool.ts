@@ -3,8 +3,8 @@ import { z } from "zod";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
 import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
+import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 import { normalizeRecipeToolError, recipeIdInputSchema } from "./RecipeToolSupport.ts";
-import { RecipeIdMapper } from "./RecipeIdMapper.ts";
 
 export class DeleteRecipeTool {
 	public readonly name = "delete_recipe";
@@ -20,7 +20,7 @@ export class DeleteRecipeTool {
 			{
 				title: "Delete Fitatu Recipe",
 				description:
-					"Soft-deletes an owned active recipe definition identified by recipe:<digits> after exact-name confirmation. It disappears from recipe searches, but existing day-plan entries remain historical snapshots and must be removed separately with remove_meal_items itemIds. Returns { recipeId, name, deleted }.",
+					"Soft-deletes an owned active recipe definition identified by a raw recipeId after exact-name confirmation. It disappears from recipe searches, but existing day-plan entries remain historical snapshots and must be removed separately with remove_meal_items itemIds. Returns { recipeId, name, deleted }.",
 				inputSchema: z
 					.object({
 						recipeId: recipeIdInputSchema,
@@ -33,10 +33,7 @@ export class DeleteRecipeTool {
 					})
 					.strict(),
 				outputSchema: {
-					recipeId: z
-						.string()
-						.regex(RecipeIdMapper.mcpPattern)
-						.describe("Canonical id of the recipe that was deleted."),
+					recipeId: rawRecipeIdSchema.describe("Canonical id of the recipe that was deleted."),
 					name: z.string().describe("Exact name of the recipe that was deleted."),
 					deleted: z.literal(true).describe("Confirmation that Fitatu accepted the deletion."),
 				},
@@ -50,11 +47,8 @@ export class DeleteRecipeTool {
 			},
 			async ({ recipeId, expectedName }) => {
 				try {
-					const result = await this.recipeService.deleteRecipe(
-						RecipeIdMapper.fromMcp(recipeId),
-						expectedName,
-					);
-					return createTextResult({ ...result, recipeId: RecipeIdMapper.toMcp(result.recipeId) });
+					const result = await this.recipeService.deleteRecipe(recipeId, expectedName);
+					return createTextResult({ ...result, recipeId: result.recipeId });
 				} catch (error) {
 					return createToolErrorResult(
 						this.name,

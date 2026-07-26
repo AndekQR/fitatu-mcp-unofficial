@@ -106,11 +106,11 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 			mealKey: "supper",
 			items: [
 				{
-					foodId: created.recipeId,
+					recipeId: created.recipeId,
 					foodType: "RECIPE",
 					measureId: "39",
 					measureQuantity: 1,
-					ingredientsServing: 1,
+					ingredientsServing: created.details.servings,
 					eaten: false,
 				},
 			],

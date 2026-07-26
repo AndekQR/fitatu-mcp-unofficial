@@ -95,10 +95,10 @@ http://localhost:3000/mcp
 | `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date.                               | No                  |
 | `get_diet_summary`   | Returns an agent-friendly nutrition and energy summary for an inclusive date range. | No                  |
 | `search_food`        | Searches Fitatu food catalogs for product, recipe, and measure identifiers.         | No                  |
-| `add_meal_items`     | Adds one or more products or recipes to a meal.                                     | Yes                 |
+| `add_meal_items`     | Adds products, recipes, or one-off custom items to a meal.                          | Yes                 |
 | `update_meal_item`   | Updates quantity, measure, or eaten state for an existing meal item.                | Yes                 |
 | `move_meal_item`     | Moves a meal item to another meal, date, or both.                                   | Yes                 |
-| `remove_meal_items`  | Atomically removes exact day-plan entries of any food type by item UUID.             | Yes                 |
+| `remove_meal_items`  | Atomically removes exact day-plan entries of any food type by item UUID.            | Yes                 |
 | `search_recipes`     | Lists or searches the user's recipes, public recipes, or both catalogs.             | No                  |
 | `get_recipe`         | Returns canonical per-serving details for a recipe.                                 | No                  |
 | `create_recipe`      | Creates a private recipe by default from product and measure identifiers.           | Yes                 |
@@ -108,9 +108,10 @@ http://localhost:3000/mcp
 Typical workflow:
 
 1. Call `get_day_plan_items` to inspect available meals and their exact `itemId` UUIDs for a specific day.
-2. Call `search_food` to find a matching `foodId`, required `foodType`, and `measureId`. Recipe identifiers use the `recipe:<digits>` format.
-3. Call `add_meal_items` with the canonical `foodId`, `foodType`, and `measureId` strings. Its preflight validates every food and measure before synchronizing
-   the whole batch.
+2. Call `search_food` to find a matching `measureId` and exactly one definition identifier: `productId` or raw numeric `recipeId`.
+3. Call `add_meal_items` with `productId` for a product or raw `recipeId` for a recipe. The identifier field selects the variant, so do not send `foodType`.
+   Both catalog variants require `measureId`. A custom item instead requires `name` and `energyKcal`, accepts optional macro values, and has no definition ID
+   or public measure fields.
 4. After `add_meal_items` returns `accepted`, use its `provisionalItemIds` only as provisional identifiers. Call `get_day_plan_items` again and verify each
    requested item.
 5. Use an `itemId` returned by `get_day_plan_items` with `update_meal_item` or `move_meal_item`.
@@ -124,18 +125,18 @@ subsequent day-plan read.
 
 ### Recipe Workflow
 
-1. Call `search_food` to find product `foodId` and `measureId` values for recipe ingredients.
+1. Call `search_food` to find product `productId` and `measureId` values for recipe ingredients.
 2. Call `create_recipe`; recipes are private unless `shared: true` is explicitly requested. A trimmed name must contain 1–255 characters, servings must be
    1–1000, a recipe may contain at most 50 ingredients, and each `measureQuantity` must be greater than zero and no more than 1,000,000.
-3. Store the returned `recipe:<digits>` identifier. All recipe-tool inputs require that prefixed form; raw numeric recipe IDs are rejected.
+3. Store the returned raw numeric `recipeId`. All recipe-tool inputs and outputs use this unprefixed string.
 4. Use `search_recipes` to list or search the authenticated user's recipes, the public catalog, or both. Queries are trimmed before matching. For
    `scope=all`, results from an available source are returned with `warnings[]` when the other source fails; the search fails only if both sources fail.
-5. Call `update_recipe` only for an owned, editable recipe. Always use the returned prefixed `recipeId` afterward because Fitatu may replace the recipe and
+5. Call `update_recipe` only for an owned, editable recipe. Always use the returned raw `recipeId` afterward because Fitatu may replace the recipe and
    assign a new ID.
 6. Call `delete_recipe` to soft-delete the catalog definition. It requires the current recipe name in `expectedName`; existing and historical day-plan
    snapshots are retained, while the deleted definition cannot be added again.
 
-Recipe ingredient `itemId`/`measureId` pairs must be unique, and each measure must belong to its selected product. Custom tags are accepted only with Fitatu's
+Recipe ingredient `productId`/`measureId` pairs must be unique, and each measure must belong to its selected product. Custom tags are accepted only with Fitatu's
 user-tag category; updates also accept categories already present on the current recipe. All recipe tools publish an MCP `outputSchema`. Invalid tool
 arguments are rejected by the MCP SDK with protocol error `-32602` before the tool handler runs.
 

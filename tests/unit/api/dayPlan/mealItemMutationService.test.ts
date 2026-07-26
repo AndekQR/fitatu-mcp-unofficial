@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MealItemMutationService } from "../../../../src/api/dayPlan/MealItemMutationService.ts";
+import type { MealItemInput } from "../../../../src/api/dayPlan/MealItemInput.ts";
 import type { DayPlanSyncProvider, DaySyncPayload } from "../../../../src/api/dayPlan/DayPlanSyncService.ts";
 
 describe("MealItemMutationService single-day mutations", () => {
@@ -11,7 +12,7 @@ describe("MealItemMutationService single-day mutations", () => {
 			userId: "user-1",
 			date: "2026-07-01",
 			mealKey: "breakfast",
-			items: [{ foodId: "101", foodType: "PRODUCT", measureId: "1", measureQuantity: 2, eaten: true }],
+			items: [{ productId: "101", foodType: "PRODUCT", measureId: "1", measureQuantity: 2, eaten: true }],
 		});
 
 		expect(result).toMatchObject({ operation: "add", operationCount: 1, itemIdChanged: false });
@@ -23,6 +24,68 @@ describe("MealItemMutationService single-day mutations", () => {
 			measureQuantity: 2,
 			eaten: true,
 		});
+	});
+
+	it("rejects a recipe item without recipeId instead of aliasing productId", async () => {
+		const syncService = new RecordingDayPlanSyncService(createPayload({ supper: [] }));
+		const service = new MealItemMutationService(syncService);
+
+		await expect(
+			service.addMealItems({
+				userId: "user-1",
+				date: "2026-07-01",
+				mealKey: "supper",
+				items: [{ productId: "101", foodType: "RECIPE", measureId: "39" } as unknown as MealItemInput],
+			}),
+		).rejects.toThrow("recipeId is required");
+		expect(syncService.syncCalls).toHaveLength(0);
+	});
+
+	it("adds a custom item with hidden Fitatu measure fields", async () => {
+		const syncService = new RecordingDayPlanSyncService(createPayload({ supper: [] }));
+		const service = new MealItemMutationService(syncService);
+
+		const result = await service.addMealItems({
+			userId: "user-1",
+			date: "2026-07-01",
+			mealKey: "supper",
+			items: [
+				{
+					foodType: "CUSTOM_ITEM",
+					name: "Kanapka na oko",
+					energyKcal: 450,
+					proteinG: 25,
+					fatG: 18,
+					carbohydrateG: 45,
+					eaten: true,
+				},
+			],
+		});
+
+		expect(result.acceptedItems).toMatchObject([
+			{
+				productId: null,
+				recipeId: null,
+				foodType: "CUSTOM_ITEM",
+				mealKey: "supper",
+			},
+		]);
+		expect(mealItems(syncService.currentPayload, "supper")[0]).toMatchObject({
+			foodType: "CUSTOM_ITEM",
+			name: "Kanapka na oko",
+			energy: 450,
+			protein: 25,
+			fat: 18,
+			carbohydrate: 45,
+			measureId: 1,
+			measureQuantity: 100,
+			measureWeight: 100,
+			measureCapacity: 0,
+			source: "API",
+			eaten: true,
+		});
+		expect(mealItems(syncService.currentPayload, "supper")[0]).not.toHaveProperty("productId");
+		expect(mealItems(syncService.currentPayload, "supper")[0]).not.toHaveProperty("recipeId");
 	});
 
 	it("updates only the requested fields of an active item", async () => {
@@ -210,6 +273,7 @@ describe("MealItemMutationService.moveMealItem", () => {
 		expect(mealItems(syncedDay, "lunch")[0]).toMatchObject({
 			planDayDietItemId: result.newItemId,
 			productId: 101,
+			mealType: "lunch",
 		});
 	});
 
@@ -243,6 +307,7 @@ describe("MealItemMutationService.moveMealItem", () => {
 		expect(mealItems(syncedDays["2026-07-02"], "lunch")[0]).toMatchObject({
 			planDayDietItemId: result.newItemId,
 			productId: 101,
+			mealType: "lunch",
 		});
 	});
 });

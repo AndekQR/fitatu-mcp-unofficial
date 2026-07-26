@@ -3,22 +3,22 @@ import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
 import { RecipeError } from "../../api/recipes/RecipeError.ts";
 import type { RecipeDetails } from "../../api/recipes/RecipeDetails.ts";
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
-import { RecipeIdMapper } from "./RecipeIdMapper.ts";
+import type { RecipeWarning } from "../../services/recipes/RecipeWarning.ts";
+import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
-export const recipeIdInputSchema = z
-	.string()
-	.regex(RecipeIdMapper.mcpPattern, "recipeId must use recipe:<digits> format")
-	.describe("Typed recipe id in recipe:<digits> format returned by a recipe-aware MCP tool.");
+export const recipeIdInputSchema = rawRecipeIdSchema.describe(
+	"Raw Fitatu recipe id returned by a recipe-aware MCP tool.",
+);
 
 export const recipeIngredientInputSchema = z
 	.object({
-		itemId: z
-			.union([z.string().regex(/^[1-9]\d*$/), z.number().int().positive()])
-			.describe(
-				"Positive product id for this ingredient. Pass search_food results[].items[].productId here; Fitatu names this field itemId in recipe payloads.",
-			),
+		productId: z
+			.string()
+			.regex(/^[1-9]\d*$/)
+			.describe("Positive product id for this ingredient. Pass search_food results[].items[].productId here."),
 		measureId: z
-			.union([z.string().regex(/^[1-9]\d*$/), z.number().int().positive()])
+			.string()
+			.regex(/^[1-9]\d*$/)
 			.describe(
 				"Positive measure id selected from search_food results[].items[].measureId or measures[].measureId for the chosen product.",
 			),
@@ -121,20 +121,13 @@ const nutritionOutputSchema = z
 
 const ingredientOutputSchema = z
 	.object({
-		itemId: z
-			.string()
-			.regex(/^[1-9]\d*$/)
-			.describe("Fitatu item id stored in the recipe."),
 		productId: z
 			.string()
 			.regex(/^[1-9]\d*$/)
+			.describe("Fitatu product id stored in the recipe."),
+		recipeId: rawRecipeIdSchema
 			.optional()
-			.describe("Underlying Fitatu product id, when the upstream recipe includes it."),
-		recipeId: z
-			.string()
-			.regex(RecipeIdMapper.mcpPattern)
-			.optional()
-			.describe("Underlying recipe id in recipe:<digits> format; omitted for ordinary product ingredients."),
+			.describe("Underlying raw recipe id; omitted for ordinary product ingredients."),
 		name: z.string().optional().describe("Ingredient display name, when Fitatu provides it."),
 		type: z
 			.literal("PRODUCT")
@@ -165,17 +158,14 @@ export const recipeWarningOutputSchema = z
 	.object({
 		code: z.literal("DUPLICATE_INGREDIENT_SELECTION"),
 		message: z.string(),
-		itemId: z.string().regex(/^[1-9]\d*$/),
+		productId: z.string().regex(/^[1-9]\d*$/),
 		measureId: z.string().regex(/^[1-9]\d*$/),
 		indexes: z.array(z.number().int().nonnegative()).min(2),
 	})
 	.describe("Non-fatal warning about a recipe write request.");
 
 export const recipeDetailsOutputShape = {
-	recipeId: z
-		.string()
-		.regex(RecipeIdMapper.mcpPattern)
-		.describe("Canonical typed recipe id in recipe:<digits> format for subsequent MCP operations."),
+	recipeId: rawRecipeIdSchema.describe("Canonical raw Fitatu recipe id for subsequent MCP operations."),
 	userId: z.string().optional().describe("Owning Fitatu user id, when the upstream response exposes it."),
 	name: z.string().describe("Recipe display name."),
 	servings: z.number().int().positive().describe("Positive integer number of servings produced by the recipe."),
@@ -264,7 +254,7 @@ export const recipeUpdateInputSchema = z
 
 export function toRecipeDetailsForMcp(recipe: RecipeDetails): z.infer<typeof recipeDetailsOutputSchema> {
 	return {
-		recipeId: RecipeIdMapper.toMcp(recipe.recipeId),
+		recipeId: recipe.recipeId,
 		userId: recipe.userId ?? undefined,
 		name: recipe.name,
 		servings: recipe.servings,
@@ -277,9 +267,8 @@ export function toRecipeDetailsForMcp(recipe: RecipeDetails): z.infer<typeof rec
 		mealSchema: [...recipe.mealSchema],
 		tags: recipe.tags.map((tag) => ({ ...tag })),
 		ingredients: recipe.ingredients.map((ingredient) => ({
-			itemId: ingredient.itemId,
-			productId: ingredient.productId ?? undefined,
-			recipeId: ingredient.recipeId === null ? undefined : RecipeIdMapper.toMcp(ingredient.recipeId),
+			productId: ingredient.productId ?? ingredient.itemId,
+			recipeId: ingredient.recipeId ?? undefined,
 			name: ingredient.name ?? undefined,
 			type: ingredient.type,
 			measureId: ingredient.measureId,
@@ -314,10 +303,24 @@ export function toRecipeUpdateInput(input: {
 			.map(([key, value]) => [
 				key,
 				key === "ingredients" && Array.isArray(value)
-					? value.map((ingredient) => ({ ...ingredient, type: "PRODUCT" as const }))
+					? value.map(({ productId, ...ingredient }) => ({
+							...ingredient,
+							itemId: productId,
+							type: "PRODUCT" as const,
+						}))
 					: value,
 			]),
 	) as RecipeUpdateInput;
+}
+
+export function toRecipeWarningsForMcp(
+	warnings: readonly RecipeWarning[],
+): readonly z.infer<typeof recipeWarningOutputSchema>[] {
+	return warnings.map(({ itemId, indexes, ...warning }) => ({
+		...warning,
+		productId: itemId,
+		indexes: [...indexes],
+	}));
 }
 
 export const RECIPE_EMPTY_ARRAY_KEYS = ["mealSchema", "tags", "ingredients", "items", "warnings"] as const;

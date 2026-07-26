@@ -27,7 +27,7 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 		);
 		const products = await selectProductsByMeasure({ foodSearchClient, date });
 		const items = [products.fallbackProduct, products.gramProduct, products.packageProduct].map((product) => ({
-			foodId: product.productId,
+			productId: product.productId,
 			foodType: "PRODUCT" as const,
 			measureId: product.measure.measureId,
 			measureQuantity: 1,

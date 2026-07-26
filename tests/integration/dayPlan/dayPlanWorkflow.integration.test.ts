@@ -37,22 +37,22 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			mealKey: sourceMealKey,
 			items: [
 				{
-					foodId: products.fallbackProduct.productId,
-					foodType: products.fallbackProduct.foodType,
+					productId: products.fallbackProduct.productId,
+					foodType: "PRODUCT",
 					measureId: products.fallbackProduct.measure.measureId,
 					measureQuantity: 1,
 					eaten: false,
 				},
 				{
-					foodId: products.gramProduct.productId,
-					foodType: products.gramProduct.foodType,
+					productId: products.gramProduct.productId,
+					foodType: "PRODUCT",
 					measureId: products.gramProduct.measure.measureId,
 					measureQuantity: 100,
 					eaten: false,
 				},
 				{
-					foodId: products.packageProduct.productId,
-					foodType: products.packageProduct.foodType,
+					productId: products.packageProduct.productId,
+					foodType: "PRODUCT",
 					measureId: products.packageProduct.measure.measureId,
 					measureQuantity: 2,
 					eaten: false,
@@ -207,6 +207,71 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			mealKey: sourceMealKey,
 			itemId: combinedItemId,
 		});
+	});
+
+	it("creates, reads, and removes a custom item by its day-plan itemId", async () => {
+		const date = getIntegrationTestDate();
+		const dayPlan = await dayPlanClient.getDayPlan({ date });
+		const [mealKey] = selectTwoMealKeys(dayPlan);
+		const name = `Fitatu MCP custom ${Date.now()}`;
+
+		const addResult = await dayPlanClient.addMealItems({
+			date,
+			mealKey,
+			items: [
+				{
+					foodType: "CUSTOM_ITEM",
+					name,
+					energyKcal: 321,
+					proteinG: 12,
+					fatG: 9,
+					carbohydrateG: 42,
+					eaten: true,
+				},
+			],
+		});
+
+		expect(addResult).toMatchObject({
+			status: "accepted",
+			operation: "add",
+			acceptedItems: [
+				{
+					foodType: "CUSTOM_ITEM",
+					mealKey,
+				},
+			],
+		});
+		const itemId = requireItemId(addResult.provisionalItemIds[0] ?? null);
+		cleanup.track(date, mealKey, itemId);
+
+		const item = await waitForItemMatching({
+			date,
+			mealKey,
+			itemId,
+			matches: (candidate) => candidate.name === name,
+		});
+		expect(item).toMatchObject({
+			itemId,
+			name,
+			foodType: "CUSTOM_ITEM",
+			productId: null,
+			recipeId: null,
+			energy: 321,
+			protein: 12,
+			fat: 9,
+			carbohydrate: 42,
+			eaten: true,
+		});
+
+		const removeResult = await dayPlanClient.removeMealItem({
+			date,
+			mealKey,
+			itemId,
+			itemKind: "auto",
+		});
+		expect(removeResult.deletedItemIds).toEqual([itemId]);
+		cleanup.untrack(date, mealKey, itemId);
+		await waitForMissingItem({ date, mealKey, itemId });
 	});
 });
 

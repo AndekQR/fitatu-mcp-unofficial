@@ -26,7 +26,7 @@ export class AddMealItemsTool {
 			{
 				title: "Add Fitatu Meal Items",
 				description:
-					"Validates and submits products, recipes, or custom items to a Fitatu meal. Every item requires foodType and a foodId/measureId pair returned by search_food; recipe foodId values use recipe:<digits>. Deleted recipes and mismatched measures are rejected before synchronization. provisionalItemIds are not proof of persistence: wait and verify with get_day_plan_items.",
+					"Validates and submits products, recipes, or one-off custom items to a Fitatu meal. Provide productId and measureId for a product, raw recipeId and measureId for a recipe, or name and nutrition values for a custom item. The id field selects the variant. Deleted recipes and mismatched measures are rejected before synchronization. provisionalItemIds are not proof of persistence: wait and verify with get_day_plan_items.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(
@@ -41,7 +41,9 @@ export class AddMealItemsTool {
 						items: z
 							.array(mealItemInputSchema)
 							.min(1)
-							.describe("One or more products or recipes to add. Batch multiple meal items in one call."),
+							.describe(
+								"One or more strict variants: {productId, measureId, ...}, {recipeId, measureId, ...}, or {name, energyKcal, ...}.",
+							),
 					})
 					.strict(),
 				outputSchema: mealItemMutationOutputSchema,

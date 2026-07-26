@@ -158,6 +158,7 @@ export class MealItemMutationService {
 		const newItem: Record<string, unknown> = {
 			...source.item,
 			planDayDietItemId: newItemId,
+			mealType: toMealKey,
 			updatedAt: nowTimestamp(),
 		};
 		delete newItem.deletedAt;

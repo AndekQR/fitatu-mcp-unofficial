@@ -1,12 +1,5 @@
-import type { FoodTypeName } from "./FoodType.ts";
+import type { CustomMealItemInput } from "./CustomMealItemInput.ts";
+import type { ProductMealItemInput } from "./ProductMealItemInput.ts";
+import type { RecipeMealItemInput } from "./RecipeMealItemInput.ts";
 
-export class MealItemInput {
-	declare public readonly foodId?: string | number;
-	declare public readonly productId?: string | number;
-	declare public readonly recipeId?: string | number;
-	declare public readonly foodType?: FoodTypeName;
-	declare public readonly measureId?: string | number;
-	declare public readonly measureQuantity?: number;
-	declare public readonly ingredientsServing?: number | null;
-	declare public readonly eaten?: boolean;
-}
+export type MealItemInput = ProductMealItemInput | RecipeMealItemInput | CustomMealItemInput;

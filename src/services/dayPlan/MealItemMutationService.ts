@@ -1,8 +1,9 @@
 import type { AddMealItemsOptions } from "../../api/dayPlan/AddMealItemsOptions.ts";
 import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
 import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
-import { FoodType, type FoodTypeName } from "../../api/dayPlan/FoodType.ts";
+import type { FoodTypeName } from "../../api/dayPlan/FoodType.ts";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
+import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
 import type { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
 import type { RemoveMealItemOptions } from "../../api/dayPlan/RemoveMealItemOptions.ts";
 import type { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
@@ -13,7 +14,7 @@ import type { RecipeClient } from "../../api/recipes/RecipeClient.ts";
 import { RecipeError } from "../../api/recipes/RecipeError.ts";
 
 interface FoodMeasureProvider {
-	getAvailableMeasureIds(foodId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>>;
+	getAvailableMeasureIds(definitionId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>>;
 }
 
 interface RecipeStateProvider {
@@ -44,8 +45,8 @@ export class MealItemMutationService implements MealItemMutationProvider {
 	}
 
 	public async addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult> {
-		await this.validateMealItems(options.items);
-		return this.dayPlanClient.addMealItems(options);
+		const items = await this.prepareMealItems(options.items);
+		return this.dayPlanClient.addMealItems({ ...options, items });
 	}
 
 	public updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
@@ -64,42 +65,47 @@ export class MealItemMutationService implements MealItemMutationProvider {
 		return this.dayPlanClient.moveMealItem(options);
 	}
 
-	private async validateMealItems(items: AddMealItemsOptions["items"]): Promise<void> {
+	private async prepareMealItems(items: AddMealItemsOptions["items"]): Promise<readonly MealItemInput[]> {
 		const cache = new Map<string, ReadonlySet<string>>();
+		const preparedItems: MealItemInput[] = [];
 		for (const [index, item] of items.entries()) {
-			const foodType = FoodType.resolve(
-				item.foodType,
-				item.recipeId ? "RECIPE" : "PRODUCT",
-				`items[${index}].foodType`,
-			);
-			const foodId = String(item.foodId ?? item.recipeId ?? item.productId ?? "").trim();
-			if (!foodId) {
-				throw new DayPlanError(`items[${index}].foodId is required`);
+			if (item.foodType === "CUSTOM_ITEM") {
+				preparedItems.push(item);
+				continue;
 			}
 
-			if (foodType === "RECIPE") {
+			const idField = item.foodType === "RECIPE" ? "recipeId" : "productId";
+			const definitionId = String(item.foodType === "RECIPE" ? item.recipeId : item.productId).trim();
+			if (!definitionId) {
+				throw new DayPlanError(`items[${index}].${idField} is required`);
+			}
+
+			if (item.foodType === "RECIPE") {
 				let recipe;
 				try {
-					recipe = await this.recipeStateProvider.getRecipe(foodId);
+					recipe = await this.recipeStateProvider.getRecipe(definitionId);
 				} catch (error) {
 					if (RecipeError.isNotFound(error)) {
-						throw new DayPlanError(`Recipe at items[${index}].foodId was not found.`);
+						throw new DayPlanError(`Recipe at items[${index}].recipeId was not found.`);
 					}
 					throw error;
 				}
 				if (recipe.deleted) {
-					throw new DayPlanError(`Deleted recipe at items[${index}].foodId cannot be added to a day plan.`);
+					throw new DayPlanError(`Deleted recipe at items[${index}].recipeId cannot be added to a day plan.`);
 				}
+				preparedItems.push({ ...item, ingredientsServing: recipe.servings });
+			} else {
+				preparedItems.push(item);
 			}
 
-			const cacheKey = `${foodType}:${foodId}`;
+			const cacheKey = `${item.foodType}:${definitionId}`;
 			let measureIds = cache.get(cacheKey);
 			if (!measureIds) {
 				try {
-					measureIds = await this.foodMeasureProvider.getAvailableMeasureIds(foodId, foodType);
+					measureIds = await this.foodMeasureProvider.getAvailableMeasureIds(definitionId, item.foodType);
 				} catch (error) {
 					if (error instanceof FoodSearchError && error.statusCode === 404) {
-						throw new DayPlanError(`Food at items[${index}].foodId was not found.`);
+						throw new DayPlanError(`Food at items[${index}].${idField} was not found.`);
 					}
 					throw error;
 				}
@@ -110,5 +116,6 @@ export class MealItemMutationService implements MealItemMutationProvider {
 				throw new DayPlanError(`Measure at items[${index}].measureId does not belong to the selected food.`);
 			}
 		}
+		return preparedItems;
 	}
 }

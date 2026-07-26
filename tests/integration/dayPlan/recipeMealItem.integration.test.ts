@@ -1,14 +1,19 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
+import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
+import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
+import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
 import { CleanupTracker } from "../helpers/cleanupTracker.ts";
 import { findMealItem } from "../helpers/dayPlanAssertions.ts";
 import { getIntegrationTestDate } from "../helpers/testDates.ts";
 
 const dayPlanClient = new DayPlanClient();
+const mealItemMutationService = new MealItemMutationService(dayPlanClient, new FoodSearchClient(), new RecipeClient());
 const cleanup = new CleanupTracker(dayPlanClient);
 const READ_AFTER_WRITE_ATTEMPTS = 20;
 const RECIPE_ID = "32519808";
+const REPORTED_RECIPE_ID = "159408954";
 const MEAL_KEY = "supper";
 
 describe.sequential("Fitatu recipe meal-item integration", () => {
@@ -16,14 +21,14 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 		await cleanup.cleanup();
 	});
 
-	it("maps a RECIPE foodId to a visible recipe meal item", async () => {
+	it("maps a raw recipeId to a visible recipe meal item", async () => {
 		const date = getIntegrationTestDate();
-		const addResult = await dayPlanClient.addMealItems({
+		const addResult = await mealItemMutationService.addMealItems({
 			date,
 			mealKey: MEAL_KEY,
 			items: [
 				{
-					foodId: RECIPE_ID,
+					recipeId: RECIPE_ID,
 					foodType: "RECIPE",
 					measureId: "39",
 					measureQuantity: 1.5,
@@ -49,6 +54,73 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 		expect(String(item.measureId)).toBe("39");
 		expect(item.measureQuantity).toBe(1.5);
 		expect(item.eaten).toBe(true);
+	});
+
+	describe("reported recipe serving regression", () => {
+		it.fails("persists the reported recipe serving after accepting the add request", async () => {
+			const date = getIntegrationTestDate();
+			const addResult = await dayPlanClient.addMealItems({
+				date,
+				mealKey: MEAL_KEY,
+				items: [
+					{
+						recipeId: REPORTED_RECIPE_ID,
+						foodType: "RECIPE",
+						measureId: "39",
+						measureQuantity: 1.7777777778,
+						ingredientsServing: 1.7777777778,
+						eaten: true,
+					},
+				],
+			});
+
+			expect(addResult.status).toBe("accepted");
+			expect(addResult.operation).toBe("add");
+			expect(addResult.acceptedItems).toMatchObject([
+				{
+					foodType: "RECIPE",
+					productId: null,
+					recipeId: REPORTED_RECIPE_ID,
+					mealKey: MEAL_KEY,
+				},
+			]);
+
+			const itemId = requireItemId(addResult.provisionalItemIds[0]);
+			cleanup.track(date, MEAL_KEY, itemId);
+
+			const item = await waitForItem(date, MEAL_KEY, itemId);
+			expect(item.foodType).toBe("RECIPE");
+			expect(String(item.recipeId)).toBe(REPORTED_RECIPE_ID);
+			expect(item.productId).toBeNull();
+			expect(String(item.measureId)).toBe("39");
+			expect(item.measureQuantity).toBe(1.78);
+			expect(item.eaten).toBe(true);
+		});
+
+		it("persists the reported recipe when ingredientsServing matches the recipe serving count", async () => {
+			const date = getIntegrationTestDate();
+			const addResult = await dayPlanClient.addMealItems({
+				date,
+				mealKey: MEAL_KEY,
+				items: [
+					{
+						recipeId: REPORTED_RECIPE_ID,
+						foodType: "RECIPE",
+						measureId: "39",
+						measureQuantity: 1.7777777778,
+						ingredientsServing: 8,
+						eaten: true,
+					},
+				],
+			});
+
+			const itemId = requireItemId(addResult.provisionalItemIds[0]);
+			cleanup.track(date, MEAL_KEY, itemId);
+
+			const item = await waitForItem(date, MEAL_KEY, itemId);
+			expect(item.measureQuantity).toBe(1.78);
+			expect(item.eaten).toBe(true);
+		});
 	});
 });
 

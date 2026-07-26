@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { DateUtils } from "../../shared/DateUtils.ts";
 
+export const rawRecipeIdSchema = z.string().regex(/^[1-9]\d*$/, "recipeId must be a positive numeric string");
+
 export function isoCalendarDateSchema(fieldName = "date") {
 	return z
 		.string()

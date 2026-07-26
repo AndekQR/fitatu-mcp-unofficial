@@ -32,7 +32,7 @@ describe("RecipeService", () => {
 				preparationTimeMinutes: null,
 				mealSchema: [],
 			}),
-		).rejects.toThrow("Ingredient itemId 10 with measureId 2 at ingredients[1] duplicates ingredients[0].");
+		).rejects.toThrow("Ingredient productId 10 with measureId 2 at ingredients[1] duplicates ingredients[0].");
 		expect(fetchStub.calls).toHaveLength(0);
 	});
 
@@ -48,7 +48,7 @@ describe("RecipeService", () => {
 					{ itemId: "10", measureId: "2", measureQuantity: 3, type: "PRODUCT" },
 				],
 			}),
-		).rejects.toThrow("Ingredient itemId 10 with measureId 2 at ingredients[1] duplicates ingredients[0].");
+		).rejects.toThrow("Ingredient productId 10 with measureId 2 at ingredients[1] duplicates ingredients[0].");
 		expect(fetchStub.calls).toHaveLength(0);
 	});
 

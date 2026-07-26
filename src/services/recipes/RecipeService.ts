@@ -15,7 +15,7 @@ import { FoodSearchError } from "../../api/foodSearch/FoodSearchError.ts";
 const USER_TAG_CATEGORY = "RECIPE_TAG_USERS_TYPE";
 
 interface FoodMeasureProvider {
-	getAvailableMeasureIds(foodId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>>;
+	getAvailableMeasureIds(productId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>>;
 }
 
 export interface RecipeProvider {
@@ -145,7 +145,7 @@ export class RecipeService implements RecipeProvider {
 			const firstIndex = firstIndexBySelection.get(selection);
 			if (firstIndex !== undefined) {
 				throw new RecipeError(
-					`Ingredient itemId ${ingredient.itemId} with measureId ${ingredient.measureId} at ingredients[${index}] duplicates ingredients[${firstIndex}].`,
+					`Ingredient productId ${ingredient.itemId} with measureId ${ingredient.measureId} at ingredients[${index}] duplicates ingredients[${firstIndex}].`,
 				);
 			}
 			firstIndexBySelection.set(selection, index);
@@ -162,7 +162,7 @@ export class RecipeService implements RecipeProvider {
 					measureIds = await this.foodMeasureProvider.getAvailableMeasureIds(itemId, "PRODUCT");
 				} catch (error) {
 					if (error instanceof FoodSearchError && error.statusCode === 404) {
-						throw new RecipeError(`Ingredient product at ingredients[${index}].itemId was not found.`);
+						throw new RecipeError(`Ingredient productId at ingredients[${index}] was not found.`);
 					}
 					throw error;
 				}

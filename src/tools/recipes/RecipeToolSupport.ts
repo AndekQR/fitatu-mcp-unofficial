@@ -64,7 +64,13 @@ const recipeMutableInputSchema = {
 	tags: z.array(recipeTagInputSchema),
 	servings: z.number().int().positive(),
 	shared: z.boolean(),
-	description: z.string().nullable(),
+	steps: z.array(
+		z
+			.string()
+			.trim()
+			.min(1)
+			.refine((step) => !/[\r\n]/.test(step), "Each recipe step must be a single line."),
+	),
 	cookingTimeMinutes: z.number().int().nonnegative().nullable(),
 	preparationTimeMinutes: z.number().int().nonnegative().nullable(),
 	mealSchema: z.array(
@@ -88,10 +94,12 @@ export const recipeWriteInputShape = {
 		.default(false)
 		.optional()
 		.describe("Whether the recipe may be visible in Fitatu's public catalog. Defaults to false (private)."),
-	description: recipeMutableInputSchema.description
-		.default(null)
+	steps: recipeMutableInputSchema.steps
+		.default([])
 		.optional()
-		.describe("Preparation instructions. Omit or use null when no instructions are available."),
+		.describe(
+			"Ordered preparation steps without numeric prefixes. Put exactly one step in each string; Fitatu displays every array item as a separate step field. Omit or use [] when no instructions are available.",
+		),
 	cookingTimeMinutes: recipeMutableInputSchema.cookingTimeMinutes
 		.default(null)
 		.optional()
@@ -176,7 +184,11 @@ export const recipeDetailsOutputShape = {
 			"True only when this recipe is active and the authenticated user may currently update or delete it. Deleted and unowned recipes are false.",
 		),
 	deleted: z.boolean().describe("Whether Fitatu reports that the recipe has been deleted."),
-	description: z.string().optional().describe("Preparation instructions; omitted when unavailable."),
+	steps: z
+		.array(z.string())
+		.describe(
+			"Ordered preparation steps parsed from Fitatu's newline-delimited recipe description; an empty array means no instructions are available.",
+		),
 	cookingTimeMinutes: z
 		.number()
 		.int()
@@ -230,9 +242,11 @@ export const recipeUpdateInputSchema = z
 		shared: recipeMutableInputSchema.shared
 			.optional()
 			.describe("Replacement sharing setting. Omit to preserve the current value."),
-		description: recipeMutableInputSchema.description
+		steps: recipeMutableInputSchema.steps
 			.optional()
-			.describe("Replacement preparation instructions. Omit to preserve; use null to clear."),
+			.describe(
+				"Complete replacement preparation steps without numeric prefixes. Put one step in each string; omit to preserve the current steps and use [] to clear them.",
+			),
 		cookingTimeMinutes: recipeMutableInputSchema.cookingTimeMinutes
 			.optional()
 			.describe("Replacement cooking time in whole minutes. Omit to preserve; use null to clear."),
@@ -261,7 +275,7 @@ export function toRecipeDetailsForMcp(recipe: RecipeDetails): z.infer<typeof rec
 		shared: recipe.shared,
 		editable: recipe.editable,
 		deleted: recipe.deleted,
-		description: recipe.description ?? undefined,
+		steps: toRecipeSteps(recipe.description),
 		cookingTimeMinutes: recipe.cookingTimeMinutes ?? undefined,
 		preparationTimeMinutes: recipe.preparationTimeMinutes ?? undefined,
 		mealSchema: [...recipe.mealSchema],
@@ -292,7 +306,7 @@ export function toRecipeUpdateInput(input: {
 	readonly tags?: readonly z.infer<typeof recipeTagInputSchema>[];
 	readonly servings?: number;
 	readonly shared?: boolean;
-	readonly description?: string | null;
+	readonly steps?: readonly string[];
 	readonly cookingTimeMinutes?: number | null;
 	readonly preparationTimeMinutes?: number | null;
 	readonly mealSchema?: readonly string[];
@@ -301,16 +315,39 @@ export function toRecipeUpdateInput(input: {
 		Object.entries(input)
 			.filter(([, value]) => value !== undefined)
 			.map(([key, value]) => [
-				key,
-				key === "ingredients" && Array.isArray(value)
-					? value.map(({ productId, ...ingredient }) => ({
-							...ingredient,
-							itemId: productId,
-							type: "PRODUCT" as const,
-						}))
-					: value,
+				key === "steps" ? "description" : key,
+				key === "steps" && Array.isArray(value)
+					? toRecipeDescription(value)
+					: key === "ingredients" && Array.isArray(value)
+						? value.map(({ productId, ...ingredient }) => ({
+								...ingredient,
+								itemId: productId,
+								type: "PRODUCT" as const,
+							}))
+						: value,
 			]),
 	) as RecipeUpdateInput;
+}
+
+export function toRecipeDescription(steps: readonly string[]): string | null {
+	if (steps.length === 0) {
+		return null;
+	}
+	return steps.map((step, index) => `${index + 1}. ${stripRecipeStepNumber(step.trim())}`).join("\n");
+}
+
+function toRecipeSteps(description: string | null): string[] {
+	if (description === null) {
+		return [];
+	}
+	return description
+		.split(/\r?\n/)
+		.map((step) => stripRecipeStepNumber(step.trim()))
+		.filter(Boolean);
+}
+
+function stripRecipeStepNumber(step: string): string {
+	return step.replace(/^\d+[.)]\s+/, "");
 }
 
 export function toRecipeWarningsForMcp(
@@ -323,7 +360,7 @@ export function toRecipeWarningsForMcp(
 	}));
 }
 
-export const RECIPE_EMPTY_ARRAY_KEYS = ["mealSchema", "tags", "ingredients", "items", "warnings"] as const;
+export const RECIPE_EMPTY_ARRAY_KEYS = ["steps", "mealSchema", "tags", "ingredients", "items", "warnings"] as const;
 
 export function normalizeRecipeToolError(
 	error: unknown,

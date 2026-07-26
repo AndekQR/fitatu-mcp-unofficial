@@ -7,6 +7,7 @@ import {
 	recipeDetailsOutputSchema,
 	recipeWarningOutputSchema,
 	recipeWriteInputSchema,
+	toRecipeDescription,
 	toRecipeDetailsForMcp,
 	toRecipeWarningsForMcp,
 } from "./RecipeToolSupport.ts";
@@ -25,7 +26,7 @@ export class CreateRecipeTool {
 			{
 				title: "Create Fitatu Recipe",
 				description:
-					"Creates a Fitatu recipe from validated products selected with search_food. A non-empty name, at least one ingredient, and a positive whole number of servings are required. Ingredient quantities must be positive finite numbers. For custom tags use RECIPE_TAG_USERS_TYPE. Recipes are private unless shared=true. Returns { recipeId, details, warnings }; recipeId is canonical and repeating the same request creates another recipe.",
+					"Creates a Fitatu recipe from validated products selected with search_food. A non-empty name, at least one ingredient, and a positive whole number of servings are required. Pass preparation instructions as steps with one step per array item so Fitatu displays separate step fields. Ingredient quantities must be positive finite numbers. For custom tags use RECIPE_TAG_USERS_TYPE. Recipes are private unless shared=true. Returns { recipeId, details, warnings }; recipeId is canonical and repeating the same request creates another recipe.",
 				inputSchema: recipeWriteInputSchema,
 				outputSchema: {
 					recipeId: recipeDetailsOutputSchema.shape.recipeId.describe(
@@ -58,7 +59,7 @@ export class CreateRecipeTool {
 						tags: input.tags ?? [],
 						servings: input.servings,
 						shared: input.shared ?? false,
-						description: input.description ?? null,
+						description: toRecipeDescription(input.steps ?? []),
 						cookingTimeMinutes: input.cookingTimeMinutes ?? null,
 						preparationTimeMinutes: input.preparationTimeMinutes ?? null,
 						mealSchema: input.mealSchema ?? [],

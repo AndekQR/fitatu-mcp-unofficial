@@ -28,6 +28,7 @@ describe("Recipe MCP tools", () => {
 			name: "Test recipe",
 			ingredients: [{ productId: "10", measureId: "2", measureQuantity: 1 }],
 			servings: 2,
+			steps: ["Mix the ingredients", "Cook until ready"],
 		});
 
 		expect(registered.name).toBe("create_recipe");
@@ -50,7 +51,7 @@ describe("Recipe MCP tools", () => {
 			tags: [],
 			servings: 2,
 			shared: false,
-			description: null,
+			description: "1. Mix the ingredients\n2. Cook until ready",
 			cookingTimeMinutes: null,
 			preparationTimeMinutes: null,
 			mealSchema: [],
@@ -101,8 +102,10 @@ describe("Recipe MCP tools", () => {
 
 	it("get_recipe publishes a read-only contract", async () => {
 		const service = new RecordingRecipeService();
+		service.detailsValue = details({ description: "1. Prepare\n2. Serve" });
 		const registered = await registerToolForTest(new GetRecipeTool(service));
 		const result = await registered.invoke({ recipeId: "100" });
+		const payload = parseTextContent(result) as Record<string, unknown>;
 
 		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
 		expect(registered.config.description).toContain("Returns canonical recipe details");
@@ -110,8 +113,18 @@ describe("Recipe MCP tools", () => {
 			expect.arrayContaining(["recipeId", "name", "editable", "deleted", "mealSchema"]),
 		);
 		expect(service.getIds).toEqual(["100"]);
-		expect(parseTextContent(result)).toMatchObject({ recipeId: "100", name: "Test recipe" });
-		expect(result.structuredContent).toMatchObject({ recipeId: "100", name: "Test recipe" });
+		expect(payload).toMatchObject({
+			recipeId: "100",
+			name: "Test recipe",
+			steps: ["Prepare", "Serve"],
+		});
+		expect(payload).not.toHaveProperty("description");
+		expect(result.structuredContent).toMatchObject({
+			recipeId: "100",
+			name: "Test recipe",
+			steps: ["Prepare", "Serve"],
+		});
+		expect(result.structuredContent).not.toHaveProperty("description");
 	});
 
 	it("get_recipe preserves catalog meal schema values that are not mutation inputs", async () => {
@@ -179,7 +192,12 @@ describe("Recipe MCP tools", () => {
 	it("update_recipe forwards only fields selected by the caller", async () => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new UpdateRecipeTool(service));
-		const result = await registered.invoke({ recipeId: "100", name: "Changed", servings: 3 });
+		const result = await registered.invoke({
+			recipeId: "100",
+			name: "Changed",
+			servings: 3,
+			steps: ["Prepare", "Serve"],
+		});
 
 		expect(registered.config.annotations).toMatchObject({ destructiveHint: true, idempotentHint: false });
 		expect(registered.config.description).toContain(
@@ -188,7 +206,12 @@ describe("Recipe MCP tools", () => {
 		expect(registered.config.outputSchema?.required).toEqual(
 			expect.arrayContaining(["previousRecipeId", "recipeId", "identityChanged", "details", "warnings"]),
 		);
-		expect(service.updateInputs).toEqual([{ recipeId: "100", input: { name: "Changed", servings: 3 } }]);
+		expect(service.updateInputs).toEqual([
+			{
+				recipeId: "100",
+				input: { name: "Changed", servings: 3, description: "1. Prepare\n2. Serve" },
+			},
+		]);
 		expect(parseTextContent(result)).toMatchObject({
 			previousRecipeId: "100",
 			recipeId: "200",

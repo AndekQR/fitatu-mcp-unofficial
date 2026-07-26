@@ -28,7 +28,7 @@ export class UpdateRecipeTool {
 			{
 				title: "Update Fitatu Recipe",
 				description:
-					"Partially updates an owned active recipe identified by a raw recipeId. The same create limits apply. Omitted fields, including mealSchema, are preserved; null clears nullable text/time fields, and [] clears lists. Raw public mealSchema values returned by get_recipe are not necessarily accepted mutation inputs. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned recipeId. Returns { previousRecipeId, recipeId, identityChanged, details, warnings }.",
+					"Partially updates an owned active recipe identified by a raw recipeId. The same create limits apply. Pass preparation instructions as steps with one step per array item so Fitatu displays separate step fields. Omitted fields, including steps and mealSchema, are preserved; null clears nullable time fields, and [] clears lists. Raw public mealSchema values returned by get_recipe are not necessarily accepted mutation inputs. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned recipeId. Returns { previousRecipeId, recipeId, identityChanged, details, warnings }.",
 				inputSchema: recipeUpdateInputSchema,
 				outputSchema: {
 					previousRecipeId: recipeDetailsOutputSchema.shape.recipeId.describe(

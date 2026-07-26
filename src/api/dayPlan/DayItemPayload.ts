@@ -1,7 +1,9 @@
 import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
+import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
 import type { CustomMealItemInput } from "./CustomMealItemInput.ts";
-import { DayPlanError } from "./DayPlanError.ts";
 import { createPlanDayDietItemId } from "./DayPlanItemIdFactory.ts";
 import { nowTimestamp } from "./DayPlanTimestamps.ts";
 import type { MealItemInput } from "./MealItemInput.ts";
@@ -28,13 +30,26 @@ export class DayItemPayload {
 	}
 
 	public static from(item: MealItemInput, mealKey: string, index: number): DayItemPayload {
-		if (item.foodType === "CUSTOM_ITEM") {
-			return this.fromCustomItem(item, mealKey, index);
+		try {
+			if (item.foodType === "CUSTOM_ITEM") {
+				return this.fromCustomItem(item, mealKey, index);
+			}
+			if (item.foodType === "PRODUCT" || item.foodType === "RECIPE") {
+				return this.fromCatalogItem(item, mealKey, index);
+			}
+			throw new ValidationError("Unsupported foodType");
+		} catch (error) {
+			if (error instanceof FitatuClientError) {
+				throw error;
+			}
+			if (!(error instanceof ValidationError)) {
+				throw error;
+			}
+			throw FitatuClientError.invalidRequest({
+				operation: FITATU_CLIENT_OPERATIONS.dayPlanAddItems,
+				message: error.message,
+			});
 		}
-		if (item.foodType === "PRODUCT" || item.foodType === "RECIPE") {
-			return this.fromCatalogItem(item, mealKey, index);
-		}
-		throw new DayPlanError("Unsupported foodType");
 	}
 
 	private static fromCatalogItem(
@@ -105,7 +120,7 @@ export class DayItemPayload {
 function parseNonNegativeNutrition(value: unknown, field: string): number {
 	const parsed = NumberUtils.parseFiniteNumber(value, `${field} must be a non-negative finite number`);
 	if (parsed < 0) {
-		throw new DayPlanError(`${field} must be a non-negative finite number`);
+		throw new ValidationError(`${field} must be a non-negative finite number`);
 	}
 	return parsed;
 }

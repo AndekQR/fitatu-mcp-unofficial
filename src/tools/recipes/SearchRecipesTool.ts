@@ -1,10 +1,16 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { FitatuClientErrorPublic } from "../shared/FitatuClientErrorPublic.ts";
+import {
+	FITATU_CLIENT_ERROR_EMPTY_ARRAY_KEYS,
+	FITATU_CLIENT_ERROR_NULL_KEYS,
+	fitatuClientErrorOutputSchema,
+} from "../shared/FitatuClientErrorOutputSchema.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
-import { RECIPE_EMPTY_ARRAY_KEYS, normalizeRecipeToolError } from "./RecipeToolSupport.ts";
+import { RECIPE_EMPTY_ARRAY_KEYS } from "./RecipeToolSupport.ts";
 
 const searchItemOutputSchema = z
 	.object({
@@ -93,6 +99,7 @@ export class SearchRecipesTool {
 								code: z.literal("RECIPE_SOURCE_UNAVAILABLE"),
 								source: z.enum(["mine", "public"]),
 								message: z.string(),
+								clientError: fitatuClientErrorOutputSchema,
 							}),
 						)
 						.describe("Non-fatal source failures; empty when every requested catalog succeeded."),
@@ -117,15 +124,18 @@ export class SearchRecipesTool {
 						{
 							...result,
 							items: result.items,
+							warnings: result.warnings.map((warning) => ({
+								...warning,
+								clientError: new FitatuClientErrorPublic(warning.clientError),
+							})),
 						},
-						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
+						{
+							keepEmptyArrayKeys: [...RECIPE_EMPTY_ARRAY_KEYS, ...FITATU_CLIENT_ERROR_EMPTY_ARRAY_KEYS],
+							keepNullKeys: FITATU_CLIENT_ERROR_NULL_KEYS,
+						},
 					);
 				} catch (error) {
-					return createToolErrorResult(
-						this.name,
-						"Unable to search Fitatu recipes.",
-						normalizeRecipeToolError(error, { operation: "search" }),
-					);
+					return ToolErrorResult.create(this.name, "Unable to search Fitatu recipes.", error);
 				}
 			},
 		);

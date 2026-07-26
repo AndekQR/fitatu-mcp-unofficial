@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { MealItemMutationService } from "../../../../src/api/dayPlan/MealItemMutationService.ts";
+import { MealItemMutationCoordinator } from "../../../../src/api/dayPlan/MealItemMutationCoordinator.ts";
 import type { MealItemInput } from "../../../../src/api/dayPlan/MealItemInput.ts";
-import type { DayPlanSyncProvider, DaySyncPayload } from "../../../../src/api/dayPlan/DayPlanSyncService.ts";
+import type { DayPlanSyncProvider } from "../../../../src/api/dayPlan/DayPlanSyncProvider.ts";
+import type { DaySyncPayload } from "../../../../src/api/dayPlan/DaySyncPayload.ts";
 
-describe("MealItemMutationService single-day mutations", () => {
+describe("MealItemMutationCoordinator single-day mutations", () => {
 	it("adds a product item and synchronizes the changed day", async () => {
-		const syncService = new RecordingDayPlanSyncService(createPayload({ breakfast: [] }));
-		const service = new MealItemMutationService(syncService);
+		const syncService = new RecordingDayPlanSyncCoordinator(createPayload({ breakfast: [] }));
+		const service = new MealItemMutationCoordinator(syncService);
 
 		const result = await service.addMealItems({
 			userId: "user-1",
@@ -27,8 +28,8 @@ describe("MealItemMutationService single-day mutations", () => {
 	});
 
 	it("rejects a recipe item without recipeId instead of aliasing productId", async () => {
-		const syncService = new RecordingDayPlanSyncService(createPayload({ supper: [] }));
-		const service = new MealItemMutationService(syncService);
+		const syncService = new RecordingDayPlanSyncCoordinator(createPayload({ supper: [] }));
+		const service = new MealItemMutationCoordinator(syncService);
 
 		await expect(
 			service.addMealItems({
@@ -42,8 +43,8 @@ describe("MealItemMutationService single-day mutations", () => {
 	});
 
 	it("adds a custom item with hidden Fitatu measure fields", async () => {
-		const syncService = new RecordingDayPlanSyncService(createPayload({ supper: [] }));
-		const service = new MealItemMutationService(syncService);
+		const syncService = new RecordingDayPlanSyncCoordinator(createPayload({ supper: [] }));
+		const service = new MealItemMutationCoordinator(syncService);
 
 		const result = await service.addMealItems({
 			userId: "user-1",
@@ -89,10 +90,10 @@ describe("MealItemMutationService single-day mutations", () => {
 	});
 
 	it("updates only the requested fields of an active item", async () => {
-		const syncService = new RecordingDayPlanSyncService(
+		const syncService = new RecordingDayPlanSyncCoordinator(
 			createPayload({ breakfast: [createProductItem({ itemId: "item-1", productId: 101 })] }),
 		);
-		const service = new MealItemMutationService(syncService);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		const result = await service.updateMealItem({
 			userId: "user-1",
@@ -113,10 +114,10 @@ describe("MealItemMutationService single-day mutations", () => {
 	});
 
 	it("marks a custom recipe item as deleted and hidden", async () => {
-		const syncService = new RecordingDayPlanSyncService(
+		const syncService = new RecordingDayPlanSyncCoordinator(
 			createPayload({ breakfast: [createRecipeItem({ itemId: "recipe-1", recipeId: 501 })] }),
 		);
-		const service = new MealItemMutationService(syncService);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		const result = await service.removeMealItem({
 			userId: "user-1",
@@ -135,10 +136,10 @@ describe("MealItemMutationService single-day mutations", () => {
 	});
 
 	it("rejects an update without changes before synchronizing", async () => {
-		const syncService = new RecordingDayPlanSyncService(
+		const syncService = new RecordingDayPlanSyncCoordinator(
 			createPayload({ breakfast: [createProductItem({ itemId: "item-1", productId: 101 })] }),
 		);
-		const service = new MealItemMutationService(syncService);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		await expect(
 			service.updateMealItem({
@@ -152,10 +153,10 @@ describe("MealItemMutationService single-day mutations", () => {
 	});
 
 	it("does not resolve an item by its productId", async () => {
-		const syncService = new RecordingDayPlanSyncService(
+		const syncService = new RecordingDayPlanSyncCoordinator(
 			createPayload({ breakfast: [createProductItem({ itemId: "item-1", productId: 101 })] }),
 		);
-		const service = new MealItemMutationService(syncService);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		await expect(
 			service.updateMealItem({
@@ -170,7 +171,7 @@ describe("MealItemMutationService single-day mutations", () => {
 	});
 });
 
-describe("MealItemMutationService.removeMealItems", () => {
+describe("MealItemMutationCoordinator.removeMealItems", () => {
 	it("removes exact product and recipe items across meals in a single day sync", async () => {
 		const payload = createPayload({
 			breakfast: [
@@ -182,8 +183,8 @@ describe("MealItemMutationService.removeMealItems", () => {
 				createRecipeItem({ itemId: "recipe-1", recipeId: 101 }),
 			],
 		});
-		const syncService = new RecordingDayPlanSyncService(payload);
-		const service = new MealItemMutationService(syncService);
+		const syncService = new RecordingDayPlanSyncCoordinator(payload);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		const result = await service.removeMealItems({
 			userId: "user-1",
@@ -215,8 +216,8 @@ describe("MealItemMutationService.removeMealItems", () => {
 			],
 			lunch: [createProductItem({ itemId: "lunch-1", productId: 101 })],
 		});
-		const syncService = new RecordingDayPlanSyncService(payload);
-		const service = new MealItemMutationService(syncService);
+		const syncService = new RecordingDayPlanSyncCoordinator(payload);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		const result = await service.removeMealItems({
 			userId: "user-1",
@@ -234,8 +235,8 @@ describe("MealItemMutationService.removeMealItems", () => {
 			breakfast: [createProductItem({ itemId: "breakfast-1", productId: 101 })],
 			lunch: [createProductItem({ itemId: "lunch-1", productId: 202, deletedAt: "2026-07-01 10:00:00" })],
 		});
-		const syncService = new RecordingDayPlanSyncService(payload);
-		const service = new MealItemMutationService(syncService);
+		const syncService = new RecordingDayPlanSyncCoordinator(payload);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		await expect(
 			service.removeMealItems({
@@ -248,15 +249,15 @@ describe("MealItemMutationService.removeMealItems", () => {
 	});
 });
 
-describe("MealItemMutationService.moveMealItem", () => {
+describe("MealItemMutationCoordinator.moveMealItem", () => {
 	it("moves an item between meals in one day payload", async () => {
-		const syncService = new RecordingDayPlanSyncService({
+		const syncService = new RecordingDayPlanSyncCoordinator({
 			"2026-07-01": createPayload({
 				breakfast: [createProductItem({ itemId: "item-1", productId: 101 })],
 				lunch: [],
 			}),
 		});
-		const service = new MealItemMutationService(syncService);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		const result = await service.moveMealItem({
 			userId: "user-1",
@@ -278,11 +279,11 @@ describe("MealItemMutationService.moveMealItem", () => {
 	});
 
 	it("moves an item between days in one multi-day synchronization", async () => {
-		const syncService = new RecordingDayPlanSyncService({
+		const syncService = new RecordingDayPlanSyncCoordinator({
 			"2026-07-01": createPayload({ breakfast: [createProductItem({ itemId: "item-1", productId: 101 })] }),
 			"2026-07-02": createPayload({ lunch: [] }),
 		});
-		const service = new MealItemMutationService(syncService);
+		const service = new MealItemMutationCoordinator(syncService);
 
 		const result = await service.moveMealItem({
 			userId: "user-1",
@@ -312,7 +313,7 @@ describe("MealItemMutationService.moveMealItem", () => {
 	});
 });
 
-class RecordingDayPlanSyncService implements DayPlanSyncProvider {
+class RecordingDayPlanSyncCoordinator implements DayPlanSyncProvider {
 	public readonly syncCalls: { readonly userId: string; readonly date: string; readonly payload: DaySyncPayload }[] =
 		[];
 	public readonly syncDaysCalls: { readonly userId: string; readonly daysPayload: Record<string, unknown> }[] = [];

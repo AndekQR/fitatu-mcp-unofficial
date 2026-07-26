@@ -1,29 +1,19 @@
 import { DayClient } from "../dietAndActivityPlan/DayClient.ts";
 import { DaysClient } from "../dietPlan/DaysClient.ts";
 import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
+import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
-import { asRecord } from "./DayPlanApiResponse.ts";
-import { DayPlanError } from "./DayPlanError.ts";
 import type { GetDayPlanOptions } from "./GetDayPlanOptions.ts";
+import { DayPlanSyncProvider } from "./DayPlanSyncProvider.ts";
+import { DaySyncPayload } from "./DaySyncPayload.ts";
 
-export interface DaySyncPayload {
-	dietPlan: Record<string, unknown>;
-	toiletItems: unknown[];
-	note: unknown;
-	tagsIds: unknown[];
-}
-
-export interface DayPlanSyncProvider {
-	getDaySyncPayload(userId: string, date: string): Promise<DaySyncPayload>;
-	syncSingleDay(userId: string, date: string, dayPayload: DaySyncPayload): Promise<void>;
-	syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<void>;
-}
-
-export class DayPlanSyncService implements DayPlanSyncProvider {
+export class DayPlanSyncCoordinator extends DayPlanSyncProvider {
 	private readonly dayClient: DayClient;
 	private readonly daysClient: DaysClient;
 
 	public constructor(options: FitatuApiClientBaseOptions = {}) {
+		super();
 		this.dayClient = new DayClient(options);
 		this.daysClient = new DaysClient(options);
 	}
@@ -35,15 +25,28 @@ export class DayPlanSyncService implements DayPlanSyncProvider {
 	public async getDaySyncPayload(userId: string, date: string): Promise<DaySyncPayload> {
 		const data = await this.getDayPlanData({ date, userId });
 		if (!ObjectUtils.isRecord(data)) {
-			throw new DayPlanError("DayPlan response was not a valid JSON object");
+			throw FitatuClientError.invalidResponse({
+				operation: FITATU_CLIENT_OPERATIONS.dayPlanGet,
+				message: "DayPlan response was not a valid JSON object",
+				method: "GET",
+				endpointTemplate: "/diet-and-activity-plan/:userId/day/:date",
+			});
+		}
+		if (!ObjectUtils.isRecord(data.dietPlan)) {
+			throw FitatuClientError.invalidResponse({
+				operation: FITATU_CLIENT_OPERATIONS.dayPlanGet,
+				message: "dietPlan was not a valid JSON object",
+				method: "GET",
+				endpointTemplate: "/diet-and-activity-plan/:userId/day/:date",
+			});
 		}
 
-		return {
-			dietPlan: asRecord(data.dietPlan, "dietPlan"),
+		return new DaySyncPayload({
+			dietPlan: data.dietPlan,
 			toiletItems: Array.isArray(data.toiletItems) ? data.toiletItems : [],
 			note: data.note ?? null,
 			tagsIds: Array.isArray(data.tagsIds) ? data.tagsIds : [],
-		};
+		});
 	}
 
 	public async syncSingleDay(userId: string, date: string, dayPayload: DaySyncPayload): Promise<void> {

@@ -1,6 +1,6 @@
 import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
-import { RecipeError } from "./RecipeError.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
 import type { RecipeIngredientInput } from "./RecipeIngredientInput.ts";
 import type { RecipeTag } from "./RecipeTag.ts";
 
@@ -17,7 +17,7 @@ export class RecipeWriteInput {
 
 	public static toRecipePayload(input: RecipeWriteInput, categories: unknown): Record<string, unknown> {
 		if (input.ingredients.length === 0) {
-			throw new RecipeError("ingredients must not be empty");
+			throw new ValidationError("ingredients must not be empty");
 		}
 		const name = StringUtils.parseNonEmptyString(input.name, "name is required");
 		const servings = NumberUtils.parsePositiveInteger(input.servings, "servings must be a positive integer");

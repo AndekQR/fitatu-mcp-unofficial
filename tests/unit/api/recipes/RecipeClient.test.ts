@@ -104,8 +104,14 @@ describe("RecipeClient", () => {
 		const client = createClient(fetchStub);
 
 		await expect(client.getRecipe("999")).rejects.toMatchObject({
-			name: "RecipeError",
-			statusCode: 404,
+			name: "FitatuClientError",
+			operation: "recipes.get",
+			failure: {
+				kind: "http",
+				endpointTemplate: "/recipes-and-user-action/:recipeId/:userId",
+				statusCode: 404,
+			},
+			attempts: [],
 		});
 	});
 
@@ -417,25 +423,31 @@ describe("RecipeClient", () => {
 		const result = await client.searchRecipes({ query: "recipe", scope: "all", page: 1, limit: 10 });
 
 		expect(result.items).toEqual([{ recipeId: "11", name: "Mine recipe", source: "mine", energyKcal: null }]);
-		expect(result.warnings).toEqual([
+		expect(result.warnings).toMatchObject([
 			{
 				code: "RECIPE_SOURCE_UNAVAILABLE",
 				source: "public",
 				message: "public recipe catalog was unavailable; results are partial.",
+				clientError: {
+					name: "FitatuClientError",
+					operation: "recipes.search",
+					failure: { kind: "http", statusCode: 504 },
+					attempts: [],
+				},
 			},
 		]);
 	});
 
 	it.each([
-		["empty ingredients", { ...validWriteInput(), ingredients: [] }, "RecipeError"],
-		["invalid servings", { ...validWriteInput(), servings: 0 }, "Error"],
+		["empty ingredients", { ...validWriteInput(), ingredients: [] }, "FitatuClientError"],
+		["invalid servings", { ...validWriteInput(), servings: 0 }, "FitatuClientError"],
 		[
 			"invalid tag",
 			{
 				...validWriteInput(),
 				tags: [{ name: "", category: "RECIPE_TAG_USERS_TYPE", translation: "tag" }],
 			},
-			"Error",
+			"FitatuClientError",
 		],
 	])("rejects %s before making a Fitatu request", async (_name, input, errorName) => {
 		const fetchStub = createFetchStub();

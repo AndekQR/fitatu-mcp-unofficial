@@ -1,11 +1,16 @@
 import { NumberUtils } from "../../shared/NumberUtils.ts";
-import { ResponseUtils } from "../../shared/ResponseUtils.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
+import type { FitatuRequestFailure } from "../fitatuApiClientBase/FitatuClientFailure.ts";
+import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS, type FitatuClientOperation } from "../fitatuApiClientBase/FitatuClientOperations.ts";
+import { FitatuFallbackRunner } from "../fitatuApiClientBase/FitatuFallbackRunner.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
-import { RecipeError } from "./RecipeError.ts";
 import type { RecipeCreateResult } from "./RecipeCreateResult.ts";
 import { RecipeDetails } from "./RecipeDetails.ts";
 import type { RecipeReplacementInput } from "./RecipeReplacementInput.ts";
@@ -31,32 +36,38 @@ export class RecipeClient extends FitatuApiClientBase {
 	public async getRecipe(recipeId: string | number): Promise<RecipeDetails> {
 		const normalizedRecipeId = StringUtils.stringOrNull(recipeId);
 		if (normalizedRecipeId === null) {
-			throw new Error("recipeId is required");
+			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesGet, "recipeId is required");
 		}
-		const userId = StringUtils.parseNonEmptyString(await this.getContextUserId(), "Fitatu user id is required");
+		const userId = StringUtils.firstNonEmptyString(await this.getContextUserId());
+		if (!userId) {
+			throw FitatuClientError.authentication({
+				operation: FITATU_CLIENT_OPERATIONS.recipesGet,
+				message: "Fitatu user id is required",
+			});
+		}
 		const path = `/recipes-and-user-action/${encodeURIComponent(normalizedRecipeId)}/${encodeURIComponent(userId)}`;
-		const response = await this.fetchFitatuApi({
+		return this.requestJson({
+			operation: FITATU_CLIENT_OPERATIONS.recipesGet,
 			method: "GET",
 			path,
+			endpointTemplate: "/recipes-and-user-action/:recipeId/:userId",
+			failureMessage: "Fitatu recipe details request failed",
+			invalidResponseMessage: "Fitatu recipe response was invalid",
 			headers: { accept: JSON_ACCEPT_HEADER },
+			decoder: decodeRecipeDetails,
 		});
-
-		if (!response.ok) {
-			throw await RecipeError.fromResponse(response, "GET", path, "Fitatu recipe details request failed");
-		}
-		return RecipeDetails.fromApiResponse(
-			await ResponseUtils.parseJsonObject(response, "Fitatu recipe response was not a valid JSON object"),
-		);
 	}
 
 	public async createRecipe(input: RecipeWriteInput): Promise<RecipeCreateResult> {
+		const body = createRecipePayload(input, null, FITATU_CLIENT_OPERATIONS.recipesCreate);
 		const created = await this.requestJsonObject({
+			operation: FITATU_CLIENT_OPERATIONS.recipesCreate,
 			method: "POST",
 			path: "/recipes",
-			body: RecipeWriteInput.toRecipePayload(input, null),
+			body,
 			failureMessage: "Fitatu recipe creation failed",
 		});
-		const recipeId = StringUtils.parseStringValue(created.id, "Recipe creation response id is required");
+		const recipeId = created.id;
 
 		return { recipeId, details: await this.getRecipeAfterWrite(recipeId) };
 	}
@@ -64,15 +75,17 @@ export class RecipeClient extends FitatuApiClientBase {
 	public async replaceRecipe(recipeId: string | number, input: RecipeReplacementInput): Promise<RecipeReplaceResult> {
 		const previousRecipeId = StringUtils.stringOrNull(recipeId);
 		if (previousRecipeId === null) {
-			throw new Error("recipeId is required");
+			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesReplace, "recipeId is required");
 		}
+		const body = createRecipePayload(input, input.categories, FITATU_CLIENT_OPERATIONS.recipesReplace);
 		const created = await this.requestJsonObject({
+			operation: FITATU_CLIENT_OPERATIONS.recipesReplace,
 			method: "PUT",
 			path: `/recipes/${encodeURIComponent(previousRecipeId)}`,
-			body: RecipeWriteInput.toRecipePayload(input, input.categories),
+			body,
 			failureMessage: "Fitatu recipe update failed",
 		});
-		const nextRecipeId = StringUtils.parseStringValue(created.id, "Recipe update response id is required");
+		const nextRecipeId = created.id;
 
 		return {
 			previousRecipeId,
@@ -85,32 +98,47 @@ export class RecipeClient extends FitatuApiClientBase {
 	public async deleteRecipe(recipeId: string | number): Promise<{ readonly recipeId: string }> {
 		const normalizedRecipeId = StringUtils.stringOrNull(recipeId);
 		if (normalizedRecipeId === null) {
-			throw new Error("recipeId is required");
+			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesDelete, "recipeId is required");
 		}
 		const path = `/recipes/${encodeURIComponent(normalizedRecipeId)}`;
-		const response = await this.fetchFitatuApi({
+		await this.requestJson({
+			operation: FITATU_CLIENT_OPERATIONS.recipesDelete,
 			method: "DELETE",
 			path,
+			endpointTemplate: "/recipes/:recipeId",
+			failureMessage: "Fitatu recipe deletion failed",
+			invalidResponseMessage: "Fitatu recipe deletion response was invalid",
 			headers: { accept: JSON_ACCEPT_HEADER },
+			decoder: () => null,
 		});
-
-		if (!response.ok) {
-			throw await RecipeError.fromResponse(response, "DELETE", path, "Fitatu recipe deletion failed");
-		}
-		await response.json();
 		return { recipeId: normalizedRecipeId };
 	}
 
 	public async searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeSearchResult> {
+		if (options.query !== undefined && typeof options.query !== "string") {
+			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesSearch, "query must be a string");
+		}
 		const query = options.query?.trim() ?? "";
 		const scope = options.scope ?? "mine";
-		const page = NumberUtils.parsePositiveInteger(options.page ?? 1, "page must be a positive integer");
-		const limit = NumberUtils.parseIntegerInRange(
-			options.limit ?? DEFAULT_SEARCH_LIMIT,
-			1,
-			MAX_SEARCH_LIMIT,
-			`limit must be between 1 and ${MAX_SEARCH_LIMIT}`,
-		);
+		if (!["mine", "public", "all"].includes(scope)) {
+			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesSearch, "scope must be mine, public, or all");
+		}
+		let page: number;
+		let limit: number;
+		try {
+			page = NumberUtils.parsePositiveInteger(options.page ?? 1, "page must be a positive integer");
+			limit = NumberUtils.parseIntegerInRange(
+				options.limit ?? DEFAULT_SEARCH_LIMIT,
+				1,
+				MAX_SEARCH_LIMIT,
+				`limit must be between 1 and ${MAX_SEARCH_LIMIT}`,
+			);
+		} catch (error) {
+			if (!(error instanceof ValidationError)) {
+				throw error;
+			}
+			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesSearch, error.message);
+		}
 		const matchLocale = query ? normalizeCaseLocale(await this.getContextSearchLocale()) : undefined;
 		const searched =
 			scope === "all"
@@ -198,15 +226,25 @@ export class RecipeClient extends FitatuApiClientBase {
 		readonly page: number;
 		readonly limit: number;
 	}): Promise<readonly RecipeSearchItem[]> {
+		const contextUserId =
+			options.source === "mine" ? StringUtils.firstNonEmptyString(await this.getContextUserId()) : undefined;
+		if (options.source === "mine" && !contextUserId) {
+			throw FitatuClientError.authentication({
+				operation: FITATU_CLIENT_OPERATIONS.recipesSearch,
+				message: "Fitatu user id is required",
+			});
+		}
 		const path =
 			options.source === "mine"
-				? `/search/food/user/${encodeURIComponent(
-						StringUtils.parseNonEmptyString(await this.getContextUserId(), "Fitatu user id is required"),
-					)}`
+				? `/search/food/user/${encodeURIComponent(contextUserId ?? "")}`
 				: "/search/new/food";
-		const response = await this.fetchFitatuApi({
+		return this.requestJson({
+			operation: FITATU_CLIENT_OPERATIONS.recipesSearch,
 			method: "GET",
 			path,
+			endpointTemplate: options.source === "mine" ? "/search/food/user/:userId" : "/search/new/food",
+			failureMessage: "Fitatu recipe search failed",
+			invalidResponseMessage: "Fitatu recipe search response was invalid",
 			headers: { accept: this.V3_ACCEPT_HEADER },
 			query: {
 				phrase: options.query,
@@ -219,12 +257,8 @@ export class RecipeClient extends FitatuApiClientBase {
 						}
 					: {}),
 			},
+			decoder: (data) => decodeRecipeSearch(data, options.source),
 		});
-
-		if (!response.ok) {
-			throw await RecipeError.fromResponse(response, "GET", path, "Fitatu recipe search failed");
-		}
-		return RecipeSearchResult.extractItems(await response.json(), options.source);
 	}
 
 	private async searchCombinedRecipePage(options: {
@@ -288,14 +322,19 @@ export class RecipeClient extends FitatuApiClientBase {
 					? { status: "fulfilled", value: publicItems }
 					: { status: "rejected", reason: publicFailure };
 		}
+		const mineError = rejectedClientError(mineResult);
+		const publicError = rejectedClientError(publicResult);
 		if (mineResult.status === "rejected" && publicResult.status === "rejected") {
-			throw mineResult.reason;
+			throw publicError?.withAttempts(
+				[...(mineError ? toRecipeRequestFailures(mineError) : []), ...(publicError.attempts ?? [])],
+				"All Fitatu recipe search requests failed",
+			);
 		}
 		const mine = mineResult.status === "fulfilled" ? mineResult.value : [];
 		const publicItems = publicResult.status === "fulfilled" ? publicResult.value : [];
 		const warnings = [
-			...(mineResult.status === "rejected" ? [sourceWarning("mine")] : []),
-			...(publicResult.status === "rejected" ? [sourceWarning("public")] : []),
+			...(mineError ? [sourceWarning("mine", mineError)] : []),
+			...(publicError ? [sourceWarning("public", publicError)] : []),
 		];
 		const combined = RecipeSearchResult.deduplicateItems(interleave(mine, publicItems));
 		const offset = (options.page - 1) * options.limit;
@@ -307,51 +346,47 @@ export class RecipeClient extends FitatuApiClientBase {
 	}
 
 	private async requestJsonObject(options: {
+		readonly operation: FitatuClientOperation;
 		readonly method: "POST" | "PUT";
 		readonly path: string;
 		readonly body: Record<string, unknown>;
 		readonly failureMessage: string;
-	}): Promise<Record<string, unknown>> {
-		const response = await this.fetchFitatuApi({
+	}): Promise<Record<string, unknown> & { readonly id: string }> {
+		return this.requestJson({
+			operation: options.operation,
 			method: options.method,
 			path: options.path,
+			endpointTemplate: options.method === "POST" ? "/recipes" : "/recipes/:recipeId",
+			failureMessage: options.failureMessage,
+			invalidResponseMessage: "Fitatu recipe response was invalid",
 			headers: {
 				accept: JSON_ACCEPT_HEADER,
 				"content-type": "application/json;charset=UTF-8",
 			},
 			body: JSON.stringify(options.body),
+			decoder: decodeRecipeWriteResponse,
 		});
-
-		if (!response.ok) {
-			throw await RecipeError.fromResponse(response, options.method, options.path, options.failureMessage);
-		}
-		return ResponseUtils.parseJsonObject(response, "Fitatu recipe response was not a valid JSON object");
 	}
 
 	private async getRecipeAfterWrite(recipeId: string): Promise<RecipeDetails> {
-		let lastError: unknown;
-		for (let attempt = 0; attempt < READ_AFTER_WRITE_ATTEMPTS; attempt += 1) {
-			try {
-				return await this.getRecipe(recipeId);
-			} catch (error) {
-				lastError = error;
-				if (!(error instanceof RecipeError) || error.statusCode !== 404) {
-					throw error;
-				}
-				if (attempt + 1 < READ_AFTER_WRITE_ATTEMPTS) {
-					await wait(250);
-				}
-			}
-		}
-		throw lastError;
+		return FitatuFallbackRunner.run(
+			Array.from({ length: READ_AFTER_WRITE_ATTEMPTS }),
+			() => this.getRecipe(recipeId),
+			(error) => error.failure.kind === "http" && error.failure.statusCode === 404,
+			() => wait(250),
+		);
 	}
 }
 
-function sourceWarning(source: RecipeSearchSource): RecipeSearchResult["warnings"][number] {
+function sourceWarning(
+	source: RecipeSearchSource,
+	clientError: FitatuClientError,
+): RecipeSearchResult["warnings"][number] {
 	return {
 		code: "RECIPE_SOURCE_UNAVAILABLE",
 		source,
 		message: `${source} recipe catalog was unavailable; results are partial.`,
+		clientError,
 	};
 }
 
@@ -397,5 +432,78 @@ function normalizeCaseLocale(locale: string): string | undefined {
 		return Intl.getCanonicalLocales(locale.replaceAll("_", "-"))[0];
 	} catch {
 		return undefined;
+	}
+}
+
+function decodeJsonObject(data: unknown): Record<string, unknown> {
+	if (!ObjectUtils.isRecord(data)) {
+		throw new FitatuResponseDecodeError("Fitatu recipe response was not a valid JSON object");
+	}
+	return data;
+}
+
+function decodeRecipeDetails(data: unknown): RecipeDetails {
+	try {
+		return RecipeDetails.fromApiResponse(decodeJsonObject(data));
+	} catch (error) {
+		if (error instanceof FitatuResponseDecodeError) throw error;
+		if (!(error instanceof ValidationError)) throw error;
+		throw new FitatuResponseDecodeError(error.message);
+	}
+}
+
+function decodeRecipeWriteResponse(data: unknown): Record<string, unknown> & { readonly id: string } {
+	const response = decodeJsonObject(data);
+	const id = StringUtils.stringOrNull(response.id);
+	if (!id) {
+		throw new FitatuResponseDecodeError("Fitatu recipe response id is required");
+	}
+	return { ...response, id };
+}
+
+function decodeRecipeSearch(data: unknown, source: RecipeSearchSource): readonly RecipeSearchItem[] {
+	try {
+		return RecipeSearchResult.extractItems(data, source);
+	} catch (error) {
+		if (error instanceof FitatuResponseDecodeError) throw error;
+		if (!(error instanceof ValidationError)) throw error;
+		throw new FitatuResponseDecodeError(error.message);
+	}
+}
+
+function invalidRecipeRequest(operation: FitatuClientOperation, message: string): FitatuClientError {
+	return FitatuClientError.invalidRequest({ operation, message });
+}
+
+function rejectedClientError<T>(result: PromiseSettledResult<T>): FitatuClientError | undefined {
+	if (result.status === "fulfilled") return undefined;
+	if (result.reason instanceof FitatuClientError) return result.reason;
+	throw result.reason;
+}
+
+function toRecipeRequestFailures(error: FitatuClientError): FitatuRequestFailure[] {
+	const failures = [...error.attempts];
+	if (
+		error.failure.kind === "http" ||
+		error.failure.kind === "transport" ||
+		error.failure.kind === "invalidResponse"
+	) {
+		failures.push(error.failure);
+	}
+	return failures;
+}
+
+function createRecipePayload(
+	input: RecipeWriteInput,
+	categories: RecipeReplacementInput["categories"],
+	operation: FitatuClientOperation,
+): Record<string, unknown> {
+	try {
+		return RecipeWriteInput.toRecipePayload(input, categories);
+	} catch (error) {
+		if (!(error instanceof ValidationError)) {
+			throw error;
+		}
+		throw invalidRecipeRequest(operation, error.message);
 	}
 }

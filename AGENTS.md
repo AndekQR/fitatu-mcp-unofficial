@@ -14,7 +14,7 @@ Sometimes the existing Python project with similar might be helpful, it's under 
 
 ## Build, Test, and Development Commands
 
-Use the commands defined in `package.json`. Wo work only on the main branch, if not specified otherwise.
+Use the commands defined in `package.json`. Work on the current branch, if not specified otherwise.
 
 Common expected commands may include:
 

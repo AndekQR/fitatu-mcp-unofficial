@@ -1,16 +1,35 @@
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import type { FitatuClientOperation } from "../fitatuApiClientBase/FitatuClientOperations.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { asRecord } from "./DayPlanApiResponse.ts";
 import { FoundDietItem } from "./FoundDietItem.ts";
 
 export class DayPlanDietPlan {
 	private readonly dietPlan: Record<string, unknown>;
+	private readonly operation: FitatuClientOperation;
 
-	public constructor(dietPlan: Record<string, unknown>) {
+	public constructor(dietPlan: Record<string, unknown>, operation: FitatuClientOperation) {
 		this.dietPlan = dietPlan;
+		this.operation = operation;
 	}
 
 	public getMealItems(mealKey: string): Record<string, unknown>[] {
-		const meal = asRecord(this.dietPlan[mealKey], `meal ${mealKey}`);
+		let meal: Record<string, unknown>;
+		try {
+			meal = asRecord(this.dietPlan[mealKey], `meal ${mealKey}`);
+		} catch (error) {
+			if (!(error instanceof FitatuResponseDecodeError)) {
+				throw error;
+			}
+			throw FitatuClientError.invalidResponse({
+				operation: this.operation,
+				message: error.message,
+				method: "GET",
+				endpointTemplate: "/diet-and-activity-plan/:userId/day/:date",
+				cause: error,
+			});
+		}
 		const items = meal.items;
 		if (Array.isArray(items)) {
 			const normalizedItems = items.filter(ObjectUtils.isRecord);

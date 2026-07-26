@@ -26,7 +26,7 @@ export class AddMealItemsTool {
 			{
 				title: "Add Fitatu Meal Items",
 				description:
-					"Validates and submits products, recipes, or one-off custom items to a Fitatu meal. Provide productId and measureId for a product, raw recipeId and measureId for a recipe, or name and nutrition values for a custom item. The id field selects the variant. Deleted recipes and mismatched measures are rejected before synchronization. provisionalItemIds are not proof of persistence: wait and verify with get_day_plan_items.",
+					"Validates and submits products, recipes, or fallback one-off custom items to a Fitatu meal. Prefer a catalog product or recipe: search with search_food or search_recipes first, then provide productId and measureId for a product or raw recipeId and measureId for a recipe. Custom items are not preferred; use name and nutrition values only when no suitable catalog match exists. The id field selects the variant. Deleted recipes and mismatched measures are rejected before synchronization. provisionalItemIds are not proof of persistence: wait and verify with get_day_plan_items.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(
@@ -42,7 +42,7 @@ export class AddMealItemsTool {
 							.array(mealItemInputSchema)
 							.min(1)
 							.describe(
-								"One or more strict variants: {productId, measureId, ...}, {recipeId, measureId, ...}, or {name, energyKcal, ...}.",
+								"One or more strict variants. Prefer {productId, measureId, ...} or {recipeId, measureId, ...} selected through search_food or search_recipes. The {name, energyKcal, ...} custom variant is a fallback only when no suitable product or recipe exists.",
 							),
 					})
 					.strict(),

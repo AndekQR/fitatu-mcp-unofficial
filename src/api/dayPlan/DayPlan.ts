@@ -1,5 +1,5 @@
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
-import { DayPlanError } from "./DayPlanError.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { DayPlanMeal } from "./DayPlanMeal.ts";
 
 export class DayPlan {
@@ -15,11 +15,11 @@ export class DayPlan {
 
 	public static fromApiResponse(input: { data: unknown; date: string; userId: string }): DayPlan {
 		if (!ObjectUtils.isRecord(input.data)) {
-			throw new DayPlanError("DayPlan response was not a valid JSON object");
+			throw new FitatuResponseDecodeError("DayPlan response was not a valid JSON object");
 		}
 
 		if (!ObjectUtils.isRecord(input.data.dietPlan)) {
-			throw new DayPlanError("DayPlan response did not contain dietPlan");
+			throw new FitatuResponseDecodeError("DayPlan response did not contain dietPlan");
 		}
 
 		return new DayPlan({

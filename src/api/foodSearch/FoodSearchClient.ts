@@ -1,15 +1,18 @@
 import { DateUtils } from "../../shared/DateUtils.ts";
 import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
-import { ResponseUtils } from "../../shared/ResponseUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FoodType, type FoodTypeName } from "../dayPlan/FoodType.ts";
-import { createFitatuApiErrorDetails, getFitatuApiErrors } from "../fitatuApiClientBase/FitatuApiError.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
+import type { FitatuRequestFailure } from "../fitatuApiClientBase/FitatuClientFailure.ts";
+import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
+import { FitatuFallbackRunner } from "../fitatuApiClientBase/FitatuFallbackRunner.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
 import type { FoodSearchClientOptions } from "./FoodSearchClientOptions.ts";
-import { FoodSearchError } from "./FoodSearchError.ts";
 import type { FoodMeasure } from "./FoodMeasure.ts";
 import type { FoodNutrition } from "./FoodNutrition.ts";
 import type { FoodSearchItem } from "./FoodSearchItem.ts";
@@ -40,10 +43,16 @@ export class FoodSearchClient extends FitatuApiClientBase {
 	}
 
 	public async search(options: FoodSearchOptions): Promise<FoodSearchResult> {
-		const normalized = normalizeOptions(options);
+		const normalized = normalizeSearchOptions(options);
 		const userId = normalized.includeUserFood
-			? StringUtils.parseNonEmptyString(await this.getContextUserId(), "Fitatu user id is required")
+			? StringUtils.firstNonEmptyString(await this.getContextUserId())
 			: undefined;
+		if (normalized.includeUserFood && !userId) {
+			throw FitatuClientError.authentication({
+				operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+				message: "Fitatu user id is required",
+			});
+		}
 		const results: FoodSearchQueryResult[] = [];
 
 		for (const query of normalized.queries) {
@@ -57,14 +66,15 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		const searchSuccessCount = results.reduce((sum, result) => sum + result.searchSuccessCount, 0);
 
 		if (searchAttemptCount > 0 && searchSuccessCount === 0) {
-			const fitatuApiErrors = warningDetails.flatMap((warning) => [
-				...(warning.fitatuApiErrors ?? []),
-				...(warning.fitatuApiError ? [warning.fitatuApiError] : []),
-			]);
-			throw new FoodSearchError("All Fitatu food search requests failed", {
-				statusCode: fitatuApiErrors[0]?.statusCode,
-				fitatuApiErrors,
-			});
+			const errors = warningDetails.map((warning) => warning.clientError);
+			const finalError = errors.at(-1);
+			if (finalError) {
+				const attempts = errors.slice(0, -1).flatMap(toRequestFailures);
+				throw finalError.withAttempts(
+					[...attempts, ...finalError.attempts],
+					"All Fitatu food search requests failed",
+				);
+			}
 		}
 
 		return {
@@ -79,11 +89,26 @@ export class FoodSearchClient extends FitatuApiClientBase {
 	}
 
 	public async getAvailableMeasureIds(foodId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>> {
-		const normalizedFoodId = StringUtils.parseStringOrSafeInteger(foodId, "foodId is required");
+		const measures = await this.getAvailableMeasures(foodId, foodType);
+		return new Set(measures.flatMap((measure) => (measure.measureId === null ? [] : [measure.measureId])));
+	}
+
+	public async getAvailableMeasures(
+		foodId: string | number,
+		foodType: FoodTypeName,
+	): Promise<readonly FoodMeasure[]> {
+		let normalizedFoodId: string | number;
+		try {
+			normalizedFoodId = StringUtils.parseStringOrSafeInteger(foodId, "foodId is required");
+			FoodType.resolve(foodType, "PRODUCT", "foodType");
+		} catch (error) {
+			if (!(error instanceof ValidationError)) {
+				throw error;
+			}
+			throw invalidFoodSearchRequest(error);
+		}
 		const details = await this.getFoodDetails(String(normalizedFoodId), foodType);
-		return new Set(
-			normalizeMeasures(details).flatMap((measure) => (measure.measureId === null ? [] : [measure.measureId])),
-		);
+		return mergeAvailableMeasuresById(normalizeMeasures(details));
 	}
 
 	private async searchOne(
@@ -114,7 +139,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				});
 				searchSuccessCount += 1;
 			} catch (error) {
-				if (!(error instanceof FoodSearchError)) {
+				if (!(error instanceof FitatuClientError)) {
 					throw error;
 				}
 				const warning = `public search failed for query='${query}': ${safeWarningMessage(error)}`;
@@ -127,7 +152,13 @@ export class FoodSearchClient extends FitatuApiClientBase {
 
 		if (options.includeUserFood) {
 			searchAttemptCount += 1;
-			const normalizedUserId = StringUtils.parseNonEmptyString(userId, "Fitatu user id is required");
+			const normalizedUserId = StringUtils.firstNonEmptyString(userId);
+			if (!normalizedUserId) {
+				throw FitatuClientError.authentication({
+					operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+					message: "Fitatu user id is required",
+				});
+			}
 			let rows: readonly Record<string, unknown>[];
 			try {
 				rows = await this.fetchSearchRows({
@@ -142,7 +173,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				});
 				searchSuccessCount += 1;
 			} catch (error) {
-				if (!(error instanceof FoodSearchError)) {
+				if (!(error instanceof FitatuClientError)) {
 					throw error;
 				}
 				const warning = `user search failed for query='${query}': ${safeWarningMessage(error)}`;
@@ -207,27 +238,22 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			readonly failureMessage: string;
 		}[],
 	): Promise<readonly Record<string, unknown>[]> {
-		const fitatuApiErrors = [];
-
-		for (const variant of variants) {
-			const response = await this.fetchFitatuApi({
-				method: "GET",
-				path: variant.path,
-				query: variant.query,
-				headers: variant.headers,
-			});
-
-			if (response.ok) {
-				return extractRows(await response.json());
-			}
-
-			fitatuApiErrors.push(await createFitatuApiErrorDetails(response, { method: "GET", path: variant.path }));
-		}
-
-		throw new FoodSearchError(variants[0]?.failureMessage ?? "Fitatu food search request failed", {
-			statusCode: fitatuApiErrors.at(-1)?.statusCode,
-			fitatuApiErrors,
-		});
+		return FitatuFallbackRunner.run(
+			variants,
+			(variant) =>
+				this.requestJson({
+					operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+					method: "GET",
+					path: variant.path,
+					endpointTemplate: endpointTemplateForSearchPath(variant.path),
+					query: variant.query,
+					headers: variant.headers,
+					failureMessage: variant.failureMessage,
+					invalidResponseMessage: "Fitatu search response was invalid",
+					decoder: extractRows,
+				}),
+			(error) => error.failure.kind === "http",
+		);
 	}
 
 	private async withDetails(
@@ -251,7 +277,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 					item.foodType?.trim().toUpperCase() === "RECIPE" ? "RECIPE" : "PRODUCT",
 				);
 			} catch (error) {
-				if (!(error instanceof FoodSearchError)) {
+				if (!(error instanceof FitatuClientError)) {
 					throw error;
 				}
 				const warning = `${item.source} details failed for foodId=${item.foodId}: ${safeWarningMessage(error)}`;
@@ -275,26 +301,21 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			foodType === "RECIPE"
 				? [`/recipes/${encodedFoodId}`]
 				: [`/products/${encodedFoodId}`, `/v2/products/${encodedFoodId}`, `/v3/products/${encodedFoodId}`];
-		const fitatuApiErrors = [];
-
-		for (const path of paths) {
-			const response = await this.fetchFitatuApi({
-				method: "GET",
-				path,
-				headers: { accept: DEFAULT_ACCEPT_HEADER },
-			});
-
-			if (response.ok) {
-				return ResponseUtils.parseJsonObject(response, "Fitatu response was not a valid JSON object");
-			}
-
-			fitatuApiErrors.push(await createFitatuApiErrorDetails(response, { method: "GET", path }));
-		}
-
-		throw new FoodSearchError("Fitatu product details request failed", {
-			statusCode: fitatuApiErrors.at(-1)?.statusCode,
-			fitatuApiErrors,
-		});
+		return FitatuFallbackRunner.run(
+			paths,
+			(path) =>
+				this.requestJson({
+					operation: FITATU_CLIENT_OPERATIONS.foodDetailsGet,
+					method: "GET",
+					path,
+					endpointTemplate: endpointTemplateForDetailsPath(path),
+					headers: { accept: DEFAULT_ACCEPT_HEADER },
+					failureMessage: "Fitatu product details request failed",
+					invalidResponseMessage: "Fitatu response was not a valid JSON object",
+					decoder: extractDetails,
+				}),
+			(error) => error.failure.kind === "http",
+		);
 	}
 
 	private normalizeRows(
@@ -394,6 +415,16 @@ export class FoodSearchClient extends FitatuApiClientBase {
 	}
 }
 
+function normalizeSearchOptions(options: FoodSearchOptions): NormalizedFoodSearchOptions {
+	try {
+		return normalizeOptions(options);
+	} catch (error) {
+		if (error instanceof FitatuClientError) throw error;
+		if (!(error instanceof ValidationError)) throw error;
+		throw invalidFoodSearchRequest(error);
+	}
+}
+
 function normalizeOptions(options: FoodSearchOptions): NormalizedFoodSearchOptions {
 	const queries = normalizeQueries(options.queries);
 	const limit = NumberUtils.parseIntegerInRange(
@@ -412,7 +443,10 @@ function normalizeOptions(options: FoodSearchOptions): NormalizedFoodSearchOptio
 	const includePublicFood = options.includePublicFood ?? true;
 
 	if (!includeUserFood && !includePublicFood) {
-		throw new FoodSearchError("At least one food source must be enabled");
+		throw FitatuClientError.invalidRequest({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: "At least one food source must be enabled",
+		});
 	}
 
 	return {
@@ -431,10 +465,16 @@ function normalizeOptions(options: FoodSearchOptions): NormalizedFoodSearchOptio
 
 function normalizeQueries(queries: readonly string[] | undefined): readonly string[] {
 	if (!queries) {
-		throw new FoodSearchError("queries is required");
+		throw FitatuClientError.invalidRequest({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: "queries is required",
+		});
 	}
 	if (queries.length === 0) {
-		throw new FoodSearchError("queries must not be empty");
+		throw FitatuClientError.invalidRequest({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: "queries must not be empty",
+		});
 	}
 
 	return queries.map((value) =>
@@ -447,7 +487,7 @@ function extractRows(data: unknown): readonly Record<string, unknown>[] {
 		return data.filter(ObjectUtils.isRecord);
 	}
 	if (!ObjectUtils.isRecord(data)) {
-		throw new FoodSearchError("Fitatu search response was not a valid JSON object or array");
+		throw new FitatuResponseDecodeError("Fitatu search response was not a valid JSON object or array");
 	}
 
 	const nested = recordOrUndefined(data.data);
@@ -553,6 +593,24 @@ function deduplicateMeasures(measures: readonly FoodMeasure[]): readonly FoodMea
 	}
 
 	return deduplicated;
+}
+
+function mergeAvailableMeasuresById(measures: readonly FoodMeasure[]): readonly FoodMeasure[] {
+	const byId = new Map<string, FoodMeasure>();
+	for (const measure of measures) {
+		if (measure.measureId === null) {
+			continue;
+		}
+		const existing = byId.get(measure.measureId);
+		byId.set(measure.measureId, {
+			measureId: measure.measureId,
+			measureName: existing?.measureName ?? measure.measureName,
+			weightG: existing?.weightG ?? measure.weightG,
+			unit: existing?.unit ?? measure.unit,
+			energyKcal: existing?.energyKcal ?? measure.energyKcal,
+		});
+	}
+	return [...byId.values()];
 }
 
 function nutritionFromRecord(record: Record<string, unknown>): FoodNutrition {
@@ -737,32 +795,63 @@ function isNonEmptyString(value: string | null): value is string {
 
 function toWarningDetail(
 	message: string,
-	error: unknown,
+	error: FitatuClientError,
 	context: {
 		readonly query?: string;
 		readonly source?: FoodSearchSource;
 		readonly foodId?: string;
 	},
 ): FoodSearchWarningDetail {
-	const fitatuApiErrors = getFitatuApiErrors(error);
 	return {
 		message,
-		errorName: error instanceof Error ? error.name : "UnknownError",
+		clientError: error,
 		...context,
-		...(fitatuApiErrors.length === 1 ? { fitatuApiError: fitatuApiErrors[0] } : {}),
-		...(fitatuApiErrors.length > 1 ? { fitatuApiErrors } : {}),
 	};
 }
 
-function safeWarningMessage(error: unknown): string {
-	const message = error instanceof Error ? error.message : "unknown error";
-	const fitatuApiErrors = getFitatuApiErrors(error);
-	const firstFitatuApiError = fitatuApiErrors[0];
-	if (!firstFitatuApiError) {
-		return message;
+function safeWarningMessage(error: FitatuClientError): string {
+	if (error.failure.kind !== "http") {
+		return error.message;
 	}
 
-	const statusText = firstFitatuApiError.statusText ? ` ${firstFitatuApiError.statusText}` : "";
-	const upstreamMessage = firstFitatuApiError.upstreamMessage ? `: ${firstFitatuApiError.upstreamMessage}` : "";
-	return `${message} (HTTP ${firstFitatuApiError.statusCode}${statusText}${upstreamMessage})`;
+	const statusText = error.failure.statusText ? ` ${error.failure.statusText}` : "";
+	const upstreamMessage = error.failure.upstreamMessage ? `: ${error.failure.upstreamMessage}` : "";
+	return `${error.message} (HTTP ${error.failure.statusCode}${statusText}${upstreamMessage})`;
+}
+
+function invalidFoodSearchRequest(error: unknown): FitatuClientError {
+	return FitatuClientError.invalidRequest({
+		operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+		message: error instanceof Error ? error.message : "Food search request was invalid",
+	});
+}
+
+function extractDetails(data: unknown): Record<string, unknown> {
+	if (!ObjectUtils.isRecord(data)) {
+		throw new FitatuResponseDecodeError("Fitatu response was not a valid JSON object");
+	}
+	return data;
+}
+
+function toRequestFailures(error: FitatuClientError): FitatuRequestFailure[] {
+	const failures = [...error.attempts];
+	if (
+		error.failure.kind === "http" ||
+		error.failure.kind === "transport" ||
+		error.failure.kind === "invalidResponse"
+	) {
+		failures.push(error.failure);
+	}
+	return failures;
+}
+
+function endpointTemplateForSearchPath(path: string): string {
+	return path.startsWith("/search/food/user/") ? "/search/food/user/:userId" : "/search/new/food";
+}
+
+function endpointTemplateForDetailsPath(path: string): string {
+	if (path.startsWith("/recipes/")) return "/recipes/:foodId";
+	if (path.startsWith("/v2/")) return "/v2/products/:foodId";
+	if (path.startsWith("/v3/")) return "/v3/products/:foodId";
+	return "/products/:foodId";
 }

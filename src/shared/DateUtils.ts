@@ -1,3 +1,5 @@
+import { ValidationError } from "./ValidationError.ts";
+
 export interface IsoDateValidationOptions {
 	readonly fieldName?: string;
 	readonly formatErrorMessage?: string;
@@ -9,7 +11,7 @@ export interface IsoDateValidationOptions {
 export class DateUtils {
 	public static toLocalDateString(date: unknown = new Date()): string {
 		if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-			throw new Error("Value must be a valid date");
+			throw new ValidationError("Value must be a valid date");
 		}
 
 		const year = date.getFullYear();
@@ -21,13 +23,13 @@ export class DateUtils {
 	public static validateIsoDate(value: unknown, options: IsoDateValidationOptions = {}): string {
 		const fieldName = options.fieldName ?? "date";
 		if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
-			throw new Error(options.formatErrorMessage ?? `${fieldName} must use YYYY-MM-DD format`);
+			throw new ValidationError(options.formatErrorMessage ?? `${fieldName} must use YYYY-MM-DD format`);
 		}
 
 		const date = value.trim();
 		const year = Number(date.slice(0, 4));
 		if (options.minimumYear !== undefined && year < options.minimumYear) {
-			throw new Error(
+			throw new ValidationError(
 				options.minimumYearErrorMessage ??
 					`${fieldName} year must be greater than or equal to ${options.minimumYear}`,
 			);
@@ -35,7 +37,7 @@ export class DateUtils {
 
 		const parsed = new Date(`${date}T00:00:00.000Z`);
 		if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
-			throw new Error(options.calendarErrorMessage ?? `${fieldName} must be a valid calendar date`);
+			throw new ValidationError(options.calendarErrorMessage ?? `${fieldName} must be a valid calendar date`);
 		}
 
 		return date;

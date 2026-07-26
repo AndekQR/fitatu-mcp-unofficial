@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
 import type { MealItemInput, MealItemKind } from "../../services/dayPlan/MealItemTypes.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
 const catalogMealItemInputShape = {
@@ -53,7 +53,7 @@ const customMealItemInputSchema = z
 	})
 	.strict()
 	.describe(
-		"One-off custom item: provide name and energyKcal, with optional macros. Do not provide productId, recipeId, measureId, or measureQuantity.",
+		"Fallback-only one-off custom item; this is not the preferred way to add food. First search for a suitable product or recipe with search_food or search_recipes and add that catalog item instead. Use this variant only when no suitable catalog match exists, providing name and energyKcal with optional macros. Do not provide productId, recipeId, measureId, or measureQuantity.",
 	);
 
 export const mealItemInputSchema = z.union([
@@ -221,5 +221,5 @@ export function toMealItemKind(input: z.infer<typeof itemKindSchema> | undefined
 }
 
 export function createSafeMealItemErrorResult(toolName: string, fallbackMessage: string, error: unknown) {
-	return createToolErrorResult(toolName, fallbackMessage, error);
+	return ToolErrorResult.create(toolName, fallbackMessage, error);
 }

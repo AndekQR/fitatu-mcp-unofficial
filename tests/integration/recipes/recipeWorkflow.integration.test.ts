@@ -3,7 +3,7 @@ import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
 import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
-import { RecipeError } from "../../../src/api/recipes/RecipeError.ts";
+import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import type { RecipeDetails } from "../../../src/api/recipes/RecipeDetails.ts";
 import type { RecipeSearchResult } from "../../../src/api/recipes/RecipeSearchResult.ts";
 import { RecipeService } from "../../../src/services/recipes/RecipeService.ts";
@@ -68,7 +68,17 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 			deleted: false,
 		});
 		expect(created.details.ingredients).toHaveLength(1);
+		expect(created.details.measures).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ measureId: "1" }),
+				expect.objectContaining({ measureId: "39" }),
+			]),
+		);
 		expect(created.warnings).toEqual([]);
+		const servingMeasure = created.details.measures.find((measure) => measure.measureId === "39");
+		if (!servingMeasure?.measureId) {
+			throw new Error("Expected the created recipe to expose Fitatu's serving measure");
+		}
 
 		const read = await recipeService.getRecipe(created.recipeId);
 		expect(read.name).toBe(uniqueName);
@@ -108,7 +118,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 				{
 					recipeId: created.recipeId,
 					foodType: "RECIPE",
-					measureId: "39",
+					measureId: servingMeasure.measureId,
 					measureQuantity: 1,
 					ingredientsServing: created.details.servings,
 					eaten: false,
@@ -214,7 +224,11 @@ async function getRecipeOrMissing(recipeId: string): Promise<RecipeDetails | nul
 	try {
 		return await recipeService.getRecipe(recipeId);
 	} catch (error) {
-		if (error instanceof RecipeError && (error.statusCode === 404 || error.statusCode === 410)) {
+		if (
+			error instanceof FitatuClientError &&
+			error.failure.kind === "http" &&
+			(error.failure.statusCode === 404 || error.failure.statusCode === 410)
+		) {
 			return null;
 		}
 		throw error;

@@ -1,5 +1,6 @@
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
-import { RecipeError } from "./RecipeError.ts";
+import type { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { RecipeSearchItem } from "./RecipeSearchItem.ts";
 import type { RecipeSearchScope } from "./RecipeSearchScope.ts";
 import type { RecipeSearchSource } from "./RecipeSearchSource.ts";
@@ -8,6 +9,7 @@ export interface RecipeSearchWarning {
 	readonly code: "RECIPE_SOURCE_UNAVAILABLE";
 	readonly source: RecipeSearchSource;
 	readonly message: string;
+	readonly clientError: FitatuClientError;
 }
 
 export class RecipeSearchResult {
@@ -42,7 +44,7 @@ export class RecipeSearchResult {
 			return response.filter(ObjectUtils.isRecord);
 		}
 		if (!ObjectUtils.isRecord(response)) {
-			throw new RecipeError("Fitatu recipe search response was not a valid JSON object or array");
+			throw new FitatuResponseDecodeError("Fitatu recipe search response was not a valid JSON object or array");
 		}
 
 		const nested = ObjectUtils.isRecord(response.data) ? response.data : undefined;
@@ -55,6 +57,6 @@ export class RecipeSearchResult {
 		if (Array.isArray(nested?.items)) {
 			return nested.items.filter(ObjectUtils.isRecord);
 		}
-		throw new RecipeError("Fitatu recipe search response did not contain an items array");
+		throw new FitatuResponseDecodeError("Fitatu recipe search response did not contain an items array");
 	}
 }

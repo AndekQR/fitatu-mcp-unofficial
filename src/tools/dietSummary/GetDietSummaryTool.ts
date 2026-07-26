@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { DietSummaryProvider } from "../../services/dietSummary/DietSummaryService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 
@@ -106,7 +106,7 @@ export class GetDietSummaryTool {
 					const summary = await this.dietSummaryService.getDietSummary({ fromDate, toDate });
 					return createTextResult(summary, { keepEmptyArrayKeys: ["keyNutrients", "allNutrients", "daily"] });
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to fetch Fitatu diet summary.", error);
+					return ToolErrorResult.create(this.name, "Unable to fetch Fitatu diet summary.", error);
 				}
 			},
 		);

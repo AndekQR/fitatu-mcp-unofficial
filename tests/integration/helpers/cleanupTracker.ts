@@ -1,6 +1,6 @@
 import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
+import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
-import { RecipeError } from "../../../src/api/recipes/RecipeError.ts";
 
 interface TrackedMealItem {
 	readonly date: string;
@@ -91,7 +91,7 @@ export class CleanupTracker {
 				await this.recipeClient.deleteRecipe(recipeId);
 				this.recipeIds.delete(recipeId);
 			} catch (error) {
-				if (!isMissingRecipeError(error)) {
+				if (!isMissingRecipeClientFailure(error)) {
 					throw error;
 				}
 				this.recipeIds.delete(recipeId);
@@ -118,8 +118,12 @@ export class CleanupTracker {
 	}
 }
 
-function isMissingRecipeError(error: unknown): boolean {
-	return error instanceof RecipeError && (error.statusCode === 404 || error.statusCode === 410);
+function isMissingRecipeClientFailure(error: unknown): boolean {
+	return (
+		error instanceof FitatuClientError &&
+		error.failure.kind === "http" &&
+		(error.failure.statusCode === 404 || error.failure.statusCode === 410)
+	);
 }
 
 function isNotFoundError(error: unknown): boolean {

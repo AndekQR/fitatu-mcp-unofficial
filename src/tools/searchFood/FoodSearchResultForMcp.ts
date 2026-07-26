@@ -1,13 +1,13 @@
 import type { FoodSearchResult } from "../../services/foodSearch/FoodSearchTypes.ts";
-import type { FoodSearchWarningDetail } from "../../api/foodSearch/FoodSearchWarningDetail.ts";
 import { FoodSearchQueryResultForMcp } from "./FoodSearchQueryResultForMcp.ts";
+import { FoodSearchWarningDetailForMcp } from "./FoodSearchWarningDetailForMcp.ts";
 
 export class FoodSearchResultForMcp {
 	public readonly queryCount: number;
 	public readonly resultCount: number;
 	public readonly results: readonly FoodSearchQueryResultForMcp[];
 	public readonly warnings: FoodSearchResult["warnings"];
-	public readonly warningDetails: readonly Omit<FoodSearchWarningDetail, "foodId">[];
+	public readonly warningDetails: readonly FoodSearchWarningDetailForMcp[];
 
 	public constructor(result: FoodSearchResult) {
 		const reusableItems = result.items.filter((item) => item.foodType !== "CUSTOM_ITEM");
@@ -29,6 +29,6 @@ export class FoodSearchResultForMcp {
 					`Omitted non-reusable CUSTOM_ITEM candidate "${item.displayName}" from search results; create it directly with add_meal_items.`,
 			),
 		];
-		this.warningDetails = result.warningDetails.map(({ foodId: _foodId, ...detail }) => detail);
+		this.warningDetails = result.warningDetails.map((detail) => new FoodSearchWarningDetailForMcp(detail));
 	}
 }

@@ -2,8 +2,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { FoodSearchProvider } from "../../services/foodSearch/FoodSearchService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
+import {
+	FITATU_CLIENT_ERROR_EMPTY_ARRAY_KEYS,
+	FITATU_CLIENT_ERROR_NULL_KEYS,
+	fitatuClientErrorOutputSchema,
+} from "../shared/FitatuClientErrorOutputSchema.ts";
 import { FoodSearchResultForMcp } from "./FoodSearchResultForMcp.ts";
 
 const measureOutputSchema = z.object({
@@ -14,31 +19,13 @@ const measureOutputSchema = z.object({
 	energyKcal: z.number().optional().describe("Energy for one unit of this measure in kcal, when available."),
 });
 
-const fitatuApiErrorOutputSchema = z.object({
-	statusCode: z.number().int().describe("HTTP status code returned by Fitatu."),
-	statusText: z.string().optional().describe("HTTP status text returned by Fitatu, when available."),
-	method: z.string().describe("HTTP method used for the upstream Fitatu request."),
-	path: z.string().describe("Fitatu API path that produced the warning or error."),
-	upstreamMessage: z.string().optional().describe("Safe upstream error message returned by Fitatu, when available."),
-	upstreamCode: z
-		.union([z.string(), z.number()])
-		.optional()
-		.describe("Safe upstream error code returned by Fitatu, when available."),
-	responseSnippet: z.string().optional().describe("Short safe snippet of the upstream response, when available."),
-});
-
 const warningDetailOutputSchema = z.object({
 	message: z.string().describe("Human-readable warning message."),
-	errorName: z.string().describe("Name of the internal error type that produced this warning."),
+	clientError: fitatuClientErrorOutputSchema.describe(
+		"Complete safe Fitatu client error that produced this warning.",
+	),
 	query: z.string().optional().describe("Search query related to the warning, when applicable."),
 	source: z.enum(["public", "user"]).optional().describe("Catalog source related to the warning, when applicable."),
-	fitatuApiError: fitatuApiErrorOutputSchema
-		.optional()
-		.describe("Single upstream Fitatu error related to the warning."),
-	fitatuApiErrors: z
-		.array(fitatuApiErrorOutputSchema)
-		.optional()
-		.describe("Multiple upstream Fitatu errors related to the warning."),
 });
 
 const foodCandidateBaseShape = {
@@ -176,10 +163,11 @@ export class SearchFoodTool {
 				try {
 					const result = await this.foodSearchService.search(input);
 					return createTextResult(new FoodSearchResultForMcp(result), {
-						keepEmptyArrayKeys: ["items"],
+						keepEmptyArrayKeys: ["items", ...FITATU_CLIENT_ERROR_EMPTY_ARRAY_KEYS],
+						keepNullKeys: FITATU_CLIENT_ERROR_NULL_KEYS,
 					});
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to search Fitatu food.", error);
+					return ToolErrorResult.create(this.name, "Unable to search Fitatu food.", error);
 				}
 			},
 		);

@@ -1,4 +1,4 @@
-import { DayPlanError } from "./DayPlanError.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
 
 export const FOOD_TYPES = ["PRODUCT", "RECIPE", "CUSTOM_ITEM"] as const;
 
@@ -13,7 +13,7 @@ export class FoodType {
 		if (this.isFoodType(normalized)) {
 			return normalized;
 		}
-		throw new DayPlanError(`${parameter ?? "foodType"} must be one of: ${FOOD_TYPES.join(", ")}`);
+		throw new ValidationError(`${parameter ?? "foodType"} must be one of: ${FOOD_TYPES.join(", ")}`);
 	}
 
 	public static fromUpstream(value: unknown, fallback: FoodTypeName): FoodTypeName {

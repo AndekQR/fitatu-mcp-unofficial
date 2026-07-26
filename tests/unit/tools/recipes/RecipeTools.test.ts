@@ -5,10 +5,12 @@ import type { RecipeSearchOptions } from "../../../../src/api/recipes/RecipeSear
 import type { RecipeSearchResult } from "../../../../src/api/recipes/RecipeSearchResult.ts";
 import type { RecipeUpdateInput } from "../../../../src/api/recipes/RecipeUpdateInput.ts";
 import type { RecipeWriteInput } from "../../../../src/api/recipes/RecipeWriteInput.ts";
-import { RecipeError } from "../../../../src/api/recipes/RecipeError.ts";
+import { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../../../../src/api/fitatuApiClientBase/FitatuClientOperations.ts";
 import type { RecipeProvider } from "../../../../src/services/recipes/RecipeService.ts";
 import type {
 	RecipeServiceCreateResult,
+	RecipeServiceDetails,
 	RecipeServiceReplaceResult,
 } from "../../../../src/services/recipes/RecipeServiceResult.ts";
 import type { RecipeWarning } from "../../../../src/services/recipes/RecipeWarning.ts";
@@ -58,7 +60,13 @@ describe("Recipe MCP tools", () => {
 		});
 		expect(parseTextContent(result)).toMatchObject({
 			recipeId: "100",
-			details: { name: "Test recipe" },
+			details: {
+				name: "Test recipe",
+				measures: [
+					{ measureId: "1", measureName: "g" },
+					{ measureId: "39", measureName: "portion" },
+				],
+			},
 			warnings: [],
 		});
 		expect(result.structuredContent).toMatchObject({
@@ -110,13 +118,17 @@ describe("Recipe MCP tools", () => {
 		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
 		expect(registered.config.description).toContain("Returns canonical recipe details");
 		expect(registered.config.outputSchema?.required).toEqual(
-			expect.arrayContaining(["recipeId", "name", "editable", "deleted", "mealSchema"]),
+			expect.arrayContaining(["recipeId", "name", "editable", "deleted", "mealSchema", "measures"]),
 		);
 		expect(service.getIds).toEqual(["100"]);
 		expect(payload).toMatchObject({
 			recipeId: "100",
 			name: "Test recipe",
 			steps: ["Prepare", "Serve"],
+			measures: [
+				{ measureId: "1", measureName: "g" },
+				{ measureId: "39", measureName: "portion" },
+			],
 		});
 		expect(payload).not.toHaveProperty("description");
 		expect(result.structuredContent).toMatchObject({
@@ -152,6 +164,19 @@ describe("Recipe MCP tools", () => {
 
 	it("search_recipes supports listing with an omitted query", async () => {
 		const service = new RecordingRecipeService();
+		const clientError = await FitatuClientError.http({
+			operation: FITATU_CLIENT_OPERATIONS.recipesSearch,
+			message: "Fitatu public recipe search failed",
+			method: "GET",
+			endpointTemplate: "/search/new/food",
+			response: new Response(null, { status: 503, statusText: "Service Unavailable" }),
+		});
+		service.searchWarnings.push({
+			code: "RECIPE_SOURCE_UNAVAILABLE",
+			source: "public",
+			message: "public recipe catalog was unavailable; results are partial.",
+			clientError,
+		});
 		const registered = await registerToolForTest(new SearchRecipesTool(service));
 		const result = await registered.invoke({ scope: "mine", page: 1, limit: 10 });
 
@@ -169,7 +194,29 @@ describe("Recipe MCP tools", () => {
 			limit: 10,
 			count: 1,
 			items: [{ recipeId: "100", name: "Test recipe", source: "mine", energyKcal: 100 }],
-			warnings: [],
+			warnings: [
+				{
+					code: "RECIPE_SOURCE_UNAVAILABLE",
+					source: "public",
+					message: "public recipe catalog was unavailable; results are partial.",
+					clientError: {
+						name: "FitatuClientError",
+						message: "Fitatu public recipe search failed",
+						operation: "recipes.search",
+						failure: {
+							kind: "http",
+							method: "GET",
+							endpointTemplate: "/search/new/food",
+							statusCode: 503,
+							statusText: "Service Unavailable",
+							upstreamMessage: null,
+							upstreamCode: null,
+							responseSnippet: null,
+						},
+						attempts: [],
+					},
+				},
+			],
 		});
 		expect(result.structuredContent).toMatchObject({ count: 1, items: [{ recipeId: "100" }] });
 	});
@@ -216,6 +263,12 @@ describe("Recipe MCP tools", () => {
 			previousRecipeId: "100",
 			recipeId: "200",
 			identityChanged: true,
+			details: {
+				measures: [
+					{ measureId: "1", measureName: "g" },
+					{ measureId: "39", measureName: "portion" },
+				],
+			},
 			warnings: [],
 		});
 		expect(result.structuredContent).toMatchObject({
@@ -333,23 +386,25 @@ describe("Recipe MCP tools", () => {
 		expect(parseTextContent(result)).toMatchObject({
 			status: "error",
 			toolName: "get_recipe",
-			message: "Unable to get Fitatu recipe.",
+			error: {
+				source: "internal",
+				name: "Error",
+				message: "Unable to get Fitatu recipe.",
+			},
 		});
 	});
 
 	it("redacts user ids and upstream messages from known recipe errors", async () => {
 		const service = new RecordingRecipeService(
-			new RecipeError("Fitatu recipe details request failed", {
-				statusCode: 400,
-				fitatuApiError: {
-					statusCode: 400,
-					statusText: "Bad Request",
-					method: "GET",
-					path: "/recipes-and-user-action/100/sensitive-user-id",
-					upstreamMessage: "Account daniel@example.com failed",
-					upstreamCode: "bad_recipe",
-					responseSnippet: '{"email":"daniel@example.com"}',
-				},
+			await FitatuClientError.http({
+				operation: FITATU_CLIENT_OPERATIONS.recipesGet,
+				message: "Fitatu recipe details request failed",
+				method: "GET",
+				endpointTemplate: "/recipes-and-user-action/:recipeId/:userId",
+				response: new Response(
+					JSON.stringify({ message: "Account daniel@example.com failed", email: "daniel@example.com" }),
+					{ status: 400, statusText: "Bad Request" },
+				),
 			}),
 		);
 		const registered = await registerToolForTest(new GetRecipeTool(service));
@@ -360,16 +415,18 @@ describe("Recipe MCP tools", () => {
 		expect(text).not.toContain("sensitive-user-id");
 		expect(text).not.toContain("daniel@example.com");
 		expect(parseTextContent(result)).toMatchObject({
-			fitatuApiError: {
-				path: "/recipes-and-user-action/100/:userId",
-				upstreamMessage: null,
-				responseSnippet: null,
+			error: {
+				source: "fitatuApi",
+				operation: "recipes.get",
+				failure: {
+					endpointTemplate: "/recipes-and-user-action/:recipeId/:userId",
+				},
 			},
 		});
 	});
 
 	it("maps missing recipe messages consistently without adding wrapper fields", async () => {
-		const missing = recipeApiError(404, "Not Found");
+		const missing = await recipeApiError(404, "Not Found");
 		const cases = [
 			{
 				tool: new GetRecipeTool(new RecordingRecipeService(missing)),
@@ -391,7 +448,13 @@ describe("Recipe MCP tools", () => {
 			const payload = parseTextContent(result) as Record<string, unknown>;
 
 			expect(result.isError).toBe(true);
-			expect(payload.message).toBe("Recipe 999 was not found or is not accessible.");
+			expect(payload).toMatchObject({
+				error: {
+					source: "fitatuApi",
+					message: "Fitatu recipe request failed",
+					failure: { kind: "http", statusCode: 404 },
+				},
+			});
 			expect(payload).not.toHaveProperty("code");
 			expect(payload).not.toHaveProperty("field");
 			expect(payload).not.toHaveProperty("retryable");
@@ -400,14 +463,20 @@ describe("Recipe MCP tools", () => {
 	});
 
 	it("maps a recipe search timeout to an actionable message without changing the wrapper", async () => {
-		const service = new RecordingRecipeService(recipeApiError(504, "Gateway Timeout"));
+		const service = new RecordingRecipeService(await recipeApiError(504, "Gateway Timeout"));
 		const registered = await registerToolForTest(new SearchRecipesTool(service));
 
 		const result = await registered.invoke({ query: "naleśniki", scope: "public" });
 		const payload = parseTextContent(result) as Record<string, unknown>;
 
 		expect(result.isError).toBe(true);
-		expect(payload.message).toBe("Fitatu recipe search timed out. Retry the request.");
+		expect(payload).toMatchObject({
+			error: {
+				source: "fitatuApi",
+				message: "Fitatu recipe request failed",
+				failure: { kind: "http", statusCode: 504 },
+			},
+		});
 		expect(payload).not.toHaveProperty("code");
 		expect(payload).not.toHaveProperty("field");
 		expect(payload).not.toHaveProperty("retryable");
@@ -422,7 +491,8 @@ class RecordingRecipeService implements RecipeProvider {
 	public readonly updateInputs: { recipeId: string | number; input: RecipeUpdateInput }[] = [];
 	public readonly deleteInputs: { recipeId: string | number; expectedName: string }[] = [];
 	public readonly writeWarnings: RecipeWarning[] = [];
-	public detailsValue: RecipeDetails = details();
+	public readonly searchWarnings: RecipeSearchResult["warnings"][number][] = [];
+	public detailsValue: RecipeServiceDetails = details();
 
 	public constructor(private readonly error?: Error) {}
 
@@ -432,7 +502,7 @@ class RecordingRecipeService implements RecipeProvider {
 		return { recipeId: "100", details: details(), warnings: [...this.writeWarnings] };
 	}
 
-	public async getRecipe(recipeId: string | number): Promise<RecipeDetails> {
+	public async getRecipe(recipeId: string | number): Promise<RecipeServiceDetails> {
 		this.throwWhenConfigured();
 		this.getIds.push(recipeId);
 		return this.detailsValue;
@@ -448,7 +518,7 @@ class RecordingRecipeService implements RecipeProvider {
 			limit: options.limit ?? 20,
 			count: 1,
 			items: [{ recipeId: "100", name: "Test recipe", source: "mine", energyKcal: 100 }],
-			warnings: [],
+			warnings: [...this.searchWarnings],
 		};
 	}
 
@@ -480,7 +550,7 @@ class RecordingRecipeService implements RecipeProvider {
 	}
 }
 
-function details(overrides: Partial<RecipeDetails> = {}): RecipeDetails {
+function details(overrides: Partial<RecipeDetails> = {}): RecipeServiceDetails {
 	return {
 		recipeId: "100",
 		userId: "test-user",
@@ -497,22 +567,21 @@ function details(overrides: Partial<RecipeDetails> = {}): RecipeDetails {
 		ingredients: [],
 		nutritionPerServing: { energyKcal: 100, proteinG: 10, fatG: 5, carbohydrateG: 12 },
 		weightPerServingG: null,
+		measures: [
+			{ measureId: "1", measureName: "g", weightG: 1, unit: null, energyKcal: 0.5 },
+			{ measureId: "39", measureName: "portion", weightG: 200, unit: null, energyKcal: 100 },
+		],
 		categories: null,
 		...overrides,
 	};
 }
 
-function recipeApiError(statusCode: number, statusText: string): RecipeError {
-	return new RecipeError("Fitatu recipe request failed", {
-		statusCode,
-		fitatuApiError: {
-			statusCode,
-			statusText,
-			method: "GET",
-			path: "/recipes-and-user-action/999/test-user",
-			upstreamMessage: null,
-			upstreamCode: null,
-			responseSnippet: null,
-		},
+function recipeApiError(statusCode: number, statusText: string): Promise<FitatuClientError> {
+	return FitatuClientError.http({
+		operation: FITATU_CLIENT_OPERATIONS.recipesGet,
+		message: "Fitatu recipe request failed",
+		method: "GET",
+		endpointTemplate: "/recipes-and-user-action/:recipeId/:userId",
+		response: new Response(null, { status: statusCode, statusText }),
 	});
 }

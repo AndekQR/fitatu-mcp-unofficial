@@ -1,10 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
-import { DayPlanError } from "../../../src/api/dayPlan/DayPlanError.ts";
 import type { GetEnergySummaryResponse } from "../../../src/api/dietPlan/GetEnergySummaryResponse.ts";
 import type { GetSummaryResponse } from "../../../src/api/dietPlan/GetSummaryResponse.ts";
 import { FitatuUserProfile } from "../../../src/api/users/FitatuUserProfile.ts";
+import { ServiceError } from "../../../src/services/ServiceError.ts";
+import { SERVICE_ERROR_CODES } from "../../../src/services/ServiceErrorCode.ts";
 import { DietSummaryService } from "../../../src/services/dietSummary/DietSummaryService.ts";
 import type { DietSummaryResult } from "../../../src/services/dietSummary/DietSummaryTypes.ts";
 import { GetDietSummaryTool } from "../../../src/tools/dietSummary/GetDietSummaryTool.ts";
@@ -231,7 +232,11 @@ describe("GetDietSummaryTool integration", () => {
 		const tool = new GetDietSummaryTool(
 			new FakeDietSummaryService(
 				undefined,
-				new DayPlanError("fromDate must be before or equal to toDate"),
+				new ServiceError(
+					"fromDate must be before or equal to toDate",
+					"invalidInput",
+					SERVICE_ERROR_CODES.invalidDateRange,
+				),
 			) as unknown as DietSummaryService,
 		);
 		const handler = registerToolForTest(tool);
@@ -240,8 +245,13 @@ describe("GetDietSummaryTool integration", () => {
 		const expectedError = {
 			status: "error",
 			toolName: "get_diet_summary",
-			errorName: "DayPlanError",
-			message: "fromDate must be before or equal to toDate",
+			error: {
+				source: "service",
+				name: "ServiceError",
+				message: "fromDate must be before or equal to toDate",
+				kind: "invalidInput",
+				code: "INVALID_DATE_RANGE",
+			},
 		};
 
 		expect(result.isError).toBe(true);
@@ -274,8 +284,11 @@ describe("GetDietSummaryTool integration", () => {
 		expect(JSON.parse(content.text)).toEqual({
 			status: "error",
 			toolName: "get_diet_summary",
-			errorName: "Error",
-			message: "Unable to fetch Fitatu diet summary.",
+			error: {
+				source: "internal",
+				name: "Error",
+				message: "Unable to fetch Fitatu diet summary.",
+			},
 		});
 		expect(content.text).not.toContain("upstream token secret");
 	});
@@ -393,8 +406,7 @@ function registerToolForTest(
 	tool: GetDietSummaryTool,
 ): (input: { readonly fromDate: string; readonly toDate: string }) => Promise<CallToolResult> {
 	let handler:
-		| ((input: { readonly fromDate: string; readonly toDate: string }) => Promise<CallToolResult>)
-		| undefined;
+		((input: { readonly fromDate: string; readonly toDate: string }) => Promise<CallToolResult>) | undefined;
 	const server = {
 		registerTool: (
 			_name: string,

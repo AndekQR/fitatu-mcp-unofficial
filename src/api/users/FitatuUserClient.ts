@@ -1,8 +1,8 @@
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
-import { createFitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
-import { FitatuUserError } from "./FitatuUserError.ts";
+import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
 import type { FitatuUserClientOptions } from "./FitatuUserClientOptions.ts";
 import { FitatuUserProfile } from "./FitatuUserProfile.ts";
 
@@ -27,9 +27,15 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	}
 
 	public async getAuthenticatedUser(): Promise<FitatuUserProfile> {
-		return this.getUser(
-			StringUtils.parseNonEmptyString(await this.getContextUserId(), "Fitatu user id is required"),
-		);
+		const userId = StringUtils.firstNonEmptyString(await this.getContextUserId());
+		if (!userId) {
+			throw FitatuClientError.authentication({
+				operation: FITATU_CLIENT_OPERATIONS.usersGet,
+				message: "Fitatu user id is required",
+			});
+		}
+
+		return this.getUser(userId);
 	}
 
 	public async getCurrentUser(): Promise<FitatuUserProfile> {
@@ -37,7 +43,13 @@ export class FitatuUserClient extends FitatuApiClientBase {
 	}
 
 	public async getUser(userId: string): Promise<FitatuUserProfile> {
-		const normalizedUserId = StringUtils.parseNonEmptyString(userId, "Fitatu user id is required");
+		const normalizedUserId = StringUtils.firstNonEmptyString(userId);
+		if (!normalizedUserId) {
+			throw FitatuClientError.invalidRequest({
+				operation: FITATU_CLIENT_OPERATIONS.usersGet,
+				message: "Fitatu user id is required",
+			});
+		}
 		const path = `/users/${encodeURIComponent(normalizedUserId)}`;
 
 		const cachedUser = this.users.get(normalizedUserId);
@@ -45,20 +57,15 @@ export class FitatuUserClient extends FitatuApiClientBase {
 			return cachedUser;
 		}
 
-		const response = await this.fetchFitatuApi({
+		const user = await this.requestJson({
+			operation: FITATU_CLIENT_OPERATIONS.usersGet,
 			method: "GET",
 			path,
+			endpointTemplate: "/users/:userId",
+			failureMessage: "Fitatu user request failed",
+			invalidResponseMessage: "Fitatu user response was invalid",
+			decoder: FitatuUserProfile.fromApiResponse,
 		});
-
-		if (!response.ok) {
-			const fitatuApiError = await createFitatuApiErrorDetails(response, { method: "GET", path });
-			throw new FitatuUserError("Fitatu user request failed", {
-				statusCode: response.status,
-				fitatuApiError,
-			});
-		}
-
-		const user = FitatuUserProfile.fromApiResponse(await response.json());
 		this.users.set(normalizedUserId, user);
 
 		return user;

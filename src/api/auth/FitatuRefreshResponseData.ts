@@ -1,6 +1,6 @@
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
-import { FitatuAuthError } from "./FitatuAuthError.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import type { FitatuAuthSession } from "./FitatuAuthSession.ts";
 
 export class FitatuRefreshResponseData {
@@ -14,21 +14,17 @@ export class FitatuRefreshResponseData {
 
 	public static fromApiResponse(data: unknown): FitatuRefreshResponseData {
 		if (!ObjectUtils.isRecord(data)) {
-			throw new FitatuAuthError("Refresh response was not a valid JSON object");
+			throw new FitatuResponseDecodeError("Refresh response was not a valid JSON object");
 		}
 
-		const token = StringUtils.parseFirstNonEmptyString(
-			[data.token, data.access_token],
-			"Refresh response did not contain an access token",
-		);
+		const token = StringUtils.firstNonEmptyString(data.token, data.access_token);
+		if (!token) {
+			throw new FitatuResponseDecodeError("Refresh response did not contain an access token");
+		}
 
-		return new FitatuRefreshResponseData(
-			token,
-			StringUtils.parseOptionalFirstNonEmptyString(
-				[data.refresh_token, data.refreshToken],
-				"Refresh response refresh token must be a non-empty string",
-			),
-		);
+		const refreshToken = parseOptionalRefreshToken(data.refresh_token, data.refreshToken);
+
+		return new FitatuRefreshResponseData(token, refreshToken);
 	}
 
 	public toSession(previousSession: FitatuAuthSession): FitatuAuthSession {
@@ -38,4 +34,17 @@ export class FitatuRefreshResponseData {
 			fitatuUserId: previousSession.fitatuUserId,
 		};
 	}
+}
+
+function parseOptionalRefreshToken(...values: readonly unknown[]): string | undefined {
+	if (values.every((value) => value === null || value === undefined)) {
+		return undefined;
+	}
+
+	const refreshToken = StringUtils.firstNonEmptyString(...values);
+	if (!refreshToken) {
+		throw new FitatuResponseDecodeError("Refresh response refresh token must be a non-empty string");
+	}
+
+	return refreshToken;
 }

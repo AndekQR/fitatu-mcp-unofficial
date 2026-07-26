@@ -10,6 +10,8 @@ import {
 	MealItemMutationService,
 	type MealItemMutationProvider,
 } from "../../../../src/services/dayPlan/MealItemMutationService.ts";
+import { ServiceError } from "../../../../src/services/ServiceError.ts";
+import { SERVICE_ERROR_CODES } from "../../../../src/services/ServiceErrorCode.ts";
 import { AddMealItemsTool } from "../../../../src/tools/addMealItems/AddMealItemsTool.ts";
 import { MoveMealItemTool } from "../../../../src/tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "../../../../src/tools/mealItems/RemoveMealItemsTool.ts";
@@ -673,11 +675,16 @@ describe("meal item mutation tools", () => {
 		expect(service.calls).toHaveLength(0);
 	});
 
-	it.each(errorCases)("$name redacts unexpected service errors", async (testCase) => {
-		const service = new FakeMealItemMutationService(
-			successCases[0].result,
-			new Error(`secret ${testCase.name} response`),
-		);
+	it.each(errorCases)("$name maps service and unexpected errors to the correct envelope", async (testCase) => {
+		const isServiceErrorCase = testCase.name === "add_meal_items";
+		const error = isServiceErrorCase
+			? new ServiceError(
+					"Measure at items[0].measureId does not belong to the selected food.",
+					"invalidInput",
+					SERVICE_ERROR_CODES.invalidMealItemMeasure,
+				)
+			: new Error(`secret ${testCase.name} response`);
+		const service = new FakeMealItemMutationService(successCases[0].result, error);
 		const registered = await registerToolForTest(testCase.createTool(service));
 
 		const result = await registered.invoke(testCase.input);
@@ -686,11 +693,24 @@ describe("meal item mutation tools", () => {
 		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: testCase.name,
-			errorName: "Error",
-			message: testCase.fallbackMessage,
+			error: isServiceErrorCase
+				? {
+						source: "service",
+						name: "ServiceError",
+						message: "Measure at items[0].measureId does not belong to the selected food.",
+						kind: "invalidInput",
+						code: SERVICE_ERROR_CODES.invalidMealItemMeasure,
+					}
+				: {
+						source: "internal",
+						name: "Error",
+						message: testCase.fallbackMessage,
+					},
 		});
 		expect(result.structuredContent).toBeUndefined();
-		expect(getTextContent(result)).not.toContain(`secret ${testCase.name} response`);
+		if (!isServiceErrorCase) {
+			expect(getTextContent(result)).not.toContain(`secret ${testCase.name} response`);
+		}
 	});
 });
 

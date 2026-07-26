@@ -1,3 +1,5 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { FitatuDietGeneration } from "./FitatuDietGeneration.ts";
 import { FitatuPromoCodePlan } from "./FitatuPromoCodePlan.ts";
 import { FitatuUserAppConfig } from "./FitatuUserAppConfig.ts";
@@ -55,6 +57,10 @@ export class FitatuUserProfile {
 	}
 
 	public static fromApiResponse(data: unknown): FitatuUserProfile {
-		return new FitatuUserProfile(data as Record<string, unknown>);
+		if (!ObjectUtils.isRecord(data)) {
+			throw new FitatuResponseDecodeError("Fitatu user response was not a valid JSON object");
+		}
+
+		return new FitatuUserProfile(data);
 	}
 }

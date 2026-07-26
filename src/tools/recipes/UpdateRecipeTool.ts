@@ -1,11 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import {
 	RECIPE_EMPTY_ARRAY_KEYS,
-	normalizeRecipeToolError,
 	recipeDetailsOutputSchema,
 	recipeUpdateInputSchema,
 	recipeWarningOutputSchema,
@@ -28,7 +27,7 @@ export class UpdateRecipeTool {
 			{
 				title: "Update Fitatu Recipe",
 				description:
-					"Partially updates an owned active recipe identified by a raw recipeId. The same create limits apply. Pass preparation instructions as steps with one step per array item so Fitatu displays separate step fields. Omitted fields, including steps and mealSchema, are preserved; null clears nullable time fields, and [] clears lists. Raw public mealSchema values returned by get_recipe are not necessarily accepted mutation inputs. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned recipeId. Returns { previousRecipeId, recipeId, identityChanged, details, warnings }.",
+					"Partially updates an owned active recipe identified by a raw recipeId. The same create limits apply. Pass preparation instructions as steps with one step per array item so Fitatu displays separate step fields. Omitted fields, including steps and mealSchema, are preserved; null clears nullable time fields, and [] clears lists. Raw public mealSchema values returned by get_recipe are not necessarily accepted mutation inputs. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned recipeId. Returns { previousRecipeId, recipeId, identityChanged, details, warnings }; details.measures contains measureId values accepted by add_meal_items.",
 				inputSchema: recipeUpdateInputSchema,
 				outputSchema: {
 					previousRecipeId: recipeDetailsOutputSchema.shape.recipeId.describe(
@@ -74,11 +73,7 @@ export class UpdateRecipeTool {
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);
 				} catch (error) {
-					return createToolErrorResult(
-						this.name,
-						"Unable to update Fitatu recipe.",
-						normalizeRecipeToolError(error, { operation: "update", recipeId }),
-					);
+					return ToolErrorResult.create(this.name, "Unable to update Fitatu recipe.", error);
 				}
 			},
 		);

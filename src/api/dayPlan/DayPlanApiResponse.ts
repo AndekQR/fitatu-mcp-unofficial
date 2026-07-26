@@ -1,11 +1,11 @@
 import { JsonUtils } from "../../shared/JsonUtils.ts";
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
-import { DayPlanError } from "./DayPlanError.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 
 export function asRecord(value: unknown, fieldName: string): Record<string, unknown> {
 	if (!ObjectUtils.isRecord(value)) {
-		throw new DayPlanError(`${fieldName} was not a valid JSON object`);
+		throw new FitatuResponseDecodeError(`${fieldName} was not a valid JSON object`);
 	}
 
 	return value;
@@ -31,32 +31,32 @@ export function getApiProblemMessage(data: unknown): string | null {
 		return null;
 	}
 
-	const errorMessage = StringUtils.parseOptionalFirstNonEmptyString(
-		[data.errorMessage, data.error],
-		"Fitatu problem message must be a non-empty string",
-	);
+	const errorMessage = parseOptionalProblemMessage(data.errorMessage, data.error);
 	if (errorMessage) {
 		return errorMessage;
 	}
 
 	if (data.ok === false) {
-		return (
-			StringUtils.parseOptionalFirstNonEmptyString(
-				[data.message],
-				"Fitatu problem message must be a non-empty string",
-			) ?? "Fitatu request failed"
-		);
+		return parseOptionalProblemMessage(data.message) ?? "Fitatu request failed";
 	}
 
 	const status = typeof data.status === "string" ? data.status.toLowerCase() : "";
 	if (["error", "failed", "failure"].includes(status)) {
-		return (
-			StringUtils.parseOptionalFirstNonEmptyString(
-				[data.message],
-				"Fitatu problem message must be a non-empty string",
-			) ?? "Fitatu request failed"
-		);
+		return parseOptionalProblemMessage(data.message) ?? "Fitatu request failed";
 	}
 
 	return null;
+}
+
+function parseOptionalProblemMessage(...values: readonly unknown[]): string | null {
+	if (values.every((value) => value === null || value === undefined)) {
+		return null;
+	}
+
+	const message = StringUtils.firstNonEmptyString(...values);
+	if (!message) {
+		throw new FitatuResponseDecodeError("Fitatu problem message must be a non-empty string");
+	}
+
+	return message;
 }

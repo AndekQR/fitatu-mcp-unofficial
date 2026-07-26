@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
-import { normalizeRecipeToolError, recipeIdInputSchema } from "./RecipeToolSupport.ts";
+import { recipeIdInputSchema } from "./RecipeToolSupport.ts";
 
 export class DeleteRecipeTool {
 	public readonly name = "delete_recipe";
@@ -50,11 +50,7 @@ export class DeleteRecipeTool {
 					const result = await this.recipeService.deleteRecipe(recipeId, expectedName);
 					return createTextResult({ ...result, recipeId: result.recipeId });
 				} catch (error) {
-					return createToolErrorResult(
-						this.name,
-						"Unable to delete Fitatu recipe.",
-						normalizeRecipeToolError(error, { operation: "delete", recipeId }),
-					);
+					return ToolErrorResult.create(this.name, "Unable to delete Fitatu recipe.", error);
 				}
 			},
 		);

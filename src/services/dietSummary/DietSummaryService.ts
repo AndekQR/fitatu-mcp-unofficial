@@ -1,4 +1,3 @@
-import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
 import type { GetEnergySummaryResponse } from "../../api/dietPlan/GetEnergySummaryResponse.ts";
 import type { GetSummaryResponse, SummaryMeasure } from "../../api/dietPlan/GetSummaryResponse.ts";
 import { SummaryClient } from "../../api/dietPlan/SummaryClient.ts";
@@ -15,6 +14,8 @@ import type {
 	DietSummaryResult,
 	NutrientStatus,
 } from "./DietSummaryTypes.ts";
+import { ServiceError } from "../ServiceError.ts";
+import { SERVICE_ERROR_CODES } from "../ServiceErrorCode.ts";
 
 interface SummaryApiClient {
 	getSummary(request: {
@@ -152,11 +153,22 @@ export class DietSummaryService implements DietSummaryProvider {
 		const fromDate = normalizeDate(request.fromDate, "fromDate");
 		const toDate = normalizeDate(request.toDate, "toDate");
 		if (fromDate > toDate) {
-			throw new DayPlanError("fromDate must be before or equal to toDate");
+			throw new ServiceError(
+				"fromDate must be before or equal to toDate",
+				"invalidInput",
+				SERVICE_ERROR_CODES.invalidDateRange,
+			);
 		}
 
 		const user = await this.userClient.getAuthenticatedUser();
-		const userId = StringUtils.parseNonEmptyString(user.id, "Fitatu user id is required");
+		const userId = StringUtils.firstNonEmptyString(user.id);
+		if (!userId) {
+			throw new ServiceError(
+				"Fitatu user id is required",
+				"authenticationRequired",
+				SERVICE_ERROR_CODES.authenticationRequired,
+			);
+		}
 		const [summary, energySummary] = await Promise.all([
 			this.summaryClient.getSummary({ userId, fromDate, toDate }),
 			this.summaryClient.getEnergySummary({ userId, fromDate, toDate }),
@@ -243,11 +255,19 @@ function nutrientStatus(current: number | null, min: number | null, max: number 
 }
 
 function normalizeDate(value: string, fieldName: string): string {
-	return DateUtils.validateIsoDate(value, {
-		fieldName,
-		minimumYear: 1,
-		minimumYearErrorMessage: `${fieldName} year must be between 0001 and 9999`,
-	});
+	try {
+		return DateUtils.validateIsoDate(value, {
+			fieldName,
+			minimumYear: 1,
+			minimumYearErrorMessage: `${fieldName} year must be between 0001 and 9999`,
+		});
+	} catch (error) {
+		throw new ServiceError(
+			error instanceof Error ? error.message : `${fieldName} was invalid`,
+			"invalidInput",
+			SERVICE_ERROR_CODES.invalidDateRange,
+		);
+	}
 }
 
 function eachDate(fromDate: string, toDate: string): readonly string[] {

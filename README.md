@@ -128,7 +128,8 @@ subsequent day-plan read.
 1. Call `search_food` to find product `productId` and `measureId` values for recipe ingredients.
 2. Call `create_recipe`; recipes are private unless `shared: true` is explicitly requested. A trimmed name must contain 1–255 characters, servings must be
    1–1000, a recipe may contain at most 50 ingredients, and each `measureQuantity` must be greater than zero and no more than 1,000,000.
-3. Store the returned raw numeric `recipeId`. All recipe-tool inputs and outputs use this unprefixed string.
+3. Store the returned raw numeric `recipeId`. `create_recipe`, `get_recipe`, and `update_recipe` return `measures`; copy `recipeId` with one listed
+   `measureId` to `add_meal_items` without searching for the newly created recipe again. All recipe-tool IDs use the unprefixed numeric string.
 4. Use `search_recipes` to list or search the authenticated user's recipes, the public catalog, or both. Queries are trimmed before matching. For
    `scope=all`, results from an available source are returned with `warnings[]` when the other source fails; the search fails only if both sources fail.
 5. Call `update_recipe` only for an owned, editable recipe. Always use the returned raw `recipeId` afterward because Fitatu may replace the recipe and

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { RecipeClient } from "../../../../src/api/recipes/RecipeClient.ts";
-import { RecipeError } from "../../../../src/api/recipes/RecipeError.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import { RecipeService } from "../../../../src/services/recipes/RecipeService.ts";
+import { ServiceError } from "../../../../src/services/ServiceError.ts";
+import { SERVICE_ERROR_CODES } from "../../../../src/services/ServiceErrorCode.ts";
 import { createAuthClientStub } from "../../support/authTestDouble.ts";
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
 
@@ -78,6 +79,12 @@ describe("RecipeService", () => {
 			previousRecipeId: "100",
 			recipeId: "200",
 			identityChanged: true,
+			details: {
+				measures: [
+					{ measureId: "1", measureName: "g" },
+					{ measureId: "39", measureName: "portion" },
+				],
+			},
 		});
 	});
 
@@ -86,7 +93,11 @@ describe("RecipeService", () => {
 		const service = createService(fetchStub);
 
 		await expect(service.updateRecipe("100", { name: "Changed" })).rejects.toEqual(
-			new RecipeError("Recipe 100 is not owned by the authenticated user"),
+			new ServiceError(
+				"Recipe 100 is not owned by the authenticated user",
+				"forbidden",
+				SERVICE_ERROR_CODES.recipeNotOwned,
+			),
 		);
 		expect(fetchStub.calls).toHaveLength(1);
 	});
@@ -108,7 +119,11 @@ describe("RecipeService", () => {
 		const service = createService(fetchStub);
 
 		await expect(service.deleteRecipe("100", "Wrong")).rejects.toEqual(
-			new RecipeError("expectedName did not match the current recipe name"),
+			new ServiceError(
+				"expectedName did not match the current recipe name",
+				"conflict",
+				SERVICE_ERROR_CODES.recipeNameMismatch,
+			),
 		);
 		expect(fetchStub.calls).toHaveLength(1);
 	});
@@ -120,7 +135,9 @@ describe("RecipeService", () => {
 		const fetchStub = createFetchStub(createJsonResponse(recipeResponse({ editable: false })));
 		const service = createService(fetchStub);
 
-		await expect(action(service)).rejects.toEqual(new RecipeError("Recipe 100 is not editable"));
+		await expect(action(service)).rejects.toEqual(
+			new ServiceError("Recipe 100 is not editable", "conflict", SERVICE_ERROR_CODES.recipeNotEditable),
+		);
 		expect(fetchStub.calls).toHaveLength(1);
 	});
 
@@ -129,7 +146,11 @@ describe("RecipeService", () => {
 		const service = createService(fetchStub);
 
 		await expect(service.deleteRecipe("100", "Original")).rejects.toEqual(
-			new RecipeError("Recipe 100 is not owned by the authenticated user"),
+			new ServiceError(
+				"Recipe 100 is not owned by the authenticated user",
+				"forbidden",
+				SERVICE_ERROR_CODES.recipeNotOwned,
+			),
 		);
 		expect(fetchStub.calls).toHaveLength(1);
 	});
@@ -186,6 +207,18 @@ function createService(
 			foodId: string | number,
 			foodType: "PRODUCT" | "RECIPE" | "CUSTOM_ITEM",
 		): Promise<ReadonlySet<string>>;
+		getAvailableMeasures?(
+			foodId: string | number,
+			foodType: "PRODUCT" | "RECIPE" | "CUSTOM_ITEM",
+		): Promise<
+			readonly {
+				readonly measureId: string | null;
+				readonly measureName: string | null;
+				readonly weightG: number | null;
+				readonly unit: string | null;
+				readonly energyKcal: number | null;
+			}[]
+		>;
 	},
 ): RecipeService {
 	return new RecipeService(
@@ -195,7 +228,27 @@ function createService(
 			authClient,
 			userClient,
 		}),
-		foodMeasureProvider ?? { getAvailableMeasureIds: async () => new Set(["2"]) },
+		{
+			getAvailableMeasureIds: foodMeasureProvider?.getAvailableMeasureIds ?? (async () => new Set(["2"])),
+			getAvailableMeasures:
+				foodMeasureProvider?.getAvailableMeasures ??
+				(async () => [
+					{
+						measureId: "1",
+						measureName: "g",
+						weightG: 1,
+						unit: null,
+						energyKcal: 0.5,
+					},
+					{
+						measureId: "39",
+						measureName: "portion",
+						weightG: 200,
+						unit: null,
+						energyKcal: 100,
+					},
+				]),
+		},
 	);
 }
 

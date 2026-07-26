@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { CurrentUserProvider } from "../../services/currentUser/CurrentUserService.ts";
 import type { FitatuUserProfile } from "../../api/users/FitatuUserProfile.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 
 const optionalString = z.string().optional();
 const optionalBoolean = z.boolean().optional();
@@ -63,7 +63,7 @@ export class GetCurrentUserTool {
 						user: this.toSafeCurrentUser(user),
 					});
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to fetch the current Fitatu user.", error);
+					return ToolErrorResult.create(this.name, "Unable to fetch the current Fitatu user.", error);
 				}
 			},
 		);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FitatuUserError } from "../../../../src/api/users/FitatuUserError.ts";
+import { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../../../../src/api/fitatuApiClientBase/FitatuClientOperations.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import type { CurrentUserProvider } from "../../../../src/services/currentUser/CurrentUserService.ts";
 import { GetCurrentUserTool } from "../../../../src/tools/currentUser/GetCurrentUserTool.ts";
@@ -42,10 +43,14 @@ describe("GetCurrentUserTool", () => {
 	});
 
 	it("returns a safe structured error for a known user failure", async () => {
-		const service = new FakeCurrentUserService(
-			undefined,
-			new FitatuUserError("Fitatu user request failed", { statusCode: 503 }),
-		);
+		const clientError = await FitatuClientError.http({
+			operation: FITATU_CLIENT_OPERATIONS.usersGet,
+			message: "Fitatu user request failed",
+			method: "GET",
+			endpointTemplate: "/users/:userId",
+			response: new Response(null, { status: 503 }),
+		});
+		const service = new FakeCurrentUserService(undefined, clientError);
 		const registered = await registerToolForTest(new GetCurrentUserTool(service));
 
 		const result = await registered.invoke({});
@@ -54,9 +59,23 @@ describe("GetCurrentUserTool", () => {
 		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: "get_current_user",
-			errorName: "FitatuUserError",
-			message: "Fitatu user request failed",
-			fitatuApiError: { statusCode: 503 },
+			error: {
+				source: "fitatuApi",
+				name: "FitatuClientError",
+				message: "Fitatu user request failed",
+				operation: "users.get",
+				failure: {
+					kind: "http",
+					method: "GET",
+					endpointTemplate: "/users/:userId",
+					statusCode: 503,
+					statusText: null,
+					upstreamCode: null,
+					upstreamMessage: null,
+					responseSnippet: null,
+				},
+				attempts: [],
+			},
 		});
 		expect(result.structuredContent).toBeUndefined();
 	});

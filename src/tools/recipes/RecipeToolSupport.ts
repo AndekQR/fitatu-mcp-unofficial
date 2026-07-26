@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
-import { RecipeError } from "../../api/recipes/RecipeError.ts";
-import type { RecipeDetails } from "../../api/recipes/RecipeDetails.ts";
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
+import type { RecipeServiceDetails } from "../../services/recipes/RecipeServiceResult.ts";
 import type { RecipeWarning } from "../../services/recipes/RecipeWarning.ts";
 import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
@@ -127,6 +126,27 @@ const nutritionOutputSchema = z
 	})
 	.describe("Nutrition values calculated for one recipe serving.");
 
+const recipeMeasureOutputSchema = z
+	.object({
+		measureId: z
+			.string()
+			.regex(/^[1-9]\d*$/)
+			.describe("Measure id to pass with this recipeId to add_meal_items."),
+		measureName: z.string().optional().describe("Human-readable measure name returned by Fitatu."),
+		weightG: z
+			.number()
+			.nonnegative()
+			.optional()
+			.describe("Weight represented by one unit of this measure, in grams."),
+		unit: z.string().optional().describe("Fitatu unit key for this measure, when available."),
+		energyKcal: z
+			.number()
+			.nonnegative()
+			.optional()
+			.describe("Energy represented by one unit of this measure, in kilocalories."),
+	})
+	.describe("A Fitatu measure accepted for this recipe by add_meal_items.");
+
 const ingredientOutputSchema = z
 	.object({
 		productId: z
@@ -216,6 +236,11 @@ export const recipeDetailsOutputShape = {
 		.nonnegative()
 		.optional()
 		.describe("Calculated weight of one recipe serving in grams, when Fitatu provides it."),
+	measures: z
+		.array(recipeMeasureOutputSchema)
+		.describe(
+			"Measures accepted for this recipe by add_meal_items. Copy recipeId with one listed measureId; an empty array means Fitatu returned no usable measures.",
+		),
 };
 
 export const recipeDetailsOutputSchema = z
@@ -266,7 +291,7 @@ export const recipeUpdateInputSchema = z
 	)
 	.describe("Partial recipe update containing recipeId and at least one replacement field.");
 
-export function toRecipeDetailsForMcp(recipe: RecipeDetails): z.infer<typeof recipeDetailsOutputSchema> {
+export function toRecipeDetailsForMcp(recipe: RecipeServiceDetails): z.infer<typeof recipeDetailsOutputSchema> {
 	return {
 		recipeId: recipe.recipeId,
 		userId: recipe.userId ?? undefined,
@@ -297,6 +322,20 @@ export function toRecipeDetailsForMcp(recipe: RecipeDetails): z.infer<typeof rec
 			carbohydrateG: recipe.nutritionPerServing.carbohydrateG ?? undefined,
 		},
 		weightPerServingG: recipe.weightPerServingG ?? undefined,
+		measures: recipe.measures.flatMap((measure) => {
+			if (measure.measureId === null || !/^[1-9]\d*$/.test(measure.measureId)) {
+				return [];
+			}
+			return [
+				{
+					measureId: measure.measureId,
+					measureName: measure.measureName ?? undefined,
+					weightG: measure.weightG ?? undefined,
+					unit: measure.unit ?? undefined,
+					energyKcal: measure.energyKcal ?? undefined,
+				},
+			];
+		}),
 	};
 }
 
@@ -360,35 +399,12 @@ export function toRecipeWarningsForMcp(
 	}));
 }
 
-export const RECIPE_EMPTY_ARRAY_KEYS = ["steps", "mealSchema", "tags", "ingredients", "items", "warnings"] as const;
-
-export function normalizeRecipeToolError(
-	error: unknown,
-	options: {
-		readonly operation: "get" | "search" | "update" | "delete";
-		readonly recipeId?: string;
-	},
-): unknown {
-	if (!(error instanceof RecipeError)) {
-		return error;
-	}
-
-	if (options.recipeId && RecipeError.isNotFound(error)) {
-		return copyRecipeError(error, `Recipe ${options.recipeId} was not found or is not accessible.`);
-	}
-
-	if (error.statusCode === 504) {
-		const subject = options.operation === "search" ? "search" : "request";
-		return copyRecipeError(error, `Fitatu recipe ${subject} timed out. Retry the request.`);
-	}
-
-	return error;
-}
-
-function copyRecipeError(error: RecipeError, message: string): RecipeError {
-	return new RecipeError(message, {
-		statusCode: error.statusCode,
-		fitatuApiError: error.fitatuApiError,
-		fitatuApiErrors: error.fitatuApiErrors,
-	});
-}
+export const RECIPE_EMPTY_ARRAY_KEYS = [
+	"steps",
+	"mealSchema",
+	"tags",
+	"ingredients",
+	"measures",
+	"items",
+	"warnings",
+] as const;

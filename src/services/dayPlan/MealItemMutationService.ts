@@ -1,6 +1,5 @@
 import type { AddMealItemsOptions } from "../../api/dayPlan/AddMealItemsOptions.ts";
 import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
-import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
 import type { FoodTypeName } from "../../api/dayPlan/FoodType.ts";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
 import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
@@ -9,9 +8,9 @@ import type { RemoveMealItemOptions } from "../../api/dayPlan/RemoveMealItemOpti
 import type { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
 import type { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
 import type { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
-import { FoodSearchError } from "../../api/foodSearch/FoodSearchError.ts";
 import type { RecipeClient } from "../../api/recipes/RecipeClient.ts";
-import { RecipeError } from "../../api/recipes/RecipeError.ts";
+import { ServiceError } from "../ServiceError.ts";
+import { SERVICE_ERROR_CODES } from "../ServiceErrorCode.ts";
 
 interface FoodMeasureProvider {
 	getAvailableMeasureIds(definitionId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>>;
@@ -77,21 +76,21 @@ export class MealItemMutationService implements MealItemMutationProvider {
 			const idField = item.foodType === "RECIPE" ? "recipeId" : "productId";
 			const definitionId = String(item.foodType === "RECIPE" ? item.recipeId : item.productId).trim();
 			if (!definitionId) {
-				throw new DayPlanError(`items[${index}].${idField} is required`);
+				throw new ServiceError(
+					`items[${index}].${idField} is required`,
+					"invalidInput",
+					SERVICE_ERROR_CODES.mealItemDefinitionRequired,
+				);
 			}
 
 			if (item.foodType === "RECIPE") {
-				let recipe;
-				try {
-					recipe = await this.recipeStateProvider.getRecipe(definitionId);
-				} catch (error) {
-					if (RecipeError.isNotFound(error)) {
-						throw new DayPlanError(`Recipe at items[${index}].recipeId was not found.`);
-					}
-					throw error;
-				}
+				const recipe = await this.recipeStateProvider.getRecipe(definitionId);
 				if (recipe.deleted) {
-					throw new DayPlanError(`Deleted recipe at items[${index}].recipeId cannot be added to a day plan.`);
+					throw new ServiceError(
+						`Deleted recipe at items[${index}].recipeId cannot be added to a day plan.`,
+						"conflict",
+						SERVICE_ERROR_CODES.deletedRecipeSelection,
+					);
 				}
 				preparedItems.push({ ...item, ingredientsServing: recipe.servings });
 			} else {
@@ -101,19 +100,16 @@ export class MealItemMutationService implements MealItemMutationProvider {
 			const cacheKey = `${item.foodType}:${definitionId}`;
 			let measureIds = cache.get(cacheKey);
 			if (!measureIds) {
-				try {
-					measureIds = await this.foodMeasureProvider.getAvailableMeasureIds(definitionId, item.foodType);
-				} catch (error) {
-					if (error instanceof FoodSearchError && error.statusCode === 404) {
-						throw new DayPlanError(`Food at items[${index}].${idField} was not found.`);
-					}
-					throw error;
-				}
+				measureIds = await this.foodMeasureProvider.getAvailableMeasureIds(definitionId, item.foodType);
 				cache.set(cacheKey, measureIds);
 			}
 
 			if (!measureIds.has(String(item.measureId ?? ""))) {
-				throw new DayPlanError(`Measure at items[${index}].measureId does not belong to the selected food.`);
+				throw new ServiceError(
+					`Measure at items[${index}].measureId does not belong to the selected food.`,
+					"invalidInput",
+					SERVICE_ERROR_CODES.invalidMealItemMeasure,
+				);
 			}
 		}
 		return preparedItems;

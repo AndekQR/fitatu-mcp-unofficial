@@ -1,3 +1,5 @@
+import { ValidationError } from "./ValidationError.ts";
+
 export class StringUtils {
 	public static stringOrNull(value: unknown): string | null {
 		if (typeof value === "string") {
@@ -13,7 +15,7 @@ export class StringUtils {
 
 	public static parseString(value: unknown, errorMessage = "Value must be a string"): string {
 		if (typeof value !== "string") {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return value;
@@ -25,7 +27,7 @@ export class StringUtils {
 	): string {
 		const parsed = StringUtils.stringOrNull(value);
 		if (parsed === null) {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return parsed;
@@ -45,7 +47,7 @@ export class StringUtils {
 	public static parseNonEmptyString(value: unknown, errorMessage = "Value must be a non-empty string"): string {
 		const normalized = StringUtils.parseString(value, errorMessage).trim();
 		if (!normalized) {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return normalized;
@@ -70,7 +72,7 @@ export class StringUtils {
 	): string {
 		const parsed = StringUtils.firstNonEmptyString(...values);
 		if (parsed === undefined) {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return parsed;

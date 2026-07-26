@@ -9,7 +9,12 @@ import {
 } from "./FitatuApiDefaults.ts";
 import { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "./FitatuApiRequestOptions.ts";
+import type { FitatuRequestFailure } from "./FitatuClientFailure.ts";
+import { FitatuClientError } from "./FitatuClientError.ts";
+import type { FitatuClientRequestOptions } from "./FitatuClientRequestOptions.ts";
+import type { FitatuJsonRequestOptions } from "./FitatuJsonRequestOptions.ts";
 import type { FitatuRequestContext } from "./FitatuRequestContext.ts";
+import { FitatuResponseDecodeError } from "./FitatuResponseDecodeError.ts";
 
 export abstract class FitatuApiClientBase {
 	protected readonly V3_ACCEPT_HEADER = "application/json; version=v3";
@@ -36,15 +41,18 @@ export abstract class FitatuApiClientBase {
 		return this.resolveContextUserId(userId, user, session);
 	}
 
-	protected async fetchFitatuApi(options: FitatuApiRequestOptions): Promise<Response> {
-		const response = await this.fetchFitatuApiOnce(options);
+	protected async requestJson<T>(options: FitatuJsonRequestOptions<T>): Promise<T> {
+		const { response, attempts } = await this.requestSuccessfulResponse(options);
+		return this.decodeJsonResponse(response, options, attempts, false);
+	}
 
-		if (response.status !== 401 || !this.canRefreshAuthentication(options)) {
-			return response;
-		}
+	protected async requestOptionalJson<T>(options: FitatuJsonRequestOptions<T>): Promise<T> {
+		const { response, attempts } = await this.requestSuccessfulResponse(options);
+		return this.decodeJsonResponse(response, options, attempts, true);
+	}
 
-		await this.refreshAuthenticationContext();
-		return this.fetchFitatuApiOnce(options);
+	protected async requestVoid(options: FitatuClientRequestOptions): Promise<void> {
+		await this.requestSuccessfulResponse(options);
 	}
 
 	protected async getContextSearchLocale(): Promise<string> {
@@ -67,13 +75,142 @@ export abstract class FitatuApiClientBase {
 		};
 	}
 
-	private async fetchFitatuApiOnce(options: FitatuApiRequestOptions): Promise<Response> {
-		const context = await this.createRequestContext(options);
+	private async decodeJsonResponse<T>(
+		response: Response,
+		options: FitatuJsonRequestOptions<T>,
+		attempts: readonly FitatuRequestFailure[],
+		allowEmpty: boolean,
+	): Promise<T> {
+		let data: unknown;
 
+		try {
+			if (allowEmpty) {
+				const text = await response.text();
+				data = text.trim() ? JSON.parse(text) : null;
+			} else {
+				data = await response.json();
+			}
+		} catch (error) {
+			if (!(error instanceof SyntaxError)) {
+				throw error;
+			}
+
+			throw this.createInvalidResponseError(options, error, attempts);
+		}
+
+		try {
+			return options.decoder(data);
+		} catch (error) {
+			if (error instanceof FitatuClientError) {
+				throw error;
+			}
+			if (!(error instanceof FitatuResponseDecodeError)) {
+				throw error;
+			}
+
+			throw this.createInvalidResponseError(options, error, attempts);
+		}
+	}
+
+	private createInvalidResponseError<T>(
+		options: FitatuJsonRequestOptions<T>,
+		cause: unknown,
+		attempts: readonly FitatuRequestFailure[],
+	): FitatuClientError {
+		return FitatuClientError.invalidResponse({
+			message: options.invalidResponseMessage ?? options.failureMessage,
+			operation: options.operation,
+			method: options.method,
+			endpointTemplate: options.endpointTemplate,
+			cause,
+			attempts,
+		});
+	}
+
+	private performFetch(context: FitatuRequestContext, options: FitatuApiRequestOptions): Promise<Response> {
 		return this.fetchFn(context.url, {
 			method: options.method,
 			headers: context.headers,
 			...(options.body !== undefined ? { body: options.body } : {}),
+		});
+	}
+
+	private async requestSuccessfulResponse(
+		options: FitatuClientRequestOptions,
+	): Promise<{ readonly response: Response; readonly attempts: readonly FitatuRequestFailure[] }> {
+		const firstResponse = await this.performFetchWithTransportMapping(options);
+
+		if (firstResponse.status !== 401 || !this.canRefreshAuthentication(options)) {
+			return {
+				response: await this.requireSuccessfulResponse(firstResponse, options),
+				attempts: [],
+			};
+		}
+
+		const firstError = await FitatuClientError.http({
+			message: options.failureMessage,
+			operation: options.operation,
+			method: options.method,
+			endpointTemplate: options.endpointTemplate,
+			response: firstResponse,
+		});
+		const attempts = [firstError.failure];
+		try {
+			await this.refreshAuthenticationContext();
+		} catch (error) {
+			if (error instanceof FitatuClientError) {
+				throw error.withAttempts([...attempts, ...error.attempts]);
+			}
+			throw error;
+		}
+
+		const secondResponse = await this.performFetchWithTransportMapping(options, attempts);
+		return {
+			response: await this.requireSuccessfulResponse(secondResponse, options, attempts),
+			attempts,
+		};
+	}
+
+	private async performFetchWithTransportMapping(
+		options: FitatuClientRequestOptions,
+		attempts: readonly FitatuRequestFailure[] = [],
+	): Promise<Response> {
+		const context = await this.createRequestContext(options);
+
+		try {
+			return await this.performFetch(context, options);
+		} catch (error) {
+			if (!isRecognizedTransportError(error)) {
+				throw error;
+			}
+
+			throw FitatuClientError.transport({
+				message: options.failureMessage,
+				operation: options.operation,
+				method: options.method,
+				endpointTemplate: options.endpointTemplate,
+				error,
+				attempts,
+			});
+		}
+	}
+
+	private async requireSuccessfulResponse(
+		response: Response,
+		options: FitatuClientRequestOptions,
+		attempts: readonly FitatuRequestFailure[] = [],
+	): Promise<Response> {
+		if (response.ok) {
+			return response;
+		}
+
+		throw await FitatuClientError.http({
+			message: options.failureMessage,
+			operation: options.operation,
+			method: options.method,
+			endpointTemplate: options.endpointTemplate,
+			response,
+			attempts,
 		});
 	}
 
@@ -207,4 +344,11 @@ function createUrl(baseUrl: string, path: string, query: FitatuApiRequestOptions
 
 function toLocaleSegment(locale: string): string {
 	return locale.replaceAll("_", "-").toLowerCase();
+}
+
+function isRecognizedTransportError(error: unknown): error is Error {
+	return (
+		error instanceof TypeError ||
+		(error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError"))
+	);
 }

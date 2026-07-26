@@ -3,7 +3,7 @@ import { z } from "zod";
 import { DateUtils } from "../../shared/DateUtils.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { DayPlanQueryProvider } from "../../services/dayPlan/DayPlanQueryService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
 import { isoCalendarDateSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
@@ -110,7 +110,7 @@ export class GetDayPlanItemsTool {
 						})),
 					});
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to fetch Fitatu day plan items.", error);
+					return ToolErrorResult.create(this.name, "Unable to fetch Fitatu day plan items.", error);
 				}
 			},
 		);

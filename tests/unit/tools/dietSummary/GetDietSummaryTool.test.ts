@@ -52,8 +52,11 @@ describe("GetDietSummaryTool", () => {
 		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: "get_diet_summary",
-			errorName: "Error",
-			message: "Unable to fetch Fitatu diet summary.",
+			error: {
+				source: "internal",
+				name: "Error",
+				message: "Unable to fetch Fitatu diet summary.",
+			},
 		});
 		expect(result.structuredContent).toBeUndefined();
 		expect(getTextContent(result)).not.toContain("secret summary response");

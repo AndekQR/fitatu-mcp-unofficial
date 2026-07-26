@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { FitatuAuthError } from "../../../../src/api/auth/FitatuAuthError.ts";
+import type { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
 
 describe("FitatuAuthClient", () => {
@@ -70,7 +70,16 @@ describe("FitatuAuthClient", () => {
 		const fetchStub = createFetchStub(createJsonResponse({ token: "not-a-jwt", refresh_token: "refresh-1" }));
 		const client = await createAuthClient(fetchStub.fetchFn);
 
-		await expect(client.getSession()).rejects.toMatchObject({ name: "FitatuAuthError" });
+		await expect(client.getSession()).rejects.toMatchObject({
+			name: "FitatuClientError",
+			operation: "auth.login",
+			failure: {
+				kind: "invalidResponse",
+				method: "POST",
+				endpointTemplate: "/login",
+			},
+			attempts: [],
+		});
 	});
 
 	it("propagates a rejected network request without caching a session", async () => {
@@ -98,15 +107,18 @@ describe("FitatuAuthClient", () => {
 		const error = await client.getSession().catch((caught: unknown) => caught);
 
 		expect(error).toMatchObject({
-			name: "FitatuAuthError",
+			name: "FitatuClientError",
 			message: "Fitatu login failed",
-			statusCode: 401,
-			fitatuApiError: {
+			operation: "auth.login",
+			failure: {
+				kind: "http",
 				method: "POST",
-				path: "/login",
+				endpointTemplate: "/login",
+				statusCode: 401,
 				upstreamMessage: "invalid credentials",
 				responseSnippet: '{"message":"invalid credentials","token":"[REDACTED]","email":"[REDACTED]"}',
 			},
+			attempts: [],
 		});
 	});
 
@@ -153,18 +165,25 @@ describe("FitatuAuthClient", () => {
 		await client.getSession();
 
 		const error = await client.refreshSession().catch((caught: unknown) => caught);
-		if (!isFitatuAuthError(error)) {
-			throw new Error("Expected refreshSession to reject with FitatuAuthError");
+		if (!isFitatuClientError(error)) {
+			throw new Error("Expected refreshSession to reject with FitatuClientError");
 		}
 
 		expect(error).toMatchObject({
-			name: "FitatuAuthError",
+			name: "FitatuClientError",
 			message: "Fitatu token refresh failed",
-			statusCode: 401,
+			operation: "auth.refresh",
+			failure: {
+				kind: "http",
+				statusCode: 401,
+			},
 		});
-		const fitatuApiErrors = error.fitatuApiErrors ?? [];
-		expect(fitatuApiErrors).toHaveLength(3);
-		expect(fitatuApiErrors.map((details) => details.responseSnippet)).toEqual([
+		expect(error.attempts).toHaveLength(2);
+		expect(
+			[...error.attempts, error.failure].map((failure) =>
+				failure.kind === "http" ? failure.responseSnippet : null,
+			),
+		).toEqual([
 			'{"message":"refresh rejected","token":"[REDACTED]","user":"[REDACTED]"}',
 			'{"message":"refresh rejected","token":"[REDACTED]","user":"[REDACTED]"}',
 			'{"message":"refresh rejected","token":"[REDACTED]","user":"[REDACTED]"}',
@@ -175,7 +194,13 @@ describe("FitatuAuthClient", () => {
 			'{"refreshToken":"refresh-1"}',
 			'{"token":"refresh-1"}',
 		]);
-		await expect(client.refreshSession()).rejects.toThrow("Fitatu refresh token is missing");
+		await expect(client.refreshSession()).rejects.toMatchObject({
+			name: "FitatuClientError",
+			message: "Fitatu refresh token is missing",
+			operation: "auth.refresh",
+			failure: { kind: "authentication" },
+			attempts: [],
+		});
 	});
 });
 
@@ -192,6 +217,6 @@ function createJwt(payload: Record<string, unknown>): string {
 	return `header.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
 }
 
-function isFitatuAuthError(error: unknown): error is FitatuAuthError {
-	return error instanceof Error && error.name === "FitatuAuthError";
+function isFitatuClientError(error: unknown): error is FitatuClientError {
+	return error instanceof Error && error.name === "FitatuClientError" && "failure" in error && "attempts" in error;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FitatuUserClient } from "../../../../src/api/users/FitatuUserClient.ts";
-import { FitatuUserError } from "../../../../src/api/users/FitatuUserError.ts";
+import { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import { createAuthClientStub } from "../../support/authTestDouble.ts";
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
 
@@ -25,10 +25,17 @@ describe("FitatuUserClient", () => {
 
 		const failedRequest = client.getAuthenticatedUser();
 		await expect(failedRequest).rejects.toMatchObject({
-			name: "FitatuUserError",
-			statusCode: 503,
+			name: "FitatuClientError",
+			operation: "users.get",
+			failure: {
+				kind: "http",
+				method: "GET",
+				endpointTemplate: "/users/:userId",
+				statusCode: 503,
+			},
+			attempts: [],
 		});
-		await expect(failedRequest).rejects.toBeInstanceOf(FitatuUserError);
+		await expect(failedRequest).rejects.toBeInstanceOf(FitatuClientError);
 		const first = await client.getAuthenticatedUser();
 		const second = await client.getCurrentUser();
 

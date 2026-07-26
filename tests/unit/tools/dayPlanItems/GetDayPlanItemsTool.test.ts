@@ -76,8 +76,11 @@ describe("GetDayPlanItemsTool", () => {
 		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: "get_day_plan_items",
-			errorName: "Error",
-			message: "Unable to fetch Fitatu day plan items.",
+			error: {
+				source: "internal",
+				name: "Error",
+				message: "Unable to fetch Fitatu day plan items.",
+			},
 		});
 		expect(result.structuredContent).toBeUndefined();
 		expect(getTextContent(result)).not.toContain("secret day plan response");

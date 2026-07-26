@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { FoodSearchOptions } from "../../../../src/api/foodSearch/FoodSearchOptions.ts";
 import type { FoodSearchResult } from "../../../../src/api/foodSearch/FoodSearchResult.ts";
+import type { FoodSearchWarningDetail } from "../../../../src/api/foodSearch/FoodSearchWarningDetail.ts";
+import { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../../../../src/api/fitatuApiClientBase/FitatuClientOperations.ts";
 import type { FoodSearchProvider } from "../../../../src/services/foodSearch/FoodSearchService.ts";
 import { SearchFoodTool } from "../../../../src/tools/searchFood/SearchFoodTool.ts";
 import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
@@ -68,8 +71,11 @@ describe("SearchFoodTool", () => {
 		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: "search_food",
-			errorName: "Error",
-			message: "Unable to search Fitatu food.",
+			error: {
+				source: "internal",
+				name: "Error",
+				message: "Unable to search Fitatu food.",
+			},
 		});
 		expect(result.structuredContent).toBeUndefined();
 		expect(getTextContent(result)).not.toContain("secret upstream response");
@@ -99,6 +105,19 @@ describe("SearchFoodTool", () => {
 
 	it("publishes product candidates with productId and no generic food id", async () => {
 		const service = new FakeFoodSearchService(undefined, false, true);
+		service.warnings.push("Public catalog was temporarily unavailable.");
+		service.warningDetails.push({
+			message: "Public catalog was temporarily unavailable.",
+			clientError: FitatuClientError.transport({
+				operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+				message: "Fitatu public food search request failed",
+				method: "GET",
+				endpointTemplate: "/search/new/food",
+				error: new TypeError("network failure"),
+			}),
+			source: "public",
+			foodId: "sensitive-food-id",
+		});
 		const registered = await registerToolForTest(new SearchFoodTool(service));
 
 		const result = await registered.invoke({ queries: ["test product"] });
@@ -106,6 +125,23 @@ describe("SearchFoodTool", () => {
 
 		expect(parseTextContent(result)).toMatchObject({
 			results: [{ items: [{ productId: "200" }] }],
+			warningDetails: [
+				{
+					message: "Public catalog was temporarily unavailable.",
+					clientError: {
+						name: "FitatuClientError",
+						message: "Fitatu public food search request failed",
+						operation: "food.search",
+						failure: {
+							kind: "transport",
+							method: "GET",
+							endpointTemplate: "/search/new/food",
+							errorName: "TypeError",
+						},
+						attempts: [],
+					},
+				},
+			],
 		});
 		expect(payload).not.toContain('"recipeId"');
 		expect(payload).not.toContain('"foodId"');
@@ -130,6 +166,8 @@ describe("SearchFoodTool", () => {
 
 class FakeFoodSearchService implements FoodSearchProvider {
 	public readonly requests: FoodSearchOptions[] = [];
+	public readonly warnings: string[] = [];
+	public readonly warningDetails: FoodSearchWarningDetail[] = [];
 
 	public constructor(
 		private readonly error?: Error,
@@ -228,8 +266,8 @@ class FakeFoodSearchService implements FoodSearchProvider {
 								},
 							]
 						: [],
-			warnings: [],
-			warningDetails: [],
+			warnings: [...this.warnings],
+			warningDetails: [...this.warningDetails],
 		};
 	}
 }

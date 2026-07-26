@@ -1,6 +1,7 @@
 import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
 import type { RecipeIngredient } from "./RecipeIngredient.ts";
 import type { RecipeNutrition } from "./RecipeNutrition.ts";
 import type { RecipeTag } from "./RecipeTag.ts";
@@ -128,7 +129,7 @@ function optionalNonNegativeInteger(value: unknown, errorMessage: string): numbe
 function optionalNonNegativeNumber(value: unknown, errorMessage: string): number | null {
 	const parsed = NumberUtils.parseOptionalFiniteNumber(value, errorMessage);
 	if (parsed !== null && parsed < 0) {
-		throw new Error(errorMessage);
+		throw new ValidationError(errorMessage);
 	}
 	return parsed;
 }

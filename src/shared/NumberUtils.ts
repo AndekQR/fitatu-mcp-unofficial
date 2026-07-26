@@ -1,3 +1,5 @@
+import { ValidationError } from "./ValidationError.ts";
+
 export class NumberUtils {
 	public static parseOptionalFiniteNumber(
 		value: unknown,
@@ -20,13 +22,13 @@ export class NumberUtils {
 			}
 		}
 
-		throw new Error(errorMessage);
+		throw new ValidationError(errorMessage);
 	}
 
 	public static parseInteger(value: unknown, errorMessage = "Value must be an integer"): number {
 		const parsed = NumberUtils.parseFiniteNumber(value, errorMessage);
 		if (!Number.isInteger(parsed)) {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return parsed;
@@ -35,7 +37,7 @@ export class NumberUtils {
 	public static parsePositiveInteger(value: unknown, errorMessage = "Value must be a positive integer"): number {
 		const parsed = NumberUtils.parseInteger(value, errorMessage);
 		if (parsed <= 0) {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return parsed;
@@ -47,7 +49,7 @@ export class NumberUtils {
 	): number {
 		const parsed = NumberUtils.parseInteger(value, errorMessage);
 		if (parsed < 0) {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return parsed;
@@ -61,7 +63,7 @@ export class NumberUtils {
 	): number {
 		const parsed = NumberUtils.parseInteger(value, errorMessage);
 		if (parsed < minimum || parsed > maximum) {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return parsed;
@@ -73,7 +75,7 @@ export class NumberUtils {
 	): number {
 		const parsed = NumberUtils.parseFiniteNumber(value, errorMessage);
 		if (parsed <= 0) {
-			throw new Error(errorMessage);
+			throw new ValidationError(errorMessage);
 		}
 
 		return parsed;

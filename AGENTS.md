@@ -30,6 +30,13 @@ Common expected commands may include:
 
 Before relying on any command, confirm that it exists in `package.json`.
 
+## Commit Messages
+
+Prefer commit messages with at least two complete sentences describing the introduced changes. Use the first sentence as a concise summary and the following
+sentence or sentences to explain the most important behavioural, architectural, or operational details.
+
+Conventional Commit prefixes such as `feat:`, `fix:`, or `refactor:` are optional. Do not add a prefix unless it makes the message clearer.
+
 ## Coding Style & Naming Conventions
 
 Use TypeScript with ES module syntax.

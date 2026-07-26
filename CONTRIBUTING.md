@@ -19,6 +19,13 @@ Integration tests are intentionally separate from the deterministic unit-test su
 meal-plan or recipe data. Recipe workflow tests create temporary recipes and attempt cleanup, so do not run `npm run test:integration` against an account where
 that risk is unacceptable.
 
+## Commit Messages
+
+Prefer commit messages with at least two complete sentences describing the introduced changes. Use the first sentence as a concise summary and the following
+sentence or sentences to explain the most important behavioural, architectural, or operational details.
+
+Conventional Commit prefixes such as `feat:`, `fix:`, or `refactor:` are optional. Do not add a prefix unless it makes the message clearer.
+
 ## Reporting Issues
 
 When reporting issues, please include:

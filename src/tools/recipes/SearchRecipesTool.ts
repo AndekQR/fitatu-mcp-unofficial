@@ -1,6 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
+import type { RecipeServiceDetails } from "../../services/recipes/RecipeServiceResult.ts";
+import type { RecipeServiceSearchItem } from "../../services/recipes/RecipeServiceSearchResult.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { FitatuClientErrorPublic } from "../shared/FitatuClientErrorPublic.ts";
 import {
@@ -10,18 +12,53 @@ import {
 } from "../shared/FitatuClientErrorOutputSchema.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
-import { RECIPE_EMPTY_ARRAY_KEYS } from "./RecipeToolSupport.ts";
+import { RECIPE_EMPTY_ARRAY_KEYS, recipeDetailsOutputShape, toRecipeDetailsForMcp } from "./RecipeToolSupport.ts";
 
-const searchItemOutputSchema = z
+const searchItemSummaryShape = {
+	recipeId: rawRecipeIdSchema.describe(
+		"Raw recipe id to pass to get_recipe, update_recipe, delete_recipe, or add_meal_items.",
+	),
+	name: z.string().describe("Recipe display name."),
+	source: z
+		.enum(["mine", "public"])
+		.describe('Catalog containing this result: "mine" for the authenticated user or "public" for Fitatu.'),
+	energyKcal: z.number().optional().describe("Energy in kilocalories, when the search response provides it."),
+};
+
+const searchItemSummaryOutputSchema = z
 	.object({
-		recipeId: rawRecipeIdSchema.describe("Raw recipe id to pass to get_recipe, update_recipe, or delete_recipe."),
-		name: z.string().describe("Recipe display name."),
-		source: z
-			.enum(["mine", "public"])
-			.describe('Catalog containing this result: "mine" for the authenticated user or "public" for Fitatu.'),
-		energyKcal: z.number().optional().describe("Energy in kilocalories, when the search response provides it."),
+		...searchItemSummaryShape,
 	})
-	.describe("Recipe search result summary.");
+	.strict()
+	.describe("Recipe search result summary returned when additional details were not requested or were unavailable.");
+
+const detailedSearchItemOutputSchema = z
+	.object({
+		source: searchItemSummaryShape.source,
+		energyKcal: searchItemSummaryShape.energyKcal,
+		...recipeDetailsOutputShape,
+	})
+	.strict()
+	.describe(
+		"Recipe search result with canonical details and measures included at the top level after includeDetails=true.",
+	);
+
+const searchItemOutputSchema = z.union([searchItemSummaryOutputSchema, detailedSearchItemOutputSchema]);
+
+const sourceUnavailableWarningOutputSchema = z.object({
+	code: z.literal("RECIPE_SOURCE_UNAVAILABLE"),
+	source: z.enum(["mine", "public"]),
+	message: z.string(),
+	clientError: fitatuClientErrorOutputSchema,
+});
+
+const detailsUnavailableWarningOutputSchema = z.object({
+	code: z.literal("RECIPE_DETAILS_UNAVAILABLE"),
+	source: z.enum(["mine", "public"]),
+	recipeId: rawRecipeIdSchema,
+	message: z.string(),
+	clientError: fitatuClientErrorOutputSchema,
+});
 
 export class SearchRecipesTool {
 	public readonly name = "search_recipes";
@@ -37,7 +74,7 @@ export class SearchRecipesTool {
 			{
 				title: "Search Fitatu Recipes",
 				description:
-					"Searches active recipes by a trimmed, case-insensitive name substring and returns raw recipeId values. Empty or whitespace-only query lists recipes. scope=all combines catalogs and returns partial results with warnings when one catalog is unavailable; a single-source scope still fails when that source is unavailable. Returns { query, scope, page, limit, count, items, warnings }.",
+					"Searches active recipes by a trimmed, case-insensitive name substring and returns raw recipeId values. Set includeDetails=true to include additional recipe information and available measures. These details can be useful when adding a selected recipe to a day plan. Empty or whitespace-only query lists recipes. scope=all combines catalogs and returns partial results with warnings when one catalog or individual recipe details are unavailable. Returns { query, scope, page, limit, count, items, warnings }.",
 				inputSchema: z
 					.object({
 						query: z
@@ -69,6 +106,13 @@ export class SearchRecipesTool {
 							.default(20)
 							.optional()
 							.describe("Maximum recipes returned on this page, from 1 to 50. Defaults to 20."),
+						includeDetails: z
+							.boolean()
+							.default(false)
+							.optional()
+							.describe(
+								"Whether to include canonical recipe details and available measures. These details can be useful when adding a selected recipe to a day plan. Defaults to false.",
+							),
 					})
 					.strict(),
 				outputSchema: {
@@ -92,17 +136,14 @@ export class SearchRecipesTool {
 					items: z
 						.array(searchItemOutputSchema)
 						.max(50)
-						.describe("Deduplicated recipe summaries on this page; empty when no recipes match."),
+						.describe(
+							"Deduplicated recipes on this page. With includeDetails=true, successful detail lookups add canonical fields and measures at the top level.",
+						),
 					warnings: z
-						.array(
-							z.object({
-								code: z.literal("RECIPE_SOURCE_UNAVAILABLE"),
-								source: z.enum(["mine", "public"]),
-								message: z.string(),
-								clientError: fitatuClientErrorOutputSchema,
-							}),
-						)
-						.describe("Non-fatal source failures; empty when every requested catalog succeeded."),
+						.array(z.union([sourceUnavailableWarningOutputSchema, detailsUnavailableWarningOutputSchema]))
+						.describe(
+							"Non-fatal source or recipe-detail failures; empty when every requested operation succeeded.",
+						),
 				},
 				annotations: {
 					title: "Search Fitatu Recipes",
@@ -112,18 +153,19 @@ export class SearchRecipesTool {
 					openWorldHint: true,
 				},
 			},
-			async ({ query, scope, page, limit }) => {
+			async ({ query, scope, page, limit, includeDetails }) => {
 				try {
 					const result = await this.recipeService.searchRecipes({
 						...(query !== undefined ? { query } : {}),
 						scope,
 						page,
 						limit,
+						includeDetails,
 					});
 					return createTextResult(
 						{
 							...result,
-							items: result.items,
+							items: result.items.map(toSearchItemForMcp),
 							warnings: result.warnings.map((warning) => ({
 								...warning,
 								clientError: new FitatuClientErrorPublic(warning.clientError),
@@ -140,4 +182,25 @@ export class SearchRecipesTool {
 			},
 		);
 	}
+}
+
+function toSearchItemForMcp(item: RecipeServiceSearchItem) {
+	if (!hasRecipeDetails(item)) {
+		return {
+			recipeId: item.recipeId,
+			name: item.name,
+			source: item.source,
+			energyKcal: item.energyKcal ?? undefined,
+		};
+	}
+
+	return {
+		source: item.source,
+		energyKcal: item.energyKcal ?? undefined,
+		...toRecipeDetailsForMcp(item),
+	};
+}
+
+function hasRecipeDetails(item: RecipeServiceSearchItem): item is RecipeServiceSearchItem & RecipeServiceDetails {
+	return item.measures !== undefined;
 }

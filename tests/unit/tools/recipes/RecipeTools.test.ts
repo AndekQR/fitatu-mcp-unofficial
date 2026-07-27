@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { RecipeDeleteResult } from "../../../../src/api/recipes/RecipeDeleteResult.ts";
 import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
 import type { RecipeSearchOptions } from "../../../../src/api/recipes/RecipeSearchOptions.ts";
-import type { RecipeSearchResult } from "../../../../src/api/recipes/RecipeSearchResult.ts";
 import type { RecipeUpdateInput } from "../../../../src/api/recipes/RecipeUpdateInput.ts";
 import type { RecipeWriteInput } from "../../../../src/api/recipes/RecipeWriteInput.ts";
 import { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
@@ -13,6 +12,7 @@ import type {
 	RecipeServiceDetails,
 	RecipeServiceReplaceResult,
 } from "../../../../src/services/recipes/RecipeServiceResult.ts";
+import type { RecipeServiceSearchResult } from "../../../../src/services/recipes/RecipeServiceSearchResult.ts";
 import type { RecipeWarning } from "../../../../src/services/recipes/RecipeWarning.ts";
 import { CreateRecipeTool } from "../../../../src/tools/recipes/CreateRecipeTool.ts";
 import { DeleteRecipeTool } from "../../../../src/tools/recipes/DeleteRecipeTool.ts";
@@ -186,7 +186,10 @@ describe("Recipe MCP tools", () => {
 		expect(registered.config.outputSchema?.required).toEqual(
 			expect.arrayContaining(["query", "scope", "page", "limit", "count", "items", "warnings"]),
 		);
-		expect(service.searchInputs).toEqual([{ scope: "mine", page: 1, limit: 10 }]);
+		expect(JSON.stringify(registered.config.inputSchema)).toContain(
+			"These details can be useful when adding a selected recipe to a day plan",
+		);
+		expect(service.searchInputs).toEqual([{ scope: "mine", page: 1, limit: 10, includeDetails: false }]);
 		expect(parseTextContent(result)).toEqual({
 			query: "",
 			scope: "mine",
@@ -219,6 +222,78 @@ describe("Recipe MCP tools", () => {
 			],
 		});
 		expect(result.structuredContent).toMatchObject({ count: 1, items: [{ recipeId: "100" }] });
+	});
+
+	it("search_recipes publishes canonical details and measures at the item top level", async () => {
+		const service = new RecordingRecipeService();
+		service.detailsValue = details({ recipeId: "101", name: "Canonical recipe", servings: 3 });
+		const registered = await registerToolForTest(new SearchRecipesTool(service));
+
+		const result = await registered.invoke({
+			query: "recipe",
+			scope: "mine",
+			page: 1,
+			limit: 10,
+			includeDetails: true,
+		});
+		const payload = parseTextContent(result) as Record<string, unknown>;
+
+		expect(service.searchInputs).toEqual([
+			{
+				query: "recipe",
+				scope: "mine",
+				page: 1,
+				limit: 10,
+				includeDetails: true,
+			},
+		]);
+		expect(payload).toMatchObject({
+			items: [
+				{
+					recipeId: "101",
+					name: "Canonical recipe",
+					source: "mine",
+					energyKcal: 100,
+					servings: 3,
+					nutritionPerServing: { energyKcal: 100 },
+					measures: [
+						{ measureId: "1", measureName: "g" },
+						{ measureId: "39", measureName: "portion" },
+					],
+				},
+			],
+		});
+		expect(JSON.stringify(payload)).not.toContain('"details"');
+		expect(JSON.stringify(payload)).not.toContain('"categories"');
+		expect(JSON.stringify(registered.config.outputSchema)).toContain("RECIPE_DETAILS_UNAVAILABLE");
+	});
+
+	it("search_recipes publishes safe warnings for unavailable recipe details", async () => {
+		const service = new RecordingRecipeService();
+		service.searchWarnings.push({
+			code: "RECIPE_DETAILS_UNAVAILABLE",
+			source: "mine",
+			recipeId: "100",
+			message: "Details were unavailable.",
+			clientError: await recipeApiError(503, "Service Unavailable"),
+		});
+		const registered = await registerToolForTest(new SearchRecipesTool(service));
+
+		const result = await registered.invoke({ query: "recipe", includeDetails: true });
+
+		expect(parseTextContent(result)).toMatchObject({
+			warnings: [
+				{
+					code: "RECIPE_DETAILS_UNAVAILABLE",
+					source: "mine",
+					recipeId: "100",
+					clientError: {
+						name: "FitatuClientError",
+						failure: { kind: "http", statusCode: 503 },
+					},
+				},
+			],
+		});
 	});
 
 	it("search_recipes returns a concise SDK validation error for an invalid query type", async () => {
@@ -491,7 +566,7 @@ class RecordingRecipeService implements RecipeProvider {
 	public readonly updateInputs: { recipeId: string | number; input: RecipeUpdateInput }[] = [];
 	public readonly deleteInputs: { recipeId: string | number; expectedName: string }[] = [];
 	public readonly writeWarnings: RecipeWarning[] = [];
-	public readonly searchWarnings: RecipeSearchResult["warnings"][number][] = [];
+	public readonly searchWarnings: RecipeServiceSearchResult["warnings"][number][] = [];
 	public detailsValue: RecipeServiceDetails = details();
 
 	public constructor(private readonly error?: Error) {}
@@ -508,16 +583,22 @@ class RecordingRecipeService implements RecipeProvider {
 		return this.detailsValue;
 	}
 
-	public async searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeSearchResult> {
+	public async searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeServiceSearchResult> {
 		this.throwWhenConfigured();
 		this.searchInputs.push(options);
+		const summary = {
+			recipeId: "100",
+			name: "Test recipe",
+			source: "mine" as const,
+			energyKcal: 100,
+		};
 		return {
 			query: options.query ?? "",
 			scope: options.scope ?? "mine",
 			page: options.page ?? 1,
 			limit: options.limit ?? 20,
 			count: 1,
-			items: [{ recipeId: "100", name: "Test recipe", source: "mine", energyKcal: 100 }],
+			items: [options.includeDetails ? { ...summary, ...this.detailsValue } : summary],
 			warnings: [...this.searchWarnings],
 		};
 	}

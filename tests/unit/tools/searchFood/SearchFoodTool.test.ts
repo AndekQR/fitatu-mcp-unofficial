@@ -17,6 +17,12 @@ describe("SearchFoodTool", () => {
 
 		expect(registered.name).toBe("search_food");
 		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
+		expect(registered.config.description).toContain(
+			"These details can be useful when adding a selected item to a day plan",
+		);
+		expect(JSON.stringify(registered.config.inputSchema)).toContain(
+			"These details can be useful when adding a selected item to a day plan",
+		);
 		expect(service.requests).toEqual([
 			{
 				queries: ["jogurt naturalny"],

@@ -119,7 +119,7 @@ const inputSchema = {
 		.default(false)
 		.optional()
 		.describe(
-			"Whether to fetch product or recipe details for top candidates, including additional measures. Defaults to false.",
+			"Whether to include additional product or recipe information and available measures. These details can be useful when adding a selected item to a day plan. Defaults to false.",
 		),
 	detailsLimit: z
 		.number()
@@ -148,7 +148,7 @@ export class SearchFoodTool {
 			{
 				title: "Search Fitatu Food",
 				description:
-					"Searches Fitatu catalogs for products, recipes, and measures. A candidate has exactly one definition id: productId means use the PRODUCT add_meal_items variant; raw recipeId means use the RECIPE variant. Copy that id with a listed measureId. Do not send foodType. Candidates with no positive local text match are omitted and reported as low-confidence warnings.",
+					"Searches Fitatu catalogs for products and recipes. Set includeDetails=true to include additional information and available measures. These details can be useful when adding a selected item to a day plan. A candidate has exactly one definition id: productId means use the PRODUCT add_meal_items variant; raw recipeId means use the RECIPE variant. Copy that id with a listed measureId. Do not send foodType. Candidates with no positive local text match are omitted and reported as low-confidence warnings.",
 				inputSchema: z.object(inputSchema).strict(),
 				outputSchema: foodSearchOutputSchema,
 				annotations: {

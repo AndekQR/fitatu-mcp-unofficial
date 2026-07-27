@@ -5,8 +5,8 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import type { RecipeDetails } from "../../../src/api/recipes/RecipeDetails.ts";
-import type { RecipeSearchResult } from "../../../src/api/recipes/RecipeSearchResult.ts";
 import { RecipeService } from "../../../src/services/recipes/RecipeService.ts";
+import type { RecipeServiceSearchResult } from "../../../src/services/recipes/RecipeServiceSearchResult.ts";
 import { CleanupTracker } from "../helpers/cleanupTracker.ts";
 import { findMealItem } from "../helpers/dayPlanAssertions.ts";
 import { selectProductsByMeasure } from "../helpers/productSelection.ts";
@@ -75,10 +75,6 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 			]),
 		);
 		expect(created.warnings).toEqual([]);
-		const servingMeasure = created.details.measures.find((measure) => measure.measureId === "39");
-		if (!servingMeasure?.measureId) {
-			throw new Error("Expected the created recipe to expose Fitatu's serving measure");
-		}
 
 		const read = await recipeService.getRecipe(created.recipeId);
 		expect(read.name).toBe(uniqueName);
@@ -90,6 +86,36 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 		expect(exactSearch?.items.every((item) => item.name.toLowerCase().includes(uniqueName.toLowerCase()))).toBe(
 			true,
 		);
+
+		const detailedSearch = await waitForRecipeSearch(uniqueName, created.recipeId, true);
+		const detailedRecipe = detailedSearch?.items.find((item) => item.recipeId === created.recipeId);
+		if (
+			!detailedRecipe ||
+			detailedRecipe.servings === undefined ||
+			detailedRecipe.nutritionPerServing === undefined ||
+			detailedRecipe.measures === undefined
+		) {
+			throw new Error("Expected recipe search to include canonical details and measures");
+		}
+		expect(detailedRecipe).toMatchObject({
+			recipeId: created.recipeId,
+			name: uniqueName,
+			servings: 2,
+			nutritionPerServing: {
+				energyKcal: expect.any(Number),
+			},
+		});
+		expect(detailedRecipe).not.toHaveProperty("details");
+		expect(detailedRecipe.measures).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ measureId: "1" }),
+				expect.objectContaining({ measureId: "39" }),
+			]),
+		);
+		const servingMeasure = detailedRecipe.measures.find((measure) => measure.measureId === "39");
+		if (!servingMeasure?.measureId) {
+			throw new Error("Expected detailed recipe search to expose Fitatu's serving measure");
+		}
 
 		const caseInsensitiveSearch = await waitForRecipeSearch(uniqueName.toLowerCase(), created.recipeId);
 		expect(caseInsensitiveSearch).not.toBeNull();
@@ -120,7 +146,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 					foodType: "RECIPE",
 					measureId: servingMeasure.measureId,
 					measureQuantity: 1,
-					ingredientsServing: created.details.servings,
+					ingredientsServing: detailedRecipe.servings,
 					eaten: false,
 				},
 			],
@@ -209,9 +235,19 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 	});
 });
 
-async function waitForRecipeSearch(query: string, recipeId: string): Promise<RecipeSearchResult | null> {
+async function waitForRecipeSearch(
+	query: string,
+	recipeId: string,
+	includeDetails = false,
+): Promise<RecipeServiceSearchResult | null> {
 	for (let attempt = 0; attempt < 15; attempt += 1) {
-		const result = await recipeService.searchRecipes({ query, scope: "mine", page: 1, limit: 20 });
+		const result = await recipeService.searchRecipes({
+			query,
+			scope: "mine",
+			page: 1,
+			limit: 20,
+			includeDetails,
+		});
 		if (result.items.some((item) => item.recipeId === recipeId)) {
 			return result;
 		}

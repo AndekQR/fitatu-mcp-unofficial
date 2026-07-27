@@ -14,6 +14,99 @@ const userClient = {
 };
 
 describe("RecipeService", () => {
+	it("keeps recipe search summaries compact when details are not requested", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([{ foodId: 100, name: "Summary name", type: "RECIPE", energy: 100 }]),
+		);
+		const service = createService(fetchStub);
+
+		const result = await service.searchRecipes({
+			query: "Summary",
+			scope: "mine",
+			page: 1,
+			limit: 10,
+			includeDetails: false,
+		});
+
+		expect(result.items).toEqual([
+			{
+				recipeId: "100",
+				name: "Summary name",
+				source: "mine",
+				energyKcal: 100,
+			},
+		]);
+		expect(fetchStub.calls).toHaveLength(1);
+	});
+
+	it("enriches recipe search results with canonical details and measures", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([{ foodId: 100, name: "Summary name", type: "RECIPE", energy: 90 }]),
+			createJsonResponse(recipeResponse({ id: 101, name: "Canonical name", servings: 3 })),
+		);
+		const service = createService(fetchStub);
+
+		const result = await service.searchRecipes({
+			query: "Summary",
+			scope: "mine",
+			page: 1,
+			limit: 10,
+			includeDetails: true,
+		});
+
+		expect(result.items).toMatchObject([
+			{
+				recipeId: "101",
+				name: "Canonical name",
+				source: "mine",
+				energyKcal: 90,
+				servings: 3,
+				measures: [
+					{ measureId: "1", measureName: "g" },
+					{ measureId: "39", measureName: "portion" },
+				],
+			},
+		]);
+		expect(result.warnings).toEqual([]);
+		expect(fetchStub.calls).toHaveLength(2);
+	});
+
+	it("keeps recipe summaries and warns when one details request fails", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([{ foodId: 100, name: "Summary name", type: "RECIPE", energy: 90 }]),
+			createJsonResponse({ message: "temporarily unavailable" }, { status: 503 }),
+		);
+		const service = createService(fetchStub);
+
+		const result = await service.searchRecipes({
+			query: "Summary",
+			scope: "mine",
+			page: 1,
+			limit: 10,
+			includeDetails: true,
+		});
+
+		expect(result.items).toEqual([
+			{
+				recipeId: "100",
+				name: "Summary name",
+				source: "mine",
+				energyKcal: 90,
+			},
+		]);
+		expect(result.warnings).toMatchObject([
+			{
+				code: "RECIPE_DETAILS_UNAVAILABLE",
+				source: "mine",
+				recipeId: "100",
+				clientError: {
+					name: "FitatuClientError",
+					failure: { kind: "http", statusCode: 503 },
+				},
+			},
+		]);
+	});
+
 	it("rejects create when the same product and measure occur more than once", async () => {
 		const fetchStub = createFetchStub();
 		const service = createService(fetchStub);

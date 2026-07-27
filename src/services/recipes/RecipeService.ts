@@ -1,9 +1,9 @@
 import { RecipeClient } from "../../api/recipes/RecipeClient.ts";
+import { FitatuClientError } from "../../api/fitatuApiClientBase/FitatuClientError.ts";
 import type { FoodTypeName } from "../../api/dayPlan/FoodType.ts";
 import type { RecipeDeleteResult } from "../../api/recipes/RecipeDeleteResult.ts";
 import type { RecipeDetails } from "../../api/recipes/RecipeDetails.ts";
 import type { RecipeSearchOptions } from "../../api/recipes/RecipeSearchOptions.ts";
-import type { RecipeSearchResult } from "../../api/recipes/RecipeSearchResult.ts";
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
 import type { RecipeWriteInput } from "../../api/recipes/RecipeWriteInput.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
@@ -16,6 +16,11 @@ import type {
 	RecipeServiceDetails,
 	RecipeServiceReplaceResult,
 } from "./RecipeServiceResult.ts";
+import type {
+	RecipeServiceSearchItem,
+	RecipeServiceSearchResult,
+	RecipeServiceSearchWarning,
+} from "./RecipeServiceSearchResult.ts";
 
 const USER_TAG_CATEGORY = "RECIPE_TAG_USERS_TYPE";
 
@@ -27,7 +32,7 @@ interface FoodMeasureProvider {
 export interface RecipeProvider {
 	createRecipe(input: RecipeWriteInput): Promise<RecipeServiceCreateResult>;
 	getRecipe(recipeId: string | number): Promise<RecipeServiceDetails>;
-	searchRecipes(options?: RecipeSearchOptions): Promise<RecipeSearchResult>;
+	searchRecipes(options?: RecipeSearchOptions): Promise<RecipeServiceSearchResult>;
 	updateRecipe(recipeId: string | number, input: RecipeUpdateInput): Promise<RecipeServiceReplaceResult>;
 	deleteRecipe(recipeId: string | number, expectedName: string): Promise<RecipeDeleteResult>;
 }
@@ -61,8 +66,39 @@ export class RecipeService implements RecipeProvider {
 		return this.withAvailableMeasures(details);
 	}
 
-	public searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeSearchResult> {
-		return this.recipeClient.searchRecipes(options);
+	public async searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeServiceSearchResult> {
+		const { includeDetails = false, ...searchOptions } = options;
+		const result = await this.recipeClient.searchRecipes(searchOptions);
+		if (!includeDetails) {
+			return result;
+		}
+
+		const items: RecipeServiceSearchItem[] = [];
+		const warnings: RecipeServiceSearchWarning[] = [...result.warnings];
+		for (const item of result.items) {
+			try {
+				const details = await this.getRecipe(item.recipeId);
+				items.push({ ...item, ...details });
+			} catch (error) {
+				if (!(error instanceof FitatuClientError)) {
+					throw error;
+				}
+				items.push(item);
+				warnings.push({
+					code: "RECIPE_DETAILS_UNAVAILABLE",
+					source: item.source,
+					recipeId: item.recipeId,
+					message: `Details for recipe ${item.recipeId} were unavailable; the result contains summary fields only.`,
+					clientError: error,
+				});
+			}
+		}
+
+		return {
+			...result,
+			items,
+			warnings,
+		};
 	}
 
 	public async updateRecipe(

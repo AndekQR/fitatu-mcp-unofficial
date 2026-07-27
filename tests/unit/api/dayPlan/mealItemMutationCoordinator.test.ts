@@ -203,6 +203,10 @@ describe("MealItemMutationCoordinator.removeMealItems", () => {
 		]);
 		expect(syncService.syncCalls).toHaveLength(1);
 		expect(syncService.syncCalls[0]).toMatchObject({ userId: "user-1", date: "2026-07-01" });
+		expect(syncService.getPayloadCalls).toEqual([
+			{ userId: "user-1", date: "2026-07-01" },
+			{ userId: "user-1", date: "2026-07-01" },
+		]);
 		expect(syncService.item("breakfast", "breakfast-1")?.deletedAt).toBeTruthy();
 		expect(syncService.item("lunch", "lunch-1")?.deletedAt).toBeTruthy();
 		expect(syncService.item("breakfast", "breakfast-2")?.deletedAt).toBe("2026-07-01 10:00:00");
@@ -317,6 +321,7 @@ class RecordingDayPlanSyncCoordinator implements DayPlanSyncProvider {
 	public readonly syncCalls: { readonly userId: string; readonly date: string; readonly payload: DaySyncPayload }[] =
 		[];
 	public readonly syncDaysCalls: { readonly userId: string; readonly daysPayload: Record<string, unknown> }[] = [];
+	public readonly getPayloadCalls: { readonly userId: string; readonly date: string }[] = [];
 
 	private readonly payloads: Record<string, DaySyncPayload>;
 
@@ -328,7 +333,8 @@ class RecordingDayPlanSyncCoordinator implements DayPlanSyncProvider {
 		return this.getPayload("2026-07-01");
 	}
 
-	public async getDaySyncPayload(_userId: string, date: string): Promise<DaySyncPayload> {
+	public async getDaySyncPayload(userId: string, date: string): Promise<DaySyncPayload> {
+		this.getPayloadCalls.push({ userId, date });
 		return this.getPayload(date);
 	}
 

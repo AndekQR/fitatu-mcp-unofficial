@@ -4,13 +4,14 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
 import { CleanupTracker } from "../helpers/cleanupTracker.ts";
 import { selectProductsByMeasure } from "../helpers/productSelection.ts";
-import { getIntegrationTestDate } from "../helpers/testDates.ts";
+import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 
 const dayPlanClient = new DayPlanClient();
 const foodSearchClient = new FoodSearchClient();
 const cleanup = new CleanupTracker(dayPlanClient);
 const READ_AFTER_WRITE_ATTEMPTS = 20;
 const MEAL_KEY = "breakfast";
+const REPLACEMENT_MEAL_KEY = "supper";
 
 describe.sequential("Fitatu sequential meal-item removal integration", () => {
 	afterEach(async () => {
@@ -61,6 +62,84 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 		expect(removeResult.operationCount).toBe(items.length);
 		expect(removeResult.deletedItemIds).toEqual(persistedItemIds);
 	}, 180_000);
+
+	it("removes a catalog item before adding its custom replacement", async () => {
+		const date = addDays(getIntegrationTestDate(), 3);
+		const initialPlan = await dayPlanClient.getDayPlan({ date });
+		const initialItemIds = new Set(
+			initialPlan.meals
+				.find((meal) => meal.mealKey === REPLACEMENT_MEAL_KEY)
+				?.items.flatMap((item) => (item.itemId ? [item.itemId] : [])) ?? [],
+		);
+		const products = await selectProductsByMeasure({ foodSearchClient, date });
+		const addCatalogResult = await dayPlanClient.addMealItems({
+			date,
+			mealKey: REPLACEMENT_MEAL_KEY,
+			items: [
+				{
+					productId: products.gramProduct.productId,
+					foodType: "PRODUCT",
+					measureId: products.gramProduct.measure.measureId,
+					measureQuantity: 250,
+					eaten: true,
+				},
+			],
+		});
+		const provisionalCatalogItemId = requireItemId(addCatalogResult.provisionalItemIds[0] ?? null);
+		cleanup.track(date, REPLACEMENT_MEAL_KEY, provisionalCatalogItemId);
+
+		const [persistedCatalogItem] = await waitForNewMealItems(date, REPLACEMENT_MEAL_KEY, initialItemIds, 1);
+		const catalogItemId = requireItemId(persistedCatalogItem?.itemId ?? null);
+		cleanup.untrack(date, REPLACEMENT_MEAL_KEY, provisionalCatalogItemId);
+		cleanup.track(date, REPLACEMENT_MEAL_KEY, catalogItemId);
+
+		const removeResult = await dayPlanClient.removeMealItems({
+			date,
+			itemIds: [catalogItemId],
+		});
+		expect(removeResult).toMatchObject({
+			status: "accepted",
+			operation: "remove",
+			deletedItemIds: [catalogItemId],
+		});
+
+		const replacementName = `Fitatu MCP custom replacement ${Date.now()}`;
+		const addCustomResult = await dayPlanClient.addMealItems({
+			date,
+			mealKey: REPLACEMENT_MEAL_KEY,
+			items: [
+				{
+					foodType: "CUSTOM_ITEM",
+					name: replacementName,
+					energyKcal: 330,
+					proteinG: 32,
+					fatG: 22,
+					carbohydrateG: 0,
+					eaten: true,
+				},
+			],
+		});
+		const customItemId = requireItemId(addCustomResult.provisionalItemIds[0] ?? null);
+		cleanup.track(date, REPLACEMENT_MEAL_KEY, customItemId);
+
+		const finalItems = await waitForCustomReplacement({
+			date,
+			catalogItemId,
+			customItemId,
+			replacementName,
+		});
+		expect(finalItems.some((item) => item.itemId === catalogItemId)).toBe(false);
+		expect(finalItems.find((item) => item.itemId === customItemId)).toMatchObject({
+			name: replacementName,
+			foodType: "CUSTOM_ITEM",
+			energy: 330,
+			protein: 32,
+			fat: 22,
+			carbohydrate: 0,
+			eaten: true,
+		});
+		cleanup.untrack(date, REPLACEMENT_MEAL_KEY, catalogItemId);
+	}, 180_000);
 });
 
 async function waitForNewMealItems(
@@ -82,6 +161,37 @@ async function waitForNewMealItems(
 	}
 
 	throw new Error(`${expectedCount} new meal items did not appear in ${mealKey} on ${date}`);
+}
+
+async function waitForCustomReplacement(options: {
+	readonly date: string;
+	readonly catalogItemId: string;
+	readonly customItemId: string;
+	readonly replacementName: string;
+}): Promise<readonly DayPlanItem[]> {
+	let latestItems: readonly DayPlanItem[] = [];
+	for (let attempt = 0; attempt < READ_AFTER_WRITE_ATTEMPTS; attempt += 1) {
+		const dayPlan = await dayPlanClient.getDayPlan({ date: options.date });
+		latestItems = dayPlan.meals.find((meal) => meal.mealKey === REPLACEMENT_MEAL_KEY)?.items ?? [];
+		const catalogItemExists = latestItems.some((item) => item.itemId === options.catalogItemId);
+		const customItemExists = latestItems.some(
+			(item) => item.itemId === options.customItemId && item.name === options.replacementName,
+		);
+		if (!catalogItemExists && customItemExists) {
+			return latestItems;
+		}
+		await wait(1_000);
+	}
+
+	return latestItems;
+}
+
+function requireItemId(value: string | null): string {
+	if (!value) {
+		throw new Error("Expected Fitatu to return a meal item id");
+	}
+
+	return value;
 }
 
 function wait(milliseconds: number): Promise<void> {

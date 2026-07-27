@@ -103,7 +103,11 @@ describe("RecipeService", () => {
 	});
 
 	it("requires the current exact name before deleting an owned recipe", async () => {
-		const fetchStub = createFetchStub(createJsonResponse(recipeResponse()), createJsonResponse([]));
+		const fetchStub = createFetchStub(
+			createJsonResponse(recipeResponse()),
+			createJsonResponse([]),
+			createJsonResponse({ ...recipeResponse(), deleted: true }),
+		);
 		const service = createService(fetchStub);
 
 		await expect(service.deleteRecipe("100", "Original")).resolves.toEqual({
@@ -112,6 +116,7 @@ describe("RecipeService", () => {
 			deleted: true,
 		});
 		expect(fetchStub.calls[1]?.init?.method).toBe("DELETE");
+		expect(fetchStub.calls[2]?.init?.method).toBe("GET");
 	});
 
 	it("does not delete when the expected name differs", async () => {

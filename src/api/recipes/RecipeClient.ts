@@ -2,6 +2,7 @@ import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { ValidationError } from "../../shared/ValidationError.ts";
+import { BoundedPoller } from "../../shared/BoundedPoller.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
@@ -27,6 +28,8 @@ const MAX_SEARCH_LIMIT = 50;
 const READ_AFTER_WRITE_ATTEMPTS = 5;
 
 export class RecipeClient extends FitatuApiClientBase {
+	private readonly deletionConfirmationPoller = new BoundedPoller();
+
 	public constructor(options: FitatuApiClientBaseOptions = {}) {
 		const authClient = options.authClient ?? FitatuAuthClient.getInstance();
 		const userClient = options.userClient ?? FitatuUserClient.getInstance({ authClient });
@@ -111,6 +114,7 @@ export class RecipeClient extends FitatuApiClientBase {
 			headers: { accept: JSON_ACCEPT_HEADER },
 			decoder: () => null,
 		});
+		await this.waitForRecipeDeleted(normalizedRecipeId);
 		return { recipeId: normalizedRecipeId };
 	}
 
@@ -376,6 +380,29 @@ export class RecipeClient extends FitatuApiClientBase {
 			() => wait(250),
 		);
 	}
+
+	private async waitForRecipeDeleted(recipeId: string): Promise<void> {
+		await this.deletionConfirmationPoller.pollUntil(
+			async () => {
+				try {
+					const recipe = await this.getRecipe(recipeId);
+					return recipe.deleted;
+				} catch (error) {
+					if (isMissingRecipeError(error)) {
+						return true;
+					}
+					throw error;
+				}
+			},
+			() =>
+				FitatuClientError.invalidResponse({
+					operation: FITATU_CLIENT_OPERATIONS.recipesDelete,
+					message: "Fitatu accepted the recipe deletion but it could not be confirmed within 10 seconds",
+					method: "GET",
+					endpointTemplate: "/recipes-and-user-action/:recipeId/:userId",
+				}),
+		);
+	}
 }
 
 function sourceWarning(
@@ -473,6 +500,14 @@ function decodeRecipeSearch(data: unknown, source: RecipeSearchSource): readonly
 
 function invalidRecipeRequest(operation: FitatuClientOperation, message: string): FitatuClientError {
 	return FitatuClientError.invalidRequest({ operation, message });
+}
+
+function isMissingRecipeError(error: unknown): boolean {
+	return (
+		error instanceof FitatuClientError &&
+		error.failure.kind === "http" &&
+		(error.failure.statusCode === 404 || error.failure.statusCode === 410)
+	);
 }
 
 function rejectedClientError<T>(result: PromiseSettledResult<T>): FitatuClientError | undefined {

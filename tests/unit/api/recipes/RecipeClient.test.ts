@@ -218,12 +218,17 @@ describe("RecipeClient", () => {
 	});
 
 	it("deletes a recipe and accepts Fitatu's empty-array response", async () => {
-		const fetchStub = createFetchStub(createJsonResponse([]));
+		const fetchStub = createFetchStub(
+			createJsonResponse([]),
+			createJsonResponse({ message: "missing" }, { status: 404 }),
+		);
 		const client = createClient(fetchStub);
 
 		await expect(client.deleteRecipe("159081309")).resolves.toEqual({ recipeId: "159081309" });
 		expect(fetchStub.calls[0]?.input).toBe("https://fitatu.test/api/recipes/159081309");
 		expect(fetchStub.calls[0]?.init?.method).toBe("DELETE");
+		expect(fetchStub.calls[1]?.input).toBe("https://fitatu.test/api/recipes-and-user-action/159081309/test-user");
+		expect(fetchStub.calls[1]?.init?.method).toBe("GET");
 	});
 
 	it("searches the user's catalog and keeps only recipes", async () => {

@@ -1,5 +1,8 @@
 export class RecipeDeleteResult {
-	declare public readonly recipeId: string;
-	declare public readonly name: string;
-	declare public readonly deleted: true;
+	public readonly recipeId: string;
+	public readonly deleted = true;
+
+	public constructor(recipeId: string) {
+		this.recipeId = recipeId;
+	}
 }

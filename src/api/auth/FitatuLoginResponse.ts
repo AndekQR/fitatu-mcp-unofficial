@@ -1,7 +1,7 @@
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
-import type { FitatuAuthSession } from "./FitatuAuthSession.ts";
+import { FitatuAuthSession } from "./FitatuAuthSession.ts";
 
 export class FitatuLoginResponse {
 	public readonly token: string;
@@ -33,11 +33,7 @@ export class FitatuLoginResponse {
 			throw new FitatuResponseDecodeError("Login token did not contain a Fitatu user id");
 		}
 
-		return {
-			token: this.token,
-			...(this.refreshToken ? { refreshToken: this.refreshToken } : {}),
-			fitatuUserId,
-		};
+		return new FitatuAuthSession(this.token, fitatuUserId, this.refreshToken);
 	}
 }
 

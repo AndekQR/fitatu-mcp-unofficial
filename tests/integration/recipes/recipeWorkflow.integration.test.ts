@@ -5,8 +5,9 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import type { RecipeDetails } from "../../../src/api/recipes/RecipeDetails.ts";
+import type { RecipeSearchResult } from "../../../src/api/recipes/RecipeSearchResult.ts";
+import { DetailedRecipeSearchItem } from "../../../src/services/recipes/DetailedRecipeSearchItem.ts";
 import { RecipeService } from "../../../src/services/recipes/RecipeService.ts";
-import type { RecipeServiceSearchResult } from "../../../src/services/recipes/RecipeServiceSearchResult.ts";
 import { CleanupTracker } from "../helpers/cleanupTracker.ts";
 import { findMealItem } from "../helpers/dayPlanAssertions.ts";
 import { selectProductsByMeasure } from "../helpers/productSelection.ts";
@@ -17,7 +18,7 @@ const recipeService = new RecipeService(recipeClient, new FoodSearchClient());
 const foodSearchClient = new FoodSearchClient();
 const dayPlanClient = new DayPlanClient();
 const cleanup = new CleanupTracker(dayPlanClient, recipeClient);
-const READ_AFTER_WRITE_ATTEMPTS = 20;
+const READ_AFTER_WRITE_ATTEMPTS = 60;
 
 describe.sequential("Fitatu recipe integration workflow", () => {
 	afterEach(async () => {
@@ -89,15 +90,15 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 
 		const detailedSearch = await waitForRecipeSearch(uniqueName, created.recipeId, true);
 		const detailedRecipe = detailedSearch?.items.find((item) => item.recipeId === created.recipeId);
-		if (
-			!detailedRecipe ||
-			detailedRecipe.servings === undefined ||
-			detailedRecipe.nutritionPerServing === undefined ||
-			detailedRecipe.measures === undefined
-		) {
+		if (!(detailedRecipe instanceof DetailedRecipeSearchItem)) {
 			throw new Error("Expected recipe search to include canonical details and measures");
 		}
+		const detailedRecipeDetails = detailedRecipe.details;
 		expect(detailedRecipe).toMatchObject({
+			recipeId: created.recipeId,
+			name: uniqueName,
+		});
+		expect(detailedRecipeDetails).toMatchObject({
 			recipeId: created.recipeId,
 			name: uniqueName,
 			servings: 2,
@@ -105,14 +106,13 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 				energyKcal: expect.any(Number),
 			},
 		});
-		expect(detailedRecipe).not.toHaveProperty("details");
-		expect(detailedRecipe.measures).toEqual(
+		expect(detailedRecipeDetails.measures).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ measureId: "1" }),
 				expect.objectContaining({ measureId: "39" }),
 			]),
 		);
-		const servingMeasure = detailedRecipe.measures.find((measure) => measure.measureId === "39");
+		const servingMeasure = detailedRecipeDetails.measures.find((measure) => measure.measureId === "39");
 		if (!servingMeasure?.measureId) {
 			throw new Error("Expected detailed recipe search to expose Fitatu's serving measure");
 		}
@@ -146,7 +146,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 					foodType: "RECIPE",
 					measureId: servingMeasure.measureId,
 					measureQuantity: 1,
-					ingredientsServing: detailedRecipe.servings,
+					ingredientsServing: detailedRecipeDetails.servings,
 					eaten: false,
 				},
 			],
@@ -239,7 +239,7 @@ async function waitForRecipeSearch(
 	query: string,
 	recipeId: string,
 	includeDetails = false,
-): Promise<RecipeServiceSearchResult | null> {
+): Promise<RecipeSearchResult | null> {
 	for (let attempt = 0; attempt < 15; attempt += 1) {
 		const result = await recipeService.searchRecipes({
 			query,

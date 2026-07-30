@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { GetDayPlanOptions } from "../../api/dayPlan/GetDayPlanOptions.ts";
 import { DateUtils } from "../../shared/DateUtils.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { DayPlanQueryProvider } from "../../services/dayPlan/DayPlanQueryService.ts";
@@ -97,10 +98,9 @@ export class GetDayPlanItemsTool {
 			},
 			async ({ date, withRating }) => {
 				try {
-					const dayPlan = await this.dayPlanQueryService.getDayPlan({
-						date: date ?? DateUtils.toLocalDateString(),
-						withRating: withRating === true,
-					});
+					const dayPlan = await this.dayPlanQueryService.getDayPlan(
+						new GetDayPlanOptions(date ?? DateUtils.toLocalDateString(), undefined, withRating === true),
+					);
 					return createTextResult({
 						date: dayPlan.date,
 						meals: dayPlan.meals.map((meal) => ({

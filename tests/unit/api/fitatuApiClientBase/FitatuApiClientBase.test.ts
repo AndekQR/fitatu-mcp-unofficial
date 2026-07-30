@@ -202,7 +202,7 @@ class TestFitatuApiClient extends FitatuApiClientBase {
 	}
 
 	public request(options: FitatuJsonRequestOptions<unknown>): Promise<unknown> {
-		return this.requestJson(options);
+		return this.performCallout(options);
 	}
 }
 

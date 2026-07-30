@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { FoodNutrition } from "../../../../src/api/foodSearch/FoodNutrition.ts";
 import type { FoodSearchOptions } from "../../../../src/api/foodSearch/FoodSearchOptions.ts";
-import type { FoodSearchResult } from "../../../../src/api/foodSearch/FoodSearchResult.ts";
-import type { FoodSearchWarningDetail } from "../../../../src/api/foodSearch/FoodSearchWarningDetail.ts";
+import { FoodSearchItem } from "../../../../src/api/foodSearch/FoodSearchItem.ts";
+import { FoodSearchResult } from "../../../../src/api/foodSearch/FoodSearchResult.ts";
+import { FoodSearchWarningDetail } from "../../../../src/api/foodSearch/FoodSearchWarningDetail.ts";
+import { NormalizedFoodSearchItem } from "../../../../src/api/foodSearch/NormalizedFoodSearchItem.ts";
 import { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS } from "../../../../src/api/fitatuApiClientBase/FitatuClientOperations.ts";
 import type { FoodSearchProvider } from "../../../../src/services/foodSearch/FoodSearchService.ts";
@@ -112,18 +115,21 @@ describe("SearchFoodTool", () => {
 	it("publishes product candidates with productId and no generic food id", async () => {
 		const service = new FakeFoodSearchService(undefined, false, true);
 		service.warnings.push("Public catalog was temporarily unavailable.");
-		service.warningDetails.push({
-			message: "Public catalog was temporarily unavailable.",
-			clientError: FitatuClientError.transport({
-				operation: FITATU_CLIENT_OPERATIONS.foodSearch,
-				message: "Fitatu public food search request failed",
-				method: "GET",
-				endpointTemplate: "/search/new/food",
-				error: new TypeError("network failure"),
-			}),
-			source: "public",
-			foodId: "sensitive-food-id",
-		});
+		service.warningDetails.push(
+			new FoodSearchWarningDetail(
+				"Public catalog was temporarily unavailable.",
+				FitatuClientError.transport({
+					operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+					message: "Fitatu public food search request failed",
+					method: "GET",
+					endpointTemplate: "/search/new/food",
+					error: new TypeError("network failure"),
+				}),
+				undefined,
+				"public",
+				"sensitive-food-id",
+			),
+		);
 		const registered = await registerToolForTest(new SearchFoodTool(service));
 
 		const result = await registered.invoke({ queries: ["test product"] });
@@ -188,105 +194,49 @@ class FakeFoodSearchService implements FoodSearchProvider {
 			throw this.error;
 		}
 
-		return {
-			date: "2026-07-14",
-			queries: options.queries,
-			queryCount: options.queries.length,
-			count: this.includeRecipe || this.includeProduct || this.includeCustom ? 1 : 0,
-			items: this.includeRecipe
-				? [
-						{
-							index: 0,
-							queryIndex: 0,
-							query: options.queries[0] ?? "",
-							source: "user",
-							foodId: "100",
-							productId: "100",
-							foodType: "RECIPE",
-							name: "Test recipe",
-							displayName: "Test recipe",
-							brand: null,
-							measureId: "39",
-							measureName: "portion",
-							measureQuantity: 1,
-							weightG: 100,
-							kcal: 100,
-							nutritionPer100g: emptyNutrition(),
-							nutritionPerDefaultMeasure: emptyNutrition(),
-							verified: false,
-							photoUrl: null,
-							matchScore: 1,
-							measures: [],
-						},
-					]
-				: this.includeProduct
-					? [
-							{
-								index: 0,
-								queryIndex: 0,
-								query: options.queries[0] ?? "",
-								source: "public",
-								foodId: "200",
-								productId: "200",
-								foodType: "PRODUCT",
-								name: "Test product",
-								displayName: "Test product",
-								brand: null,
-								measureId: "1",
-								measureName: "portion",
-								measureQuantity: 1,
-								weightG: 100,
-								kcal: 200,
-								nutritionPer100g: emptyNutrition(),
-								nutritionPerDefaultMeasure: emptyNutrition(),
-								verified: true,
-								photoUrl: null,
-								matchScore: 1,
-								measures: [],
-							},
-						]
-					: this.includeCustom
-						? [
-								{
-									index: 0,
-									queryIndex: 0,
-									query: options.queries[0] ?? "",
-									source: "user",
-									foodId: "custom-1",
-									productId: "custom-1",
-									foodType: "CUSTOM_ITEM",
-									name: "Quick add",
-									displayName: "Quick add",
-									brand: null,
-									measureId: "1",
-									measureName: "portion",
-									measureQuantity: 1,
-									weightG: 100,
-									kcal: 100,
-									nutritionPer100g: emptyNutrition(),
-									nutritionPerDefaultMeasure: emptyNutrition(),
-									verified: false,
-									photoUrl: null,
-									matchScore: 1,
-									measures: [],
-								},
-							]
-						: [],
-			warnings: [...this.warnings],
-			warningDetails: [...this.warningDetails],
-		};
+		const query = options.queries[0] ?? "";
+		const items = this.includeRecipe
+			? [foodItem(query, "user", "100", "RECIPE", "Test recipe", "39", 100, false)]
+			: this.includeProduct
+				? [foodItem(query, "public", "200", "PRODUCT", "Test product", "1", 200, true)]
+				: this.includeCustom
+					? [foodItem(query, "user", "custom-1", "CUSTOM_ITEM", "Quick add", "1", 100, false)]
+					: [];
+		return new FoodSearchResult("2026-07-14", options.queries, items, [...this.warnings], [...this.warningDetails]);
 	}
 }
 
-function emptyNutrition() {
-	return {
-		energyKcal: null,
-		proteinG: null,
-		fatG: null,
-		carbsG: null,
-		fiberG: null,
-		sugarsG: null,
-		saltG: null,
-		saturatedFatG: null,
-	};
+function foodItem(
+	query: string,
+	source: "public" | "user",
+	foodId: string,
+	foodType: "PRODUCT" | "RECIPE" | "CUSTOM_ITEM",
+	name: string,
+	measureId: string,
+	kcal: number,
+	verified: boolean,
+): FoodSearchItem {
+	const item = new NormalizedFoodSearchItem(
+		source,
+		foodId,
+		foodType,
+		name,
+		null,
+		measureId,
+		"portion",
+		1,
+		100,
+		kcal,
+		emptyNutrition(),
+		emptyNutrition(),
+		verified,
+		null,
+		1,
+		[],
+	);
+	return new FoodSearchItem(item, 0, 0, query, name);
+}
+
+function emptyNutrition(): FoodNutrition {
+	return new FoodNutrition(null, null, null, null, null, null, null, null);
 }

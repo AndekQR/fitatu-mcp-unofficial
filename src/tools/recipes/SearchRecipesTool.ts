@@ -1,8 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { RecipeSearchItem } from "../../api/recipes/RecipeSearchItem.ts";
+import { RecipeSearchOptions } from "../../api/recipes/RecipeSearchOptions.ts";
+import { DetailedRecipeSearchItem } from "../../services/recipes/DetailedRecipeSearchItem.ts";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
-import type { RecipeServiceDetails } from "../../services/recipes/RecipeServiceResult.ts";
-import type { RecipeServiceSearchItem } from "../../services/recipes/RecipeServiceSearchResult.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { FitatuClientErrorPublic } from "../shared/FitatuClientErrorPublic.ts";
 import {
@@ -155,13 +156,9 @@ export class SearchRecipesTool {
 			},
 			async ({ query, scope, page, limit, includeDetails }) => {
 				try {
-					const result = await this.recipeService.searchRecipes({
-						...(query !== undefined ? { query } : {}),
-						scope,
-						page,
-						limit,
-						includeDetails,
-					});
+					const result = await this.recipeService.searchRecipes(
+						new RecipeSearchOptions(query, scope, page, limit, includeDetails),
+					);
 					return createTextResult(
 						{
 							...result,
@@ -184,8 +181,8 @@ export class SearchRecipesTool {
 	}
 }
 
-function toSearchItemForMcp(item: RecipeServiceSearchItem) {
-	if (!hasRecipeDetails(item)) {
+function toSearchItemForMcp(item: RecipeSearchItem) {
+	if (!(item instanceof DetailedRecipeSearchItem)) {
 		return {
 			recipeId: item.recipeId,
 			name: item.name,
@@ -197,10 +194,6 @@ function toSearchItemForMcp(item: RecipeServiceSearchItem) {
 	return {
 		source: item.source,
 		energyKcal: item.energyKcal ?? undefined,
-		...toRecipeDetailsForMcp(item),
+		...toRecipeDetailsForMcp(item.details),
 	};
-}
-
-function hasRecipeDetails(item: RecipeServiceSearchItem): item is RecipeServiceSearchItem & RecipeServiceDetails {
-	return item.measures !== undefined;
 }

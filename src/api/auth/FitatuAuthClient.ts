@@ -96,7 +96,7 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 			_password: password,
 		};
 
-		return this.requestJson({
+		return this.performCallout({
 			operation: FITATU_CLIENT_OPERATIONS.authLogin,
 			method: "POST",
 			path: "/login",
@@ -135,7 +135,7 @@ export class FitatuAuthClient extends FitatuApiClientBase {
 		return FitatuFallbackRunner.run(
 			requestBodies,
 			(body) =>
-				this.requestJson({
+				this.performCallout({
 					operation: FITATU_CLIENT_OPERATIONS.authRefresh,
 					method: "POST",
 					path: "/token/refresh",

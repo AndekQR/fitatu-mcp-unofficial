@@ -1,25 +1,38 @@
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
-import type { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
 import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { RecipeSearchItem } from "./RecipeSearchItem.ts";
 import type { RecipeSearchScope } from "./RecipeSearchScope.ts";
 import type { RecipeSearchSource } from "./RecipeSearchSource.ts";
+import type { RecipeSearchWarning } from "./RecipeSearchWarning.ts";
 
-export interface RecipeSearchWarning {
-	readonly code: "RECIPE_SOURCE_UNAVAILABLE";
-	readonly source: RecipeSearchSource;
-	readonly message: string;
-	readonly clientError: FitatuClientError;
-}
+export class RecipeSearchResult<
+	TItem extends RecipeSearchItem = RecipeSearchItem,
+	TWarning extends RecipeSearchWarning = RecipeSearchWarning,
+> {
+	public readonly query: string;
+	public readonly scope: RecipeSearchScope;
+	public readonly page: number;
+	public readonly limit: number;
+	public readonly count: number;
+	public readonly items: readonly TItem[];
+	public readonly warnings: readonly TWarning[];
 
-export class RecipeSearchResult {
-	declare public readonly query: string;
-	declare public readonly scope: RecipeSearchScope;
-	declare public readonly page: number;
-	declare public readonly limit: number;
-	declare public readonly count: number;
-	declare public readonly items: readonly RecipeSearchItem[];
-	declare public readonly warnings: readonly RecipeSearchWarning[];
+	public constructor(
+		query: string,
+		scope: RecipeSearchScope,
+		page: number,
+		limit: number,
+		items: readonly TItem[],
+		warnings: readonly TWarning[],
+	) {
+		this.query = query;
+		this.scope = scope;
+		this.page = page;
+		this.limit = limit;
+		this.count = items.length;
+		this.items = items;
+		this.warnings = warnings;
+	}
 
 	public static extractItems(response: unknown, source: RecipeSearchSource): readonly RecipeSearchItem[] {
 		return RecipeSearchResult.extractRows(response).flatMap((row) => {

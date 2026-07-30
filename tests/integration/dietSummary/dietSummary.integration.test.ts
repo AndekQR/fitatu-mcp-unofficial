@@ -7,7 +7,11 @@ import { FitatuUserProfile } from "../../../src/api/users/FitatuUserProfile.ts";
 import { ServiceError } from "../../../src/services/ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../../../src/services/ServiceErrorCode.ts";
 import { DietSummaryService } from "../../../src/services/dietSummary/DietSummaryService.ts";
-import type { DietSummaryResult } from "../../../src/services/dietSummary/DietSummaryTypes.ts";
+import { DietSummaryDailyEnergy } from "../../../src/services/dietSummary/DietSummaryDailyEnergy.ts";
+import { DietSummaryEnergy } from "../../../src/services/dietSummary/DietSummaryEnergy.ts";
+import { DietSummaryNutrient } from "../../../src/services/dietSummary/DietSummaryNutrient.ts";
+import { DietSummaryPeriod } from "../../../src/services/dietSummary/DietSummaryPeriod.ts";
+import { DietSummaryResult } from "../../../src/services/dietSummary/DietSummaryResult.ts";
 import { GetDietSummaryTool } from "../../../src/tools/dietSummary/GetDietSummaryTool.ts";
 
 describe("DietSummaryService integration", () => {
@@ -371,35 +375,26 @@ function findNutrient(result: DietSummaryResult, key: string) {
 }
 
 function createToolSummary(): DietSummaryResult {
-	return {
-		period: {
-			fromDate: "2026-07-01",
-			toDate: "2026-07-01",
-			dayCount: 1,
-		},
-		energy: {
-			loggedTotal: 2000,
-			targetTotal: 2500,
-			averageLogged: 2000,
-			averageTarget: 2500,
-			remainingToTarget: 500,
-			daily: [{ date: "2026-07-01", logged: 2000, target: 2500, remainingToTarget: 500 }],
-		},
-		keyNutrients: [],
-		allNutrients: [
-			{
-				key: "energy",
-				label: "Energy",
-				unit: "kcal",
-				current: 2000,
-				min: null,
-				max: 2500,
-				eaten: 2000,
-				status: "withinRange",
-				remainingToMaximum: 500,
-			},
+	return new DietSummaryResult(
+		new DietSummaryPeriod("2026-07-01", "2026-07-01", 1),
+		new DietSummaryEnergy(2000, 2500, 2000, 2500, 500, [new DietSummaryDailyEnergy("2026-07-01", 2000, 2500, 500)]),
+		[],
+		[
+			new DietSummaryNutrient(
+				"energy",
+				"Energy",
+				"kcal",
+				2000,
+				null,
+				2500,
+				2000,
+				"withinRange",
+				undefined,
+				undefined,
+				500,
+			),
 		],
-	};
+	);
 }
 
 function registerToolForTest(

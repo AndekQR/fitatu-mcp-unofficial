@@ -1,7 +1,7 @@
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
-import type { FitatuAuthSession } from "./FitatuAuthSession.ts";
+import { FitatuAuthSession } from "./FitatuAuthSession.ts";
 
 export class FitatuRefreshResponseData {
 	private readonly token: string;
@@ -28,11 +28,11 @@ export class FitatuRefreshResponseData {
 	}
 
 	public toSession(previousSession: FitatuAuthSession): FitatuAuthSession {
-		return {
-			token: this.token,
-			refreshToken: this.refreshToken ?? previousSession.refreshToken,
-			fitatuUserId: previousSession.fitatuUserId,
-		};
+		return new FitatuAuthSession(
+			this.token,
+			previousSession.fitatuUserId,
+			this.refreshToken ?? previousSession.refreshToken,
+		);
 	}
 }
 

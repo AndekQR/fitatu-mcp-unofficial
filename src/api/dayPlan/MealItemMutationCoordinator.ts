@@ -15,7 +15,7 @@ import { FoundDietItem } from "./FoundDietItem.ts";
 import { MealItemMutationResult } from "./MealItemMutationResult.ts";
 import type { MoveMealItemOptions } from "./MoveMealItemOptions.ts";
 import type { RemoveMealItemOptions } from "./RemoveMealItemOptions.ts";
-import type { RemoveMealItemsOptions } from "./RemoveMealItemsOptions.ts";
+import { RemoveMealItemsOptions } from "./RemoveMealItemsOptions.ts";
 import type { DayPlanSyncProvider } from "./DayPlanSyncProvider.ts";
 import type { UpdateMealItemOptions } from "./UpdateMealItemOptions.ts";
 
@@ -27,9 +27,8 @@ export class MealItemMutationCoordinator {
 		this.dayPlanSyncProvider = dayPlanSyncProvider;
 	}
 
-	public async addMealItems(
-		options: AddMealItemsOptions & { readonly userId: string },
-	): Promise<MealItemMutationResult> {
+	public async addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult> {
+		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanAddItems);
 		const { date, mealKey, acceptedItems } = normalizeMutationInput(
 			FITATU_CLIENT_OPERATIONS.dayPlanAddItems,
 			() => {
@@ -47,12 +46,12 @@ export class MealItemMutationCoordinator {
 				};
 			},
 		);
-		const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(options.userId, date);
+		const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, date);
 		new DayPlanDietPlan(dayPayload.dietPlan, FITATU_CLIENT_OPERATIONS.dayPlanAddItems)
 			.getMealItems(mealKey)
 			.push(...acceptedItems.map(({ payload }) => payload));
 
-		await this.dayPlanSyncProvider.syncSingleDay(options.userId, date, dayPayload);
+		await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
 
 		return MealItemMutationResult.acceptedAdd(
 			date,
@@ -61,9 +60,8 @@ export class MealItemMutationCoordinator {
 		);
 	}
 
-	public async updateMealItem(
-		options: UpdateMealItemOptions & { readonly userId: string },
-	): Promise<MealItemMutationResult> {
+	public async updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
+		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem);
 		const { date, mealKey, itemId, measureQuantity, measureId } = normalizeMutationInput(
 			FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem,
 			() => {
@@ -96,7 +94,7 @@ export class MealItemMutationCoordinator {
 			},
 		);
 
-		const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(options.userId, date);
+		const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, date);
 		const target = new DayPlanDietPlan(dayPayload.dietPlan, FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem).findItem(
 			mealKey,
 			itemId,
@@ -117,25 +115,26 @@ export class MealItemMutationCoordinator {
 		}
 		target.item.updatedAt = nowTimestamp();
 
-		await this.dayPlanSyncProvider.syncSingleDay(options.userId, date, dayPayload);
+		await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
 
 		return MealItemMutationResult.acceptedUpdate(date, target.toOperationSummary(0, itemId));
 	}
 
-	public async removeMealItem(
-		options: RemoveMealItemOptions & { readonly userId: string },
-	): Promise<MealItemMutationResult> {
+	public async removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
+		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
 		const itemId = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem, () => {
 			normalizeMealKey(options.mealKey, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
 			normalizeItemKind(options.itemKind ?? "auto", FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
 			return StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
 		});
-		const result = await this.removeMealItems({
-			date: options.date,
-			itemIds: [itemId],
-			itemKinds: { [options.itemId]: options.itemKind ?? "auto" },
-			userId: options.userId,
-		});
+		const result = await this.removeMealItems(
+			new RemoveMealItemsOptions(
+				options.date,
+				[itemId],
+				{ [options.itemId]: options.itemKind ?? "auto" },
+				userId,
+			),
+		);
 		return MealItemMutationResult.acceptedRemove(
 			result.targetDate,
 			result.acceptedItems,
@@ -143,14 +142,13 @@ export class MealItemMutationCoordinator {
 		);
 	}
 
-	public async removeMealItems(
-		options: RemoveMealItemsOptions & { readonly userId: string },
-	): Promise<MealItemMutationResult> {
+	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
+		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems);
 		const { date, itemIds } = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems, () => ({
 			date: DateUtils.validateIsoDate(options.date),
 			itemIds: normalizeItemIds(options.itemIds),
 		}));
-		const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(options.userId, date);
+		const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, date);
 		const targets = new DayPlanDietPlan(
 			dayPayload.dietPlan,
 			FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems,
@@ -181,8 +179,8 @@ export class MealItemMutationCoordinator {
 			}
 		}
 
-		await this.dayPlanSyncProvider.syncSingleDay(options.userId, date, dayPayload);
-		await this.waitForRemovedItems(options.userId, date, itemIds);
+		await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
+		await this.waitForRemovedItems(userId, date, itemIds);
 
 		const acceptedItems = targets.map((target, index) =>
 			target.toOperationSummary(index, getRequiredItemId(target.item)),
@@ -191,9 +189,8 @@ export class MealItemMutationCoordinator {
 		return MealItemMutationResult.acceptedRemove(date, acceptedItems);
 	}
 
-	public async moveMealItem(
-		options: MoveMealItemOptions & { readonly userId: string },
-	): Promise<MealItemMutationResult> {
+	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {
+		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanMoveItem);
 		const { fromDate, toDate, fromMealKey, toMealKey, itemId } = normalizeMutationInput(
 			FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
 			() => ({
@@ -207,7 +204,7 @@ export class MealItemMutationCoordinator {
 				itemId: StringUtils.parseNonEmptyString(options.itemId, "itemId is required"),
 			}),
 		);
-		const sourcePayload = await this.dayPlanSyncProvider.getDaySyncPayload(options.userId, fromDate);
+		const sourcePayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, fromDate);
 		const sourceDietPlan = new DayPlanDietPlan(sourcePayload.dietPlan, FITATU_CLIENT_OPERATIONS.dayPlanMoveItem);
 		const source = sourceDietPlan.findItem(fromMealKey, itemId, true);
 
@@ -237,7 +234,7 @@ export class MealItemMutationCoordinator {
 			source.items.splice(source.index, 1, deleteMarker);
 			daysPayload[fromDate] = sourcePayload;
 
-			const targetPayload = await this.dayPlanSyncProvider.getDaySyncPayload(options.userId, toDate);
+			const targetPayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, toDate);
 			destinationItems = new DayPlanDietPlan(
 				targetPayload.dietPlan,
 				FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
@@ -246,7 +243,7 @@ export class MealItemMutationCoordinator {
 			daysPayload[toDate] = targetPayload;
 		}
 
-		await this.dayPlanSyncProvider.syncDays(options.userId, daysPayload);
+		await this.dayPlanSyncProvider.syncDays(userId, daysPayload);
 
 		const acceptedItem = new FoundDietItem(
 			toMealKey,
@@ -270,7 +267,7 @@ export class MealItemMutationCoordinator {
 			() =>
 				FitatuClientError.invalidResponse({
 					operation: FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems,
-					message: "Fitatu accepted the removal but it could not be confirmed within 10 seconds",
+					message: "Fitatu accepted the removal but it could not be confirmed within 60 seconds",
 					method: "GET",
 					endpointTemplate: "/diet-and-activity-plan/:userId/day/:date",
 				}),
@@ -302,6 +299,22 @@ function getRequiredItemId(item: Record<string, unknown>): string {
 		method: "GET",
 		endpointTemplate: "/diet-and-activity-plan/:userId/day/:date",
 	});
+}
+
+function requireUserId(
+	userId: string | undefined,
+	operation:
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanAddItems
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
+): string {
+	const normalizedUserId = StringUtils.stringOrNull(userId);
+	if (normalizedUserId === null) {
+		throw invalidMutation("userId is required", operation);
+	}
+	return normalizedUserId;
 }
 
 function invalidMutation(

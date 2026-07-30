@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MealItemMutationCoordinator } from "../../../../src/api/dayPlan/MealItemMutationCoordinator.ts";
 import type { MealItemInput } from "../../../../src/api/dayPlan/MealItemInput.ts";
 import type { DayPlanSyncProvider } from "../../../../src/api/dayPlan/DayPlanSyncProvider.ts";
 import type { DaySyncPayload } from "../../../../src/api/dayPlan/DaySyncPayload.ts";
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 describe("MealItemMutationCoordinator single-day mutations", () => {
 	it("adds a product item and synchronizes the changed day", async () => {
@@ -173,6 +177,7 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 
 describe("MealItemMutationCoordinator.removeMealItems", () => {
 	it("removes exact product and recipe items across meals in a single day sync", async () => {
+		vi.useFakeTimers();
 		const payload = createPayload({
 			breakfast: [
 				createProductItem({ itemId: "breakfast-1", productId: 101 }),
@@ -183,14 +188,21 @@ describe("MealItemMutationCoordinator.removeMealItems", () => {
 				createRecipeItem({ itemId: "recipe-1", recipeId: 101 }),
 			],
 		});
-		const syncService = new RecordingDayPlanSyncCoordinator(payload);
+		const syncService = new RecordingDayPlanSyncCoordinator(payload, 60);
 		const service = new MealItemMutationCoordinator(syncService);
 
-		const result = await service.removeMealItems({
+		const resultPromise = service.removeMealItems({
 			userId: "user-1",
 			date: "2026-07-01",
 			itemIds: ["breakfast-1", "lunch-1", "recipe-1"],
 		});
+		const resultExpectation = expect(resultPromise).resolves.toMatchObject({
+			operation: "remove",
+			operationCount: 3,
+		});
+		await vi.advanceTimersByTimeAsync(30_001);
+		await resultExpectation;
+		const result = await resultPromise;
 
 		expect(result.operation).toBe("remove");
 		expect(result.mealKey).toBeNull();
@@ -203,10 +215,7 @@ describe("MealItemMutationCoordinator.removeMealItems", () => {
 		]);
 		expect(syncService.syncCalls).toHaveLength(1);
 		expect(syncService.syncCalls[0]).toMatchObject({ userId: "user-1", date: "2026-07-01" });
-		expect(syncService.getPayloadCalls).toEqual([
-			{ userId: "user-1", date: "2026-07-01" },
-			{ userId: "user-1", date: "2026-07-01" },
-		]);
+		expect(syncService.getPayloadCalls).toHaveLength(62);
 		expect(syncService.item("breakfast", "breakfast-1")?.deletedAt).toBeTruthy();
 		expect(syncService.item("lunch", "lunch-1")?.deletedAt).toBeTruthy();
 		expect(syncService.item("breakfast", "breakfast-2")?.deletedAt).toBe("2026-07-01 10:00:00");
@@ -324,9 +333,12 @@ class RecordingDayPlanSyncCoordinator implements DayPlanSyncProvider {
 	public readonly getPayloadCalls: { readonly userId: string; readonly date: string }[] = [];
 
 	private readonly payloads: Record<string, DaySyncPayload>;
+	private stalePayload: DaySyncPayload | null = null;
+	private staleReadsRemaining: number;
 
-	public constructor(payload: DaySyncPayload | Record<string, DaySyncPayload>) {
+	public constructor(payload: DaySyncPayload | Record<string, DaySyncPayload>, staleReadsAfterSync = 0) {
 		this.payloads = isDaySyncPayload(payload) ? { "2026-07-01": payload } : payload;
+		this.staleReadsRemaining = staleReadsAfterSync;
 	}
 
 	public get currentPayload(): DaySyncPayload {
@@ -335,10 +347,15 @@ class RecordingDayPlanSyncCoordinator implements DayPlanSyncProvider {
 
 	public async getDaySyncPayload(userId: string, date: string): Promise<DaySyncPayload> {
 		this.getPayloadCalls.push({ userId, date });
-		return this.getPayload(date);
+		if (this.stalePayload && this.staleReadsRemaining > 0) {
+			this.staleReadsRemaining -= 1;
+			return structuredClone(this.stalePayload);
+		}
+		return structuredClone(this.getPayload(date));
 	}
 
 	public async syncSingleDay(userId: string, date: string, payload: DaySyncPayload): Promise<void> {
+		this.stalePayload = structuredClone(this.getPayload(date));
 		this.payloads[date] = payload;
 		this.syncCalls.push({ userId, date, payload });
 	}

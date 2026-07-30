@@ -1,9 +1,25 @@
 export class CustomMealItemInput {
-	declare public readonly foodType: "CUSTOM_ITEM";
-	declare public readonly name: string;
-	declare public readonly energyKcal: number;
-	declare public readonly proteinG?: number;
-	declare public readonly fatG?: number;
-	declare public readonly carbohydrateG?: number;
-	declare public readonly eaten?: boolean;
+	public readonly foodType = "CUSTOM_ITEM";
+	public readonly name: string;
+	public readonly energyKcal: number;
+	public readonly proteinG?: number;
+	public readonly fatG?: number;
+	public readonly carbohydrateG?: number;
+	public readonly eaten?: boolean;
+
+	public constructor(
+		name: string,
+		energyKcal: number,
+		proteinG?: number,
+		fatG?: number,
+		carbohydrateG?: number,
+		eaten?: boolean,
+	) {
+		this.name = name;
+		this.energyKcal = energyKcal;
+		this.proteinG = proteinG;
+		this.fatG = fatG;
+		this.carbohydrateG = carbohydrateG;
+		this.eaten = eaten;
+	}
 }

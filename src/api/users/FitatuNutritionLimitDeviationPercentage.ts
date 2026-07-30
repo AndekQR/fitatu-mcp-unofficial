@@ -1,11 +1,16 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+
 export class FitatuNutritionLimitDeviationPercentage {
-	declare public readonly energy?: number;
-	declare public readonly carbohydrate?: number;
-	declare public readonly protein?: number;
-	declare public readonly fat?: number;
+	public readonly energy?: number;
+	public readonly carbohydrate?: number;
+	public readonly protein?: number;
+	public readonly fat?: number;
 
 	private constructor(data: Record<string, unknown>) {
-		Object.assign(this, data);
+		this.energy = optionalNumber(data.energy);
+		this.carbohydrate = optionalNumber(data.carbohydrate);
+		this.protein = optionalNumber(data.protein);
+		this.fat = optionalNumber(data.fat);
 	}
 
 	public static fromApiResponse(data: unknown): FitatuNutritionLimitDeviationPercentage | null {
@@ -13,6 +18,10 @@ export class FitatuNutritionLimitDeviationPercentage {
 			return null;
 		}
 
-		return new FitatuNutritionLimitDeviationPercentage(data as Record<string, unknown>);
+		return ObjectUtils.isRecord(data) ? new FitatuNutritionLimitDeviationPercentage(data) : null;
 	}
+}
+
+function optionalNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

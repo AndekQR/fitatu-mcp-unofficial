@@ -6,14 +6,13 @@ import type { FitatuUserProfile } from "../../api/users/FitatuUserProfile.ts";
 import { DateUtils } from "../../shared/DateUtils.ts";
 import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
-import type {
-	DietSummaryDailyEnergy,
-	DietSummaryEnergy,
-	DietSummaryNutrient,
-	DietSummaryRequest,
-	DietSummaryResult,
-	NutrientStatus,
-} from "./DietSummaryTypes.ts";
+import { DietSummaryDailyEnergy } from "./DietSummaryDailyEnergy.ts";
+import { DietSummaryEnergy } from "./DietSummaryEnergy.ts";
+import { DietSummaryNutrient } from "./DietSummaryNutrient.ts";
+import type { DietSummaryRequest } from "./DietSummaryRequest.ts";
+import { DietSummaryResult } from "./DietSummaryResult.ts";
+import { DietSummaryPeriod } from "./DietSummaryPeriod.ts";
+import type { NutrientStatus } from "./NutrientStatus.ts";
 import { ServiceError } from "../ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../ServiceErrorCode.ts";
 
@@ -176,44 +175,35 @@ export class DietSummaryService implements DietSummaryProvider {
 		const dates = eachDate(fromDate, toDate);
 		const allNutrients = Object.entries(summary).map(([key, measure]) => this.toNutrient(key, measure));
 
-		return {
-			period: {
-				fromDate,
-				toDate,
-				dayCount: dates.length,
-			},
-			energy: this.toEnergy(energySummary, dates),
-			keyNutrients: KEY_NUTRIENT_KEYS.flatMap((key) => {
+		return new DietSummaryResult(
+			new DietSummaryPeriod(fromDate, toDate, dates.length),
+			this.toEnergy(energySummary, dates),
+			KEY_NUTRIENT_KEYS.flatMap((key) => {
 				const nutrient = allNutrients.find((item) => item.key === key);
 				return nutrient ? [nutrient] : [];
 			}),
 			allNutrients,
-		};
+		);
 	}
 
 	private toEnergy(summary: GetEnergySummaryResponse, dates: readonly string[]): DietSummaryEnergy {
 		const daily = dates.map((date) => {
 			const logged = numberOrNull(summary.measures[date]) ?? 0;
 			const target = numberOrNull(summary.targets[date]);
-			return {
-				date,
-				logged,
-				target,
-				remainingToTarget: target === null ? null : round(target - logged),
-			} satisfies DietSummaryDailyEnergy;
+			return new DietSummaryDailyEnergy(date, logged, target, target === null ? null : round(target - logged));
 		});
 		const loggedTotal = sumNumbers(daily.map((item) => item.logged));
 		const targetTotal = sumNumbers(daily.map((item) => item.target));
 		const dayCount = dates.length || 1;
 
-		return {
+		return new DietSummaryEnergy(
 			loggedTotal,
 			targetTotal,
-			averageLogged: round(loggedTotal / dayCount),
-			averageTarget: round(targetTotal / dayCount),
-			remainingToTarget: round(targetTotal - loggedTotal),
+			round(loggedTotal / dayCount),
+			round(targetTotal / dayCount),
+			round(targetTotal - loggedTotal),
 			daily,
-		};
+		);
 	}
 
 	private toNutrient(key: string, measure: SummaryMeasure): DietSummaryNutrient {
@@ -222,19 +212,19 @@ export class DietSummaryService implements DietSummaryProvider {
 		const max = numberOrNull(measure.max);
 		const status = nutrientStatus(current, min, max);
 
-		return {
+		return new DietSummaryNutrient(
 			key,
-			label: NUTRIENT_LABELS[key] ?? labelFromKey(key),
-			unit: NUTRIENT_UNITS[key],
+			NUTRIENT_LABELS[key] ?? labelFromKey(key),
+			NUTRIENT_UNITS[key],
 			current,
 			min,
 			max,
-			eaten: numberOrNull(measure.eaten),
+			numberOrNull(measure.eaten),
 			status,
-			amountToMinimum: current !== null && min !== null && current < min ? round(min - current) : undefined,
-			amountOverMaximum: current !== null && max !== null && current > max ? round(current - max) : undefined,
-			remainingToMaximum: current !== null && max !== null && current <= max ? round(max - current) : undefined,
-		};
+			current !== null && min !== null && current < min ? round(min - current) : undefined,
+			current !== null && max !== null && current > max ? round(current - max) : undefined,
+			current !== null && max !== null && current <= max ? round(max - current) : undefined,
+		);
 	}
 }
 

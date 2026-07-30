@@ -1,18 +1,23 @@
 import { describe, expect, it } from "vitest";
-import type { RecipeDeleteResult } from "../../../../src/api/recipes/RecipeDeleteResult.ts";
-import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
+import { RecipeCreateResult } from "../../../../src/api/recipes/RecipeCreateResult.ts";
+import { RecipeDeleteResult } from "../../../../src/api/recipes/RecipeDeleteResult.ts";
+import { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
+import { RecipeReplaceResult } from "../../../../src/api/recipes/RecipeReplaceResult.ts";
+import { RecipeSearchItem } from "../../../../src/api/recipes/RecipeSearchItem.ts";
 import type { RecipeSearchOptions } from "../../../../src/api/recipes/RecipeSearchOptions.ts";
+import { RecipeSearchResult } from "../../../../src/api/recipes/RecipeSearchResult.ts";
+import { RecipeSearchWarning } from "../../../../src/api/recipes/RecipeSearchWarning.ts";
 import type { RecipeUpdateInput } from "../../../../src/api/recipes/RecipeUpdateInput.ts";
 import type { RecipeWriteInput } from "../../../../src/api/recipes/RecipeWriteInput.ts";
 import { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS } from "../../../../src/api/fitatuApiClientBase/FitatuClientOperations.ts";
 import type { RecipeProvider } from "../../../../src/services/recipes/RecipeService.ts";
-import type {
-	RecipeServiceCreateResult,
-	RecipeServiceDetails,
-	RecipeServiceReplaceResult,
-} from "../../../../src/services/recipes/RecipeServiceResult.ts";
-import type { RecipeServiceSearchResult } from "../../../../src/services/recipes/RecipeServiceSearchResult.ts";
+import { DetailedRecipeSearchItem } from "../../../../src/services/recipes/DetailedRecipeSearchItem.ts";
+import { RecipeDetailsUnavailableWarning } from "../../../../src/services/recipes/RecipeDetailsUnavailableWarning.ts";
+import { RecipeServiceCreateResult } from "../../../../src/services/recipes/RecipeServiceCreateResult.ts";
+import { RecipeServiceDeleteResult } from "../../../../src/services/recipes/RecipeServiceDeleteResult.ts";
+import { RecipeServiceDetails } from "../../../../src/services/recipes/RecipeServiceDetails.ts";
+import { RecipeServiceReplaceResult } from "../../../../src/services/recipes/RecipeServiceReplaceResult.ts";
 import type { RecipeWarning } from "../../../../src/services/recipes/RecipeWarning.ts";
 import { CreateRecipeTool } from "../../../../src/tools/recipes/CreateRecipeTool.ts";
 import { DeleteRecipeTool } from "../../../../src/tools/recipes/DeleteRecipeTool.ts";
@@ -270,13 +275,17 @@ describe("Recipe MCP tools", () => {
 
 	it("search_recipes publishes safe warnings for unavailable recipe details", async () => {
 		const service = new RecordingRecipeService();
-		service.searchWarnings.push({
-			code: "RECIPE_DETAILS_UNAVAILABLE",
-			source: "mine",
-			recipeId: "100",
-			message: "Details were unavailable.",
-			clientError: await recipeApiError(503, "Service Unavailable"),
-		});
+		service.searchWarnings.push(
+			new RecipeDetailsUnavailableWarning(
+				new RecipeSearchWarning(
+					"RECIPE_DETAILS_UNAVAILABLE",
+					"mine",
+					"Details were unavailable.",
+					await recipeApiError(503, "Service Unavailable"),
+				),
+				"100",
+			),
+		);
 		const registered = await registerToolForTest(new SearchRecipesTool(service));
 
 		const result = await registered.invoke({ query: "recipe", includeDetails: true });
@@ -566,7 +575,7 @@ class RecordingRecipeService implements RecipeProvider {
 	public readonly updateInputs: { recipeId: string | number; input: RecipeUpdateInput }[] = [];
 	public readonly deleteInputs: { recipeId: string | number; expectedName: string }[] = [];
 	public readonly writeWarnings: RecipeWarning[] = [];
-	public readonly searchWarnings: RecipeServiceSearchResult["warnings"][number][] = [];
+	public readonly searchWarnings: RecipeSearchResult["warnings"][number][] = [];
 	public detailsValue: RecipeServiceDetails = details();
 
 	public constructor(private readonly error?: Error) {}
@@ -574,7 +583,7 @@ class RecordingRecipeService implements RecipeProvider {
 	public async createRecipe(input: RecipeWriteInput): Promise<RecipeServiceCreateResult> {
 		this.throwWhenConfigured();
 		this.createInputs.push(input);
-		return { recipeId: "100", details: details(), warnings: [...this.writeWarnings] };
+		return new RecipeServiceCreateResult(new RecipeCreateResult("100", details()), [...this.writeWarnings]);
 	}
 
 	public async getRecipe(recipeId: string | number): Promise<RecipeServiceDetails> {
@@ -583,24 +592,19 @@ class RecordingRecipeService implements RecipeProvider {
 		return this.detailsValue;
 	}
 
-	public async searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeServiceSearchResult> {
+	public async searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeSearchResult> {
 		this.throwWhenConfigured();
 		this.searchInputs.push(options);
-		const summary = {
-			recipeId: "100",
-			name: "Test recipe",
-			source: "mine" as const,
-			energyKcal: 100,
-		};
-		return {
-			query: options.query ?? "",
-			scope: options.scope ?? "mine",
-			page: options.page ?? 1,
-			limit: options.limit ?? 20,
-			count: 1,
-			items: [options.includeDetails ? { ...summary, ...this.detailsValue } : summary],
-			warnings: [...this.searchWarnings],
-		};
+		const summary = new RecipeSearchItem("100", "Test recipe", "mine", 100);
+		const item = options.includeDetails ? new DetailedRecipeSearchItem(summary, this.detailsValue) : summary;
+		return new RecipeSearchResult(
+			options.query ?? "",
+			options.scope ?? "mine",
+			options.page ?? 1,
+			options.limit ?? 20,
+			[item],
+			[...this.searchWarnings],
+		);
 	}
 
 	public async updateRecipe(
@@ -609,19 +613,21 @@ class RecordingRecipeService implements RecipeProvider {
 	): Promise<RecipeServiceReplaceResult> {
 		this.throwWhenConfigured();
 		this.updateInputs.push({ recipeId, input });
-		return {
-			previousRecipeId: String(recipeId),
-			recipeId: "200",
-			identityChanged: true,
-			details: details({ recipeId: "200", name: "Changed", servings: 3 }),
-			warnings: [...this.writeWarnings],
-		};
+		return new RecipeServiceReplaceResult(
+			new RecipeReplaceResult(
+				new RecipeCreateResult("200", details({ recipeId: "200", name: "Changed", servings: 3 })),
+				String(recipeId),
+				true,
+			),
+			details({ recipeId: "200", name: "Changed", servings: 3 }),
+			[...this.writeWarnings],
+		);
 	}
 
-	public async deleteRecipe(recipeId: string | number, expectedName: string): Promise<RecipeDeleteResult> {
+	public async deleteRecipe(recipeId: string | number, expectedName: string): Promise<RecipeServiceDeleteResult> {
 		this.throwWhenConfigured();
 		this.deleteInputs.push({ recipeId, expectedName });
-		return { recipeId: String(recipeId), name: expectedName, deleted: true };
+		return new RecipeServiceDeleteResult(new RecipeDeleteResult(String(recipeId)), expectedName);
 	}
 
 	private throwWhenConfigured(): void {
@@ -632,29 +638,31 @@ class RecordingRecipeService implements RecipeProvider {
 }
 
 function details(overrides: Partial<RecipeDetails> = {}): RecipeServiceDetails {
-	return {
-		recipeId: "100",
-		userId: "test-user",
-		name: "Test recipe",
-		servings: 2,
-		shared: false,
-		editable: true,
-		deleted: false,
-		description: null,
-		cookingTimeMinutes: null,
-		preparationTimeMinutes: null,
-		mealSchema: [],
+	const recipe = RecipeDetails.fromApiResponse({
+		id: overrides.recipeId ?? "100",
+		userId: overrides.userId ?? "test-user",
+		name: overrides.name ?? "Test recipe",
+		serving: overrides.servings ?? 2,
+		shared: overrides.shared ?? false,
+		editable: overrides.editable ?? true,
+		deleted: overrides.deleted ?? false,
+		recipeDescription: overrides.description ?? null,
+		cookingTime: overrides.cookingTimeMinutes ?? null,
+		preparationTime: overrides.preparationTimeMinutes ?? null,
+		mealSchema: overrides.mealSchema ?? [],
 		tags: [],
-		ingredients: [],
-		nutritionPerServing: { energyKcal: 100, proteinG: 10, fatG: 5, carbohydrateG: 12 },
-		weightPerServingG: null,
-		measures: [
-			{ measureId: "1", measureName: "g", weightG: 1, unit: null, energyKcal: 0.5 },
-			{ measureId: "39", measureName: "portion", weightG: 200, unit: null, energyKcal: 100 },
-		],
-		categories: null,
-		...overrides,
-	};
+		items: [],
+		energy: 100,
+		protein: 10,
+		fat: 5,
+		carbohydrate: 12,
+		weight: overrides.weightPerServingG ?? null,
+		categories: overrides.categories ?? null,
+	});
+	return new RecipeServiceDetails(recipe, [
+		{ measureId: "1", measureName: "g", weightG: 1, unit: null, energyKcal: 0.5 },
+		{ measureId: "39", measureName: "portion", weightG: 200, unit: null, energyKcal: 100 },
+	]);
 }
 
 function recipeApiError(statusCode: number, statusText: string): Promise<FitatuClientError> {

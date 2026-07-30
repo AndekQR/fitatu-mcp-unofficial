@@ -1,10 +1,10 @@
 const DEFAULT_INTERVAL_MS = 500;
-const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
 
-export type BoundedPollerOptions = Readonly<{
-	intervalMs?: number;
-	timeoutMs?: number;
-}>;
+export interface BoundedPollerOptions {
+	readonly intervalMs?: number;
+	readonly timeoutMs?: number;
+}
 
 export class BoundedPoller {
 	private readonly intervalMs: number;

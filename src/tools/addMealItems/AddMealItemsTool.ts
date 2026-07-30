@@ -1,13 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { AddMealItemsOptions } from "../../api/dayPlan/AddMealItemsOptions.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
 	mealItemInputSchema,
 	mealItemMutationOutputSchema,
-	toMealItemMutationForMcp,
 	toMealItemInput,
+	toMealItemMutationForMcp,
 } from "../mealItems/MealItemToolSupport.ts";
 import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
@@ -57,11 +58,9 @@ export class AddMealItemsTool {
 			},
 			async ({ date, mealKey, items }) => {
 				try {
-					const result = await this.mealItemMutationService.addMealItems({
-						date,
-						mealKey,
-						items: items.map(toMealItemInput),
-					});
+					const result = await this.mealItemMutationService.addMealItems(
+						new AddMealItemsOptions(date, mealKey, items.map(toMealItemInput)),
+					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(this.name, "Unable to add Fitatu meal items.", error);

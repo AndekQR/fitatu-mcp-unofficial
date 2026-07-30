@@ -6,24 +6,24 @@ import { ValidationError } from "../../shared/ValidationError.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FoodType, type FoodTypeName } from "../dayPlan/FoodType.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
+import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
 import type { FitatuRequestFailure } from "../fitatuApiClientBase/FitatuClientFailure.ts";
 import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
 import { FitatuFallbackRunner } from "../fitatuApiClientBase/FitatuFallbackRunner.ts";
 import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
-import type { FoodSearchClientOptions } from "./FoodSearchClientOptions.ts";
-import type { FoodMeasure } from "./FoodMeasure.ts";
-import type { FoodNutrition } from "./FoodNutrition.ts";
-import type { FoodSearchItem } from "./FoodSearchItem.ts";
+import { FoodMeasure } from "./FoodMeasure.ts";
+import { FoodNutrition } from "./FoodNutrition.ts";
+import { FoodSearchItem } from "./FoodSearchItem.ts";
 import type { FoodSearchOptions } from "./FoodSearchOptions.ts";
-import type { FoodSearchQueryResult } from "./FoodSearchQueryResult.ts";
-import type { FoodSearchResult } from "./FoodSearchResult.ts";
+import { FoodSearchQueryResult } from "./FoodSearchQueryResult.ts";
+import { FoodSearchResult } from "./FoodSearchResult.ts";
 import type { FoodSearchSource } from "./FoodSearchSource.ts";
-import type { FoodSearchWarningDetail } from "./FoodSearchWarningDetail.ts";
+import { FoodSearchWarningDetail } from "./FoodSearchWarningDetail.ts";
 import type { NestedFirstValue } from "./NestedFirstValue.ts";
-import type { NormalizedFoodSearchItem } from "./NormalizedFoodSearchItem.ts";
-import type { NormalizedFoodSearchOptions } from "./NormalizedFoodSearchOptions.ts";
+import { NormalizedFoodSearchItem } from "./NormalizedFoodSearchItem.ts";
+import { NormalizedFoodSearchOptions } from "./NormalizedFoodSearchOptions.ts";
 
 const DEFAULT_ACCEPT_HEADER = "application/json";
 const DEFAULT_LOCALE = "pl_PL";
@@ -31,7 +31,7 @@ const DEFAULT_LIMIT = 3;
 const DEFAULT_DETAILS_LIMIT = 3;
 
 export class FoodSearchClient extends FitatuApiClientBase {
-	public constructor(options: FoodSearchClientOptions = {}) {
+	public constructor(options: FitatuApiClientBaseOptions = {}) {
 		const authClient = options.authClient ?? FitatuAuthClient.getInstance();
 		const userClient = options.userClient ?? FitatuUserClient.getInstance({ authClient });
 
@@ -77,15 +77,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			}
 		}
 
-		return {
-			date: normalized.date,
-			queries: normalized.queries,
-			queryCount: normalized.queries.length,
-			count: items.length,
-			items,
-			warnings,
-			warningDetails,
-		};
+		return new FoodSearchResult(normalized.date, normalized.queries, items, warnings, warningDetails);
 	}
 
 	public async getAvailableMeasureIds(foodId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>> {
@@ -184,10 +176,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			items.push(...this.normalizeRows(rows, "user"));
 		}
 
-		let scoredItems = deduplicateItems(items).map((item) => ({
-			...item,
-			matchScore: matchScore(query, item),
-		}));
+		let scoredItems = deduplicateItems(items).map((item) => item.withMatchScore(matchScore(query, item)));
 
 		const hadCandidates = scoredItems.length > 0;
 		scoredItems = scoredItems.filter((item) => item.matchScore > 0);
@@ -199,14 +188,14 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			scoredItems = await this.withDetails(scoredItems, options.detailsLimit, warnings, warningDetails);
 		}
 
-		return {
+		return new FoodSearchQueryResult(
 			query,
-			items: scoredItems,
+			scoredItems,
 			warnings,
 			warningDetails,
 			searchAttemptCount,
 			searchSuccessCount,
-		};
+		);
 	}
 
 	private async fetchSearchRows(options: {
@@ -241,7 +230,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		return FitatuFallbackRunner.run(
 			variants,
 			(variant) =>
-				this.requestJson({
+				this.performCallout({
 					operation: FITATU_CLIENT_OPERATIONS.foodSearch,
 					method: "GET",
 					path: variant.path,
@@ -304,7 +293,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		return FitatuFallbackRunner.run(
 			paths,
 			(path) =>
-				this.requestJson({
+				this.performCallout({
 					operation: FITATU_CLIENT_OPERATIONS.foodDetailsGet,
 					method: "GET",
 					path,
@@ -335,46 +324,46 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				firstValue(row, "measureEnergy", { record: measure, keys: ["measureEnergy", "energy"] }),
 			);
 
-			items.push({
-				source,
-				foodId,
-				foodType: FoodType.fromUpstream(firstValue(row, "type", "foodType"), "PRODUCT"),
-				name: StringUtils.stringOrNull(row.name),
-				brand: StringUtils.stringOrNull(firstValue(row, "brand", "producer")),
-				measureId: StringUtils.stringOrNull(
-					firstValue(row, "measureId", "defaultMeasureId", {
-						record: measure,
-						keys: ["measureId", "defaultMeasureId", "id"],
-					}),
+			items.push(
+				new NormalizedFoodSearchItem(
+					source,
+					foodId,
+					FoodType.fromUpstream(firstValue(row, "type", "foodType"), "PRODUCT"),
+					StringUtils.stringOrNull(row.name),
+					StringUtils.stringOrNull(firstValue(row, "brand", "producer")),
+					StringUtils.stringOrNull(
+						firstValue(row, "measureId", "defaultMeasureId", {
+							record: measure,
+							keys: ["measureId", "defaultMeasureId", "id"],
+						}),
+					),
+					StringUtils.stringOrNull(
+						firstValue(row, "measureName", {
+							record: measure,
+							keys: ["measureName", "name"],
+						}),
+					),
+					NumberUtils.parseOptionalFiniteNumber(
+						firstValue(row, "measureQuantity", "quantity", {
+							record: measure,
+							keys: ["measureQuantity", "quantity"],
+						}),
+					),
+					NumberUtils.parseOptionalFiniteNumber(
+						firstValue(row, "measureWeight", {
+							record: measure,
+							keys: ["measureWeight", "weight", "capacity"],
+						}),
+					),
+					measureEnergy,
+					nutritionFromRecord(row),
+					new FoodNutrition(measureEnergy, null, null, null, null, null, null, null),
+					booleanOrNull(row.verified),
+					photoUrlOrNull(row.photo) ?? photoUrlOrNull(row.mainPhoto),
+					0,
+					[],
 				),
-				measureName: StringUtils.stringOrNull(
-					firstValue(row, "measureName", {
-						record: measure,
-						keys: ["measureName", "name"],
-					}),
-				),
-				measureQuantity: NumberUtils.parseOptionalFiniteNumber(
-					firstValue(row, "measureQuantity", "quantity", {
-						record: measure,
-						keys: ["measureQuantity", "quantity"],
-					}),
-				),
-				weightG: NumberUtils.parseOptionalFiniteNumber(
-					firstValue(row, "measureWeight", {
-						record: measure,
-						keys: ["measureWeight", "weight", "capacity"],
-					}),
-				),
-				kcal: measureEnergy,
-				nutritionPer100g: nutritionFromRecord(row),
-				nutritionPerDefaultMeasure: nutrition({
-					energyKcal: measureEnergy,
-				}),
-				verified: booleanOrNull(row.verified),
-				photoUrl: photoUrlOrNull(row.photo) ?? photoUrlOrNull(row.mainPhoto),
-				matchScore: 0,
-				measures: [],
-			});
+			);
 		}
 
 		return items;
@@ -385,29 +374,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 
 		for (const [queryIndex, result] of results.entries()) {
 			for (const item of result.items) {
-				output.push({
-					index: output.length,
-					queryIndex,
-					query: result.query,
-					source: item.source,
-					foodId: item.foodId,
-					productId: item.foodId,
-					foodType: item.foodType,
-					name: item.name,
-					displayName: displayName(item),
-					brand: item.brand,
-					measureId: item.measureId,
-					measureName: item.measureName,
-					measureQuantity: item.measureQuantity,
-					weightG: item.weightG,
-					kcal: item.kcal,
-					nutritionPer100g: item.nutritionPer100g,
-					nutritionPerDefaultMeasure: item.nutritionPerDefaultMeasure,
-					verified: item.verified,
-					photoUrl: item.photoUrl,
-					matchScore: item.matchScore,
-					measures: item.measures,
-				});
+				output.push(new FoodSearchItem(item, output.length, queryIndex, result.query, displayName(item)));
 			}
 		}
 
@@ -449,18 +416,18 @@ function normalizeOptions(options: FoodSearchOptions): NormalizedFoodSearchOptio
 		});
 	}
 
-	return {
+	return new NormalizedFoodSearchOptions(
 		queries,
-		date: DateUtils.validateIsoDate(options.date ?? DateUtils.toLocalDateString(), {
+		DateUtils.validateIsoDate(options.date ?? DateUtils.toLocalDateString(), {
 			calendarErrorMessage: "date must use YYYY-MM-DD format",
 		}),
-		locale: StringUtils.parseNonEmptyString(options.locale ?? DEFAULT_LOCALE, "locale is required"),
+		StringUtils.parseNonEmptyString(options.locale ?? DEFAULT_LOCALE, "locale is required"),
 		limit,
 		includeUserFood,
 		includePublicFood,
-		includeDetails: options.includeDetails ?? false,
+		options.includeDetails ?? false,
 		detailsLimit,
-	};
+	);
 }
 
 function normalizeQueries(queries: readonly string[] | undefined): readonly string[] {
@@ -499,26 +466,27 @@ function mergeDetails(item: NormalizedFoodSearchItem, details: Record<string, un
 	const detailsNutrition = nutritionFromRecord(details);
 	const measures = normalizeMeasures(details);
 
-	return {
-		...item,
-		nutritionPer100g: mergeNutrition(item.nutritionPer100g, detailsNutrition),
-		verified: item.verified ?? booleanOrNull(details.verified),
-		photoUrl: item.photoUrl ?? photoUrlOrNull(details.photo) ?? photoUrlOrNull(details.mainPhoto),
+	return item.withDetails(
+		mergeNutrition(item.nutritionPer100g, detailsNutrition),
+		item.verified ?? booleanOrNull(details.verified),
+		item.photoUrl ?? photoUrlOrNull(details.photo) ?? photoUrlOrNull(details.mainPhoto),
 		measures,
-	};
+	);
 }
 
 function normalizeMeasures(details: Record<string, unknown>): readonly FoodMeasure[] {
 	const measures: FoodMeasure[] = [];
 	const directMeasureId = StringUtils.stringOrNull(firstValue(details, "measureId", "defaultMeasureId"));
 	if (directMeasureId) {
-		measures.push({
-			measureId: directMeasureId,
-			measureName: StringUtils.stringOrNull(firstValue(details, "measureName")),
-			weightG: NumberUtils.parseOptionalFiniteNumber(firstValue(details, "measureWeight", "weight", "capacity")),
-			unit: StringUtils.stringOrNull(firstValue(details, "unit", "unitKey")),
-			energyKcal: NumberUtils.parseOptionalFiniteNumber(firstValue(details, "measureEnergy", "energy")),
-		});
+		measures.push(
+			new FoodMeasure(
+				directMeasureId,
+				StringUtils.stringOrNull(firstValue(details, "measureName")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(details, "measureWeight", "weight", "capacity")),
+				StringUtils.stringOrNull(firstValue(details, "unit", "unitKey")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(details, "measureEnergy", "energy")),
+			),
+		);
 	}
 
 	for (const raw of listOrUndefined(details.measures) ?? []) {
@@ -526,13 +494,15 @@ function normalizeMeasures(details: Record<string, unknown>): readonly FoodMeasu
 		if (!measure) {
 			continue;
 		}
-		measures.push({
-			measureId: StringUtils.stringOrNull(firstValue(measure, "id", "measureId", "key")),
-			measureName: StringUtils.stringOrNull(firstValue(measure, "name", "measureName")),
-			weightG: NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "weight", "weightPerUnit", "capacity")),
-			unit: StringUtils.stringOrNull(firstValue(measure, "unit", "unitKey")),
-			energyKcal: NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "energy", "energyPerUnit")),
-		});
+		measures.push(
+			new FoodMeasure(
+				StringUtils.stringOrNull(firstValue(measure, "id", "measureId", "key")),
+				StringUtils.stringOrNull(firstValue(measure, "name", "measureName")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "weight", "weightPerUnit", "capacity")),
+				StringUtils.stringOrNull(firstValue(measure, "unit", "unitKey")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "energy", "energyPerUnit")),
+			),
+		);
 	}
 
 	for (const raw of listOrUndefined(details.simpleMeasures) ?? []) {
@@ -540,24 +510,28 @@ function normalizeMeasures(details: Record<string, unknown>): readonly FoodMeasu
 		if (!measure) {
 			continue;
 		}
-		measures.push({
-			measureId: StringUtils.stringOrNull(firstValue(measure, "measureId", "id", "key")),
-			measureName: StringUtils.stringOrNull(firstValue(measure, "name", "measureName")),
-			weightG: NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "weight", "capacity")),
-			unit: StringUtils.stringOrNull(firstValue(measure, "unit", "unitKey")),
-			energyKcal: NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "energy", "energyPerUnit")),
-		});
+		measures.push(
+			new FoodMeasure(
+				StringUtils.stringOrNull(firstValue(measure, "measureId", "id", "key")),
+				StringUtils.stringOrNull(firstValue(measure, "name", "measureName")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "weight", "capacity")),
+				StringUtils.stringOrNull(firstValue(measure, "unit", "unitKey")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "energy", "energyPerUnit")),
+			),
+		);
 	}
 
 	const initial = recordOrUndefined(details.initialMeasure);
 	if (initial) {
-		measures.push({
-			measureId: StringUtils.stringOrNull(firstValue(initial, "key", "id", "measureId")),
-			measureName: StringUtils.stringOrNull(firstValue(initial, "name", "measureName")),
-			weightG: NumberUtils.parseOptionalFiniteNumber(firstValue(initial, "weight", "capacity")),
-			unit: StringUtils.stringOrNull(firstValue(initial, "unit", "unitKey")),
-			energyKcal: NumberUtils.parseOptionalFiniteNumber(firstValue(initial, "energy", "energyPerUnit")),
-		});
+		measures.push(
+			new FoodMeasure(
+				StringUtils.stringOrNull(firstValue(initial, "key", "id", "measureId")),
+				StringUtils.stringOrNull(firstValue(initial, "name", "measureName")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(initial, "weight", "capacity")),
+				StringUtils.stringOrNull(firstValue(initial, "unit", "unitKey")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(initial, "energy", "energyPerUnit")),
+			),
+		);
 	}
 
 	return deduplicateMeasures(measures);
@@ -602,54 +576,44 @@ function mergeAvailableMeasuresById(measures: readonly FoodMeasure[]): readonly 
 			continue;
 		}
 		const existing = byId.get(measure.measureId);
-		byId.set(measure.measureId, {
-			measureId: measure.measureId,
-			measureName: existing?.measureName ?? measure.measureName,
-			weightG: existing?.weightG ?? measure.weightG,
-			unit: existing?.unit ?? measure.unit,
-			energyKcal: existing?.energyKcal ?? measure.energyKcal,
-		});
+		byId.set(
+			measure.measureId,
+			new FoodMeasure(
+				measure.measureId,
+				existing?.measureName ?? measure.measureName,
+				existing?.weightG ?? measure.weightG,
+				existing?.unit ?? measure.unit,
+				existing?.energyKcal ?? measure.energyKcal,
+			),
+		);
 	}
 	return [...byId.values()];
 }
 
 function nutritionFromRecord(record: Record<string, unknown>): FoodNutrition {
-	return nutrition({
-		energyKcal: NumberUtils.parseOptionalFiniteNumber(record.energy),
-		proteinG: NumberUtils.parseOptionalFiniteNumber(record.protein),
-		fatG: NumberUtils.parseOptionalFiniteNumber(record.fat),
-		carbsG: NumberUtils.parseOptionalFiniteNumber(record.carbohydrate),
-		fiberG: NumberUtils.parseOptionalFiniteNumber(record.fiber),
-		sugarsG: NumberUtils.parseOptionalFiniteNumber(record.sugars),
-		saltG: NumberUtils.parseOptionalFiniteNumber(record.salt),
-		saturatedFatG: NumberUtils.parseOptionalFiniteNumber(record.saturatedFat),
-	});
-}
-
-function nutrition(values: Partial<FoodNutrition> = {}): FoodNutrition {
-	return {
-		energyKcal: values.energyKcal ?? null,
-		proteinG: values.proteinG ?? null,
-		fatG: values.fatG ?? null,
-		carbsG: values.carbsG ?? null,
-		fiberG: values.fiberG ?? null,
-		sugarsG: values.sugarsG ?? null,
-		saltG: values.saltG ?? null,
-		saturatedFatG: values.saturatedFatG ?? null,
-	};
+	return new FoodNutrition(
+		NumberUtils.parseOptionalFiniteNumber(record.energy),
+		NumberUtils.parseOptionalFiniteNumber(record.protein),
+		NumberUtils.parseOptionalFiniteNumber(record.fat),
+		NumberUtils.parseOptionalFiniteNumber(record.carbohydrate),
+		NumberUtils.parseOptionalFiniteNumber(record.fiber),
+		NumberUtils.parseOptionalFiniteNumber(record.sugars),
+		NumberUtils.parseOptionalFiniteNumber(record.salt),
+		NumberUtils.parseOptionalFiniteNumber(record.saturatedFat),
+	);
 }
 
 function mergeNutrition(primary: FoodNutrition, fallback: FoodNutrition): FoodNutrition {
-	return {
-		energyKcal: primary.energyKcal ?? fallback.energyKcal,
-		proteinG: primary.proteinG ?? fallback.proteinG,
-		fatG: primary.fatG ?? fallback.fatG,
-		carbsG: primary.carbsG ?? fallback.carbsG,
-		fiberG: primary.fiberG ?? fallback.fiberG,
-		sugarsG: primary.sugarsG ?? fallback.sugarsG,
-		saltG: primary.saltG ?? fallback.saltG,
-		saturatedFatG: primary.saturatedFatG ?? fallback.saturatedFatG,
-	};
+	return new FoodNutrition(
+		primary.energyKcal ?? fallback.energyKcal,
+		primary.proteinG ?? fallback.proteinG,
+		primary.fatG ?? fallback.fatG,
+		primary.carbsG ?? fallback.carbsG,
+		primary.fiberG ?? fallback.fiberG,
+		primary.sugarsG ?? fallback.sugarsG,
+		primary.saltG ?? fallback.saltG,
+		primary.saturatedFatG ?? fallback.saturatedFatG,
+	);
 }
 
 function matchScore(query: string, item: NormalizedFoodSearchItem): number {
@@ -802,11 +766,7 @@ function toWarningDetail(
 		readonly foodId?: string;
 	},
 ): FoodSearchWarningDetail {
-	return {
-		message,
-		clientError: error,
-		...context,
-	};
+	return new FoodSearchWarningDetail(message, error, context.query, context.source, context.foodId);
 }
 
 function safeWarningMessage(error: FitatuClientError): string {

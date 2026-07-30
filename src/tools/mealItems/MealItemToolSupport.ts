@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { CustomMealItemInput } from "../../api/dayPlan/CustomMealItemInput.ts";
+import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
-import type { MealItemInput, MealItemKind } from "../../services/dayPlan/MealItemTypes.ts";
+import { ProductMealItemInput } from "../../api/dayPlan/ProductMealItemInput.ts";
+import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
+import type { MealItemKind } from "../../api/dayPlan/RemoveMealItemOptions.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
@@ -142,32 +146,19 @@ export const itemKindSchema = z
 
 export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): MealItemInput {
 	if ("productId" in input) {
-		return {
-			foodType: "PRODUCT",
-			productId: input.productId,
-			measureId: input.measureId,
-			measureQuantity: input.measureQuantity,
-			eaten: input.eaten,
-		};
+		return new ProductMealItemInput(input.productId, input.measureId, input.measureQuantity, input.eaten);
 	}
 	if ("recipeId" in input) {
-		return {
-			foodType: "RECIPE",
-			recipeId: input.recipeId,
-			measureId: input.measureId,
-			measureQuantity: input.measureQuantity,
-			eaten: input.eaten,
-		};
+		return new RecipeMealItemInput(input.recipeId, input.measureId, input.measureQuantity, input.eaten);
 	}
-	return {
-		foodType: "CUSTOM_ITEM",
-		name: input.name,
-		energyKcal: input.energyKcal,
-		proteinG: input.proteinG ?? 0,
-		fatG: input.fatG ?? 0,
-		carbohydrateG: input.carbohydrateG ?? 0,
-		eaten: input.eaten,
-	};
+	return new CustomMealItemInput(
+		input.name,
+		input.energyKcal,
+		input.proteinG ?? 0,
+		input.fatG ?? 0,
+		input.carbohydrateG ?? 0,
+		input.eaten,
+	);
 }
 
 export function toMealItemMutationForMcp(result: MealItemMutationResult): MealItemMutationForMcp {

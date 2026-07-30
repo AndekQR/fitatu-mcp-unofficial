@@ -35,7 +35,7 @@ export class DaysClient extends FitatuApiClientBase {
 	}
 
 	private async post(path: string, body: Record<string, unknown>): Promise<void> {
-		await this.requestOptionalJson({
+		await this.performCallout({
 			operation: FITATU_CLIENT_OPERATIONS.dayPlanSync,
 			method: "POST",
 			path,

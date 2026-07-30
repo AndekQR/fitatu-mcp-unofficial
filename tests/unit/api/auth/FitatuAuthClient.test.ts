@@ -14,7 +14,9 @@ describe("FitatuAuthClient", () => {
 
 		const firstSession = await client.getSession();
 		const secondSession = await client.getSession();
+		const { FitatuAuthSession } = await import("../../../../src/api/auth/FitatuAuthSession.ts");
 
+		expect(firstSession).toBeInstanceOf(FitatuAuthSession);
 		expect(firstSession).toEqual({ token, refreshToken: "refresh-1", fitatuUserId: "user-1" });
 		expect(secondSession).toBe(firstSession);
 		expect(fetchStub.calls).toHaveLength(1);
@@ -133,7 +135,9 @@ describe("FitatuAuthClient", () => {
 
 		await client.getSession();
 		const refreshedSession = await client.refreshSession();
+		const { FitatuAuthSession } = await import("../../../../src/api/auth/FitatuAuthSession.ts");
 
+		expect(refreshedSession).toBeInstanceOf(FitatuAuthSession);
 		expect(refreshedSession).toEqual({
 			token: refreshedToken,
 			refreshToken: "refresh-1",

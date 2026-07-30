@@ -64,6 +64,8 @@ Avoid:
 
 ## Architecture Guidelines
 
+Read and follow [ARCHITECTURE.md](./ARCHITECTURE.md) before introducing or changing public models, service contracts, or mappings between layers.
+
 Keep responsibilities separated.
 
 The implementation should distinguish between:
@@ -80,6 +82,18 @@ Prefer object-oriented design where it improves encapsulation, readability, and 
 functions are preferred over large procedural handlers.
 
 Use dependency injection for configuration, logging, and HTTP clients where practical.
+
+For data-model declarations in particular:
+
+- Use classes with constructors or named factories for production data models.
+- A method declaring a class return type must return a real instance of that class, not a structurally compatible object literal.
+- Keep one canonical base model per concept. Add another model only for a genuinely different state or contract.
+- Do not create near-copy object models with `type`, `Omit`, `Partial`, intersections, or repeated fields.
+- Reserve `interface` for behavior, ports, and technical collaboration contracts.
+- Reserve `type` for compile-time constructs such as literal unions, discriminated unions, and Zod-inferred types.
+- Plain objects remain acceptable for technical configuration, private helpers, and final MCP/Zod serialization.
+
+The full rationale, construction policy, extension rules, and review checklist live in [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## MCP Tool Implementation
 

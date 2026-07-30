@@ -9,7 +9,7 @@ import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 const dayPlanClient = new DayPlanClient();
 const foodSearchClient = new FoodSearchClient();
 const cleanup = new CleanupTracker(dayPlanClient);
-const READ_AFTER_WRITE_ATTEMPTS = 20;
+const READ_AFTER_WRITE_ATTEMPTS = 60;
 const MEAL_KEY = "breakfast";
 const REPLACEMENT_MEAL_KEY = "supper";
 

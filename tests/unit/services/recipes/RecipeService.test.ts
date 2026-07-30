@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { RecipeClient } from "../../../../src/api/recipes/RecipeClient.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
+import { DetailedRecipeSearchItem } from "../../../../src/services/recipes/DetailedRecipeSearchItem.ts";
 import { RecipeService } from "../../../../src/services/recipes/RecipeService.ts";
+import { RecipeServiceDeleteResult } from "../../../../src/services/recipes/RecipeServiceDeleteResult.ts";
 import { ServiceError } from "../../../../src/services/ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../../../../src/services/ServiceErrorCode.ts";
 import { createAuthClientStub } from "../../support/authTestDouble.ts";
@@ -54,19 +56,23 @@ describe("RecipeService", () => {
 			includeDetails: true,
 		});
 
-		expect(result.items).toMatchObject([
-			{
-				recipeId: "101",
-				name: "Canonical name",
-				source: "mine",
-				energyKcal: 90,
-				servings: 3,
-				measures: [
-					{ measureId: "1", measureName: "g" },
-					{ measureId: "39", measureName: "portion" },
-				],
-			},
-		]);
+		const [item] = result.items;
+		expect(item).toBeInstanceOf(DetailedRecipeSearchItem);
+		expect(item).toMatchObject({
+			recipeId: "100",
+			name: "Summary name",
+			source: "mine",
+			energyKcal: 90,
+		});
+		expect((item as DetailedRecipeSearchItem).details).toMatchObject({
+			recipeId: "101",
+			name: "Canonical name",
+			servings: 3,
+			measures: [
+				{ measureId: "1", measureName: "g" },
+				{ measureId: "39", measureName: "portion" },
+			],
+		});
 		expect(result.warnings).toEqual([]);
 		expect(fetchStub.calls).toHaveLength(2);
 	});
@@ -203,7 +209,10 @@ describe("RecipeService", () => {
 		);
 		const service = createService(fetchStub);
 
-		await expect(service.deleteRecipe("100", "Original")).resolves.toEqual({
+		const result = await service.deleteRecipe("100", "Original");
+
+		expect(result).toBeInstanceOf(RecipeServiceDeleteResult);
+		expect(result).toEqual({
 			recipeId: "100",
 			name: "Original",
 			deleted: true,

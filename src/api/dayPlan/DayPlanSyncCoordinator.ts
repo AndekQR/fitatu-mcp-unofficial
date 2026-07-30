@@ -4,7 +4,7 @@ import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuAp
 import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
-import type { GetDayPlanOptions } from "./GetDayPlanOptions.ts";
+import { GetDayPlanOptions } from "./GetDayPlanOptions.ts";
 import { DayPlanSyncProvider } from "./DayPlanSyncProvider.ts";
 import { DaySyncPayload } from "./DaySyncPayload.ts";
 
@@ -18,12 +18,22 @@ export class DayPlanSyncCoordinator extends DayPlanSyncProvider {
 		this.daysClient = new DaysClient(options);
 	}
 
-	public async getDayPlanData(options: GetDayPlanOptions & { readonly userId: string }): Promise<unknown> {
-		return this.dayClient.getDay(options);
+	public async getDayPlanData(options: GetDayPlanOptions): Promise<unknown> {
+		if (options.userId === undefined) {
+			throw FitatuClientError.invalidRequest({
+				operation: FITATU_CLIENT_OPERATIONS.dayPlanGet,
+				message: "userId is required",
+			});
+		}
+		return this.dayClient.getDay({
+			date: options.date,
+			userId: options.userId,
+			withRating: options.withRating,
+		});
 	}
 
 	public async getDaySyncPayload(userId: string, date: string): Promise<DaySyncPayload> {
-		const data = await this.getDayPlanData({ date, userId });
+		const data = await this.getDayPlanData(new GetDayPlanOptions(date, userId));
 		if (!ObjectUtils.isRecord(data)) {
 			throw FitatuClientError.invalidResponse({
 				operation: FITATU_CLIENT_OPERATIONS.dayPlanGet,

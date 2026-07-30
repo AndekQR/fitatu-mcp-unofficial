@@ -1,4 +1,4 @@
-import type { FoodMeasure } from "../../services/foodSearch/FoodSearchTypes.ts";
+import type { FoodMeasure } from "../../api/foodSearch/FoodMeasure.ts";
 
 export class FoodMeasureForMcp {
 	public readonly measureId: string | null;

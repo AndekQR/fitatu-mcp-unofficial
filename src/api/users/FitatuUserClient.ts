@@ -1,9 +1,9 @@
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
+import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
 import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
-import type { FitatuUserClientOptions } from "./FitatuUserClientOptions.ts";
 import { FitatuUserProfile } from "./FitatuUserProfile.ts";
 
 export class FitatuUserClient extends FitatuApiClientBase {
@@ -11,14 +11,14 @@ export class FitatuUserClient extends FitatuApiClientBase {
 
 	private readonly users = new Map<string, FitatuUserProfile>();
 
-	private constructor(options: FitatuUserClientOptions = {}) {
+	private constructor(options: FitatuApiClientBaseOptions = {}) {
 		super({
 			...options,
 			authClient: options.authClient ?? FitatuAuthClient.getInstance(),
 		});
 	}
 
-	public static getInstance(options: FitatuUserClientOptions = {}): FitatuUserClient {
+	public static getInstance(options: FitatuApiClientBaseOptions = {}): FitatuUserClient {
 		if (!FitatuUserClient.instance) {
 			FitatuUserClient.instance = new FitatuUserClient(options);
 		}
@@ -57,7 +57,7 @@ export class FitatuUserClient extends FitatuApiClientBase {
 			return cachedUser;
 		}
 
-		const user = await this.requestJson({
+		const user = await this.performCallout({
 			operation: FITATU_CLIENT_OPERATIONS.usersGet,
 			method: "GET",
 			path,

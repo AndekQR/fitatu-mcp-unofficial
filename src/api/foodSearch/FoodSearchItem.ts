@@ -1,28 +1,24 @@
-import type { FoodMeasure } from "./FoodMeasure.ts";
-import type { FoodNutrition } from "./FoodNutrition.ts";
-import type { FoodSearchSource } from "./FoodSearchSource.ts";
-import type { FoodTypeName } from "../dayPlan/FoodType.ts";
+import { NormalizedFoodSearchItem } from "./NormalizedFoodSearchItem.ts";
 
-export interface FoodSearchItem {
-	readonly index: number;
-	readonly queryIndex: number;
-	readonly query: string;
-	readonly source: FoodSearchSource;
-	readonly foodId: string;
-	readonly productId: string;
-	readonly foodType: FoodTypeName;
-	readonly name: string | null;
-	readonly displayName: string;
-	readonly brand: string | null;
-	readonly measureId: string | null;
-	readonly measureName: string | null;
-	readonly measureQuantity: number | null;
-	readonly weightG: number | null;
-	readonly kcal: number | null;
-	readonly nutritionPer100g: FoodNutrition;
-	readonly nutritionPerDefaultMeasure: FoodNutrition;
-	readonly verified: boolean | null;
-	readonly photoUrl: string | null;
-	readonly matchScore: number;
-	readonly measures: readonly FoodMeasure[];
+export class FoodSearchItem extends NormalizedFoodSearchItem {
+	public readonly index: number;
+	public readonly queryIndex: number;
+	public readonly query: string;
+	public readonly productId: string;
+	public readonly displayName: string;
+
+	public constructor(
+		item: NormalizedFoodSearchItem,
+		index: number,
+		queryIndex: number,
+		query: string,
+		displayName: string,
+	) {
+		super(item);
+		this.index = index;
+		this.queryIndex = queryIndex;
+		this.query = query;
+		this.productId = item.foodId;
+		this.displayName = displayName;
+	}
 }

@@ -11,7 +11,7 @@ import { getIntegrationTestDate } from "../helpers/testDates.ts";
 const dayPlanClient = new DayPlanClient();
 const mealItemMutationService = new MealItemMutationService(dayPlanClient, new FoodSearchClient(), new RecipeClient());
 const cleanup = new CleanupTracker(dayPlanClient);
-const READ_AFTER_WRITE_ATTEMPTS = 20;
+const READ_AFTER_WRITE_ATTEMPTS = 60;
 const RECIPE_ID = "32519808";
 const REPORTED_RECIPE_ID = "159408954";
 const MEAL_KEY = "supper";

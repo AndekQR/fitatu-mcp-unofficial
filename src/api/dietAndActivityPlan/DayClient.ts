@@ -33,7 +33,7 @@ export class DayClient extends FitatuApiClientBase {
 		}
 		const path = `/diet-and-activity-plan/${encodeURIComponent(userId)}/day/${date}`;
 
-		return this.requestJson({
+		return this.performCallout({
 			operation: FITATU_CLIENT_OPERATIONS.dayPlanGet,
 			method: "GET",
 			path,

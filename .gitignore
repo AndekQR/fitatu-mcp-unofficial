@@ -144,6 +144,9 @@ vite.config.ts.timestamp-*
 # Claude Code local settings
 .claude/
 
+# Codex local settings
+.codex/
+
 /.idea/*
 /docs/*
 /test-results.json

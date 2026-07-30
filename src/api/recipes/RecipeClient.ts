@@ -12,14 +12,16 @@ import { FITATU_CLIENT_OPERATIONS, type FitatuClientOperation } from "../fitatuA
 import { FitatuFallbackRunner } from "../fitatuApiClientBase/FitatuFallbackRunner.ts";
 import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
-import type { RecipeCreateResult } from "./RecipeCreateResult.ts";
+import { RecipeCreateResult } from "./RecipeCreateResult.ts";
+import { RecipeDeleteResult } from "./RecipeDeleteResult.ts";
 import { RecipeDetails } from "./RecipeDetails.ts";
 import type { RecipeReplacementInput } from "./RecipeReplacementInput.ts";
-import type { RecipeReplaceResult } from "./RecipeReplaceResult.ts";
+import { RecipeReplaceResult } from "./RecipeReplaceResult.ts";
 import type { RecipeSearchItem } from "./RecipeSearchItem.ts";
-import type { RecipeSearchOptions } from "./RecipeSearchOptions.ts";
+import { RecipeSearchOptions } from "./RecipeSearchOptions.ts";
 import { RecipeSearchResult } from "./RecipeSearchResult.ts";
 import type { RecipeSearchSource } from "./RecipeSearchSource.ts";
+import { RecipeSearchWarning } from "./RecipeSearchWarning.ts";
 import { RecipeWriteInput } from "./RecipeWriteInput.ts";
 
 const JSON_ACCEPT_HEADER = "application/json";
@@ -49,7 +51,7 @@ export class RecipeClient extends FitatuApiClientBase {
 			});
 		}
 		const path = `/recipes-and-user-action/${encodeURIComponent(normalizedRecipeId)}/${encodeURIComponent(userId)}`;
-		return this.requestJson({
+		return this.performCallout({
 			operation: FITATU_CLIENT_OPERATIONS.recipesGet,
 			method: "GET",
 			path,
@@ -63,7 +65,7 @@ export class RecipeClient extends FitatuApiClientBase {
 
 	public async createRecipe(input: RecipeWriteInput): Promise<RecipeCreateResult> {
 		const body = createRecipePayload(input, null, FITATU_CLIENT_OPERATIONS.recipesCreate);
-		const created = await this.requestJsonObject({
+		const created = await this.performRecipeWriteCallout({
 			operation: FITATU_CLIENT_OPERATIONS.recipesCreate,
 			method: "POST",
 			path: "/recipes",
@@ -72,7 +74,7 @@ export class RecipeClient extends FitatuApiClientBase {
 		});
 		const recipeId = created.id;
 
-		return { recipeId, details: await this.getRecipeAfterWrite(recipeId) };
+		return new RecipeCreateResult(recipeId, await this.getRecipeAfterWrite(recipeId));
 	}
 
 	public async replaceRecipe(recipeId: string | number, input: RecipeReplacementInput): Promise<RecipeReplaceResult> {
@@ -81,7 +83,7 @@ export class RecipeClient extends FitatuApiClientBase {
 			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesReplace, "recipeId is required");
 		}
 		const body = createRecipePayload(input, input.categories, FITATU_CLIENT_OPERATIONS.recipesReplace);
-		const created = await this.requestJsonObject({
+		const created = await this.performRecipeWriteCallout({
 			operation: FITATU_CLIENT_OPERATIONS.recipesReplace,
 			method: "PUT",
 			path: `/recipes/${encodeURIComponent(previousRecipeId)}`,
@@ -90,21 +92,20 @@ export class RecipeClient extends FitatuApiClientBase {
 		});
 		const nextRecipeId = created.id;
 
-		return {
+		return new RecipeReplaceResult(
+			new RecipeCreateResult(nextRecipeId, await this.getRecipeAfterWrite(nextRecipeId)),
 			previousRecipeId,
-			recipeId: nextRecipeId,
-			identityChanged: nextRecipeId !== previousRecipeId,
-			details: await this.getRecipeAfterWrite(nextRecipeId),
-		};
+			nextRecipeId !== previousRecipeId,
+		);
 	}
 
-	public async deleteRecipe(recipeId: string | number): Promise<{ readonly recipeId: string }> {
+	public async deleteRecipe(recipeId: string | number): Promise<RecipeDeleteResult> {
 		const normalizedRecipeId = StringUtils.stringOrNull(recipeId);
 		if (normalizedRecipeId === null) {
 			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesDelete, "recipeId is required");
 		}
 		const path = `/recipes/${encodeURIComponent(normalizedRecipeId)}`;
-		await this.requestJson({
+		await this.performCallout({
 			operation: FITATU_CLIENT_OPERATIONS.recipesDelete,
 			method: "DELETE",
 			path,
@@ -114,11 +115,11 @@ export class RecipeClient extends FitatuApiClientBase {
 			headers: { accept: JSON_ACCEPT_HEADER },
 			decoder: () => null,
 		});
-		await this.waitForRecipeDeleted(normalizedRecipeId);
-		return { recipeId: normalizedRecipeId };
+		await this.confirmRecipeDeletion(normalizedRecipeId);
+		return new RecipeDeleteResult(normalizedRecipeId);
 	}
 
-	public async searchRecipes(options: RecipeSearchOptions = {}): Promise<RecipeSearchResult> {
+	public async searchRecipes(options: RecipeSearchOptions = new RecipeSearchOptions()): Promise<RecipeSearchResult> {
 		if (options.query !== undefined && typeof options.query !== "string") {
 			throw invalidRecipeRequest(FITATU_CLIENT_OPERATIONS.recipesSearch, "query must be a string");
 		}
@@ -160,19 +161,11 @@ export class RecipeClient extends FitatuApiClientBase {
 						}
 					: {
 							items: RecipeSearchResult.deduplicateItems(
-								await this.searchRecipeSource({ query, source: scope, page, limit }),
+								await this.fetchRecipeSourcePage({ query, source: scope, page, limit }),
 							).slice(0, limit),
 							warnings: [],
 						};
-		return {
-			query,
-			scope,
-			page,
-			limit,
-			count: searched.items.length,
-			items: searched.items,
-			warnings: searched.warnings,
-		};
+		return new RecipeSearchResult(query, scope, page, limit, searched.items, searched.warnings);
 	}
 
 	private async searchFilteredRecipePage(options: {
@@ -202,7 +195,7 @@ export class RecipeClient extends FitatuApiClientBase {
 		const seen = new Set<string>();
 
 		for (let sourcePage = 1; matches.length < options.count; sourcePage += 1) {
-			const sourceItems = await this.searchRecipeSource({ ...options, page: sourcePage });
+			const sourceItems = await this.fetchRecipeSourcePage({ ...options, page: sourcePage });
 			let discoveredItem = false;
 
 			for (const item of sourceItems) {
@@ -224,7 +217,7 @@ export class RecipeClient extends FitatuApiClientBase {
 		return matches;
 	}
 
-	private async searchRecipeSource(options: {
+	private async fetchRecipeSourcePage(options: {
 		readonly query: string;
 		readonly source: RecipeSearchSource;
 		readonly page: number;
@@ -242,7 +235,7 @@ export class RecipeClient extends FitatuApiClientBase {
 			options.source === "mine"
 				? `/search/food/user/${encodeURIComponent(contextUserId ?? "")}`
 				: "/search/new/food";
-		return this.requestJson({
+		return this.performCallout({
 			operation: FITATU_CLIENT_OPERATIONS.recipesSearch,
 			method: "GET",
 			path,
@@ -293,7 +286,7 @@ export class RecipeClient extends FitatuApiClientBase {
 				if (mineFailure === undefined) {
 					try {
 						mine.push(
-							...(await this.searchRecipeSource({
+							...(await this.fetchRecipeSourcePage({
 								...options,
 								source: "mine",
 								page: sourcePage,
@@ -306,7 +299,7 @@ export class RecipeClient extends FitatuApiClientBase {
 				if (publicFailure === undefined) {
 					try {
 						publicItems.push(
-							...(await this.searchRecipeSource({
+							...(await this.fetchRecipeSourcePage({
 								...options,
 								source: "public",
 								page: sourcePage,
@@ -349,14 +342,14 @@ export class RecipeClient extends FitatuApiClientBase {
 		return { items: combined.slice(offset, offset + options.limit), warnings };
 	}
 
-	private async requestJsonObject(options: {
+	private async performRecipeWriteCallout(options: {
 		readonly operation: FitatuClientOperation;
 		readonly method: "POST" | "PUT";
 		readonly path: string;
 		readonly body: Record<string, unknown>;
 		readonly failureMessage: string;
 	}): Promise<Record<string, unknown> & { readonly id: string }> {
-		return this.requestJson({
+		return this.performCallout({
 			operation: options.operation,
 			method: options.method,
 			path: options.path,
@@ -381,7 +374,7 @@ export class RecipeClient extends FitatuApiClientBase {
 		);
 	}
 
-	private async waitForRecipeDeleted(recipeId: string): Promise<void> {
+	private async confirmRecipeDeletion(recipeId: string): Promise<void> {
 		await this.deletionConfirmationPoller.pollUntil(
 			async () => {
 				try {
@@ -397,7 +390,7 @@ export class RecipeClient extends FitatuApiClientBase {
 			() =>
 				FitatuClientError.invalidResponse({
 					operation: FITATU_CLIENT_OPERATIONS.recipesDelete,
-					message: "Fitatu accepted the recipe deletion but it could not be confirmed within 10 seconds",
+					message: "Fitatu accepted the recipe deletion but it could not be confirmed within 60 seconds",
 					method: "GET",
 					endpointTemplate: "/recipes-and-user-action/:recipeId/:userId",
 				}),
@@ -409,12 +402,12 @@ function sourceWarning(
 	source: RecipeSearchSource,
 	clientError: FitatuClientError,
 ): RecipeSearchResult["warnings"][number] {
-	return {
-		code: "RECIPE_SOURCE_UNAVAILABLE",
+	return new RecipeSearchWarning(
+		"RECIPE_SOURCE_UNAVAILABLE",
 		source,
-		message: `${source} recipe catalog was unavailable; results are partial.`,
+		`${source} recipe catalog was unavailable; results are partial.`,
 		clientError,
-	};
+	);
 }
 
 async function settle<T>(promise: Promise<T>): Promise<PromiseSettledResult<T>> {

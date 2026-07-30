@@ -78,7 +78,7 @@ export class SummaryClient extends FitatuApiClientBase {
 		}
 		const path = `/v2/diet-plan/${encodeURIComponent(userId)}${options.resourcePath}`;
 
-		return this.requestJson({
+		return this.performCallout({
 			operation: options.operation,
 			method: "GET",
 			path,

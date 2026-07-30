@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
@@ -66,14 +67,9 @@ export class UpdateMealItemTool {
 			},
 			async ({ date, mealKey, itemId, measureQuantity, measureId, eaten }) => {
 				try {
-					const result = await this.mealItemMutationService.updateMealItem({
-						date,
-						mealKey,
-						itemId,
-						measureQuantity,
-						measureId,
-						eaten,
-					});
+					const result = await this.mealItemMutationService.updateMealItem(
+						new UpdateMealItemOptions(date, mealKey, itemId, measureQuantity, measureId, eaten),
+					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(this.name, "Unable to update Fitatu meal item.", error);

@@ -1,4 +1,4 @@
-import type { AddMealItemsOptions } from "../../api/dayPlan/AddMealItemsOptions.ts";
+import { AddMealItemsOptions } from "../../api/dayPlan/AddMealItemsOptions.ts";
 import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
 import type { FoodTypeName } from "../../api/dayPlan/FoodType.ts";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
@@ -9,6 +9,7 @@ import type { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOp
 import type { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
 import type { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
 import type { RecipeClient } from "../../api/recipes/RecipeClient.ts";
+import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
 import { ServiceError } from "../ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../ServiceErrorCode.ts";
 
@@ -45,7 +46,9 @@ export class MealItemMutationService implements MealItemMutationProvider {
 
 	public async addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult> {
 		const items = await this.prepareMealItems(options.items);
-		return this.dayPlanClient.addMealItems({ ...options, items });
+		return this.dayPlanClient.addMealItems(
+			new AddMealItemsOptions(options.date, options.mealKey, items, options.userId),
+		);
 	}
 
 	public updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
@@ -92,7 +95,15 @@ export class MealItemMutationService implements MealItemMutationProvider {
 						SERVICE_ERROR_CODES.deletedRecipeSelection,
 					);
 				}
-				preparedItems.push({ ...item, ingredientsServing: recipe.servings });
+				preparedItems.push(
+					new RecipeMealItemInput(
+						item.recipeId,
+						item.measureId,
+						item.measureQuantity,
+						item.eaten,
+						recipe.servings,
+					),
+				);
 			} else {
 				preparedItems.push(item);
 			}

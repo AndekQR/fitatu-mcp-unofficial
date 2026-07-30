@@ -1,4 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { RecipeIngredientInput } from "../../api/recipes/RecipeIngredientInput.ts";
+import { RecipeTag } from "../../api/recipes/RecipeTag.ts";
+import { RecipeWriteInput } from "../../api/recipes/RecipeWriteInput.ts";
 import type { RecipeProvider } from "../../services/recipes/RecipeService.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
@@ -49,21 +52,26 @@ export class CreateRecipeTool {
 			},
 			async (input) => {
 				try {
-					const result = await this.recipeService.createRecipe({
-						name: input.name,
-						ingredients: input.ingredients.map(({ productId, ...ingredient }) => ({
-							...ingredient,
-							itemId: productId,
-							type: "PRODUCT",
-						})),
-						tags: input.tags ?? [],
-						servings: input.servings,
-						shared: input.shared ?? false,
-						description: toRecipeDescription(input.steps ?? []),
-						cookingTimeMinutes: input.cookingTimeMinutes ?? null,
-						preparationTimeMinutes: input.preparationTimeMinutes ?? null,
-						mealSchema: input.mealSchema ?? [],
-					});
+					const result = await this.recipeService.createRecipe(
+						new RecipeWriteInput(
+							input.name,
+							input.ingredients.map(
+								(ingredient) =>
+									new RecipeIngredientInput(
+										ingredient.productId,
+										ingredient.measureId,
+										ingredient.measureQuantity,
+									),
+							),
+							(input.tags ?? []).map((tag) => new RecipeTag(tag.name, tag.category, tag.translation)),
+							input.servings,
+							input.shared ?? false,
+							toRecipeDescription(input.steps ?? []),
+							input.cookingTimeMinutes ?? null,
+							input.preparationTimeMinutes ?? null,
+							input.mealSchema ?? [],
+						),
+					);
 					return createTextResult(
 						{
 							recipeId: result.recipeId,

@@ -1,5 +1,11 @@
 export abstract class CatalogMealItemInput {
-	declare public readonly measureId: string | number;
-	declare public readonly measureQuantity?: number;
-	declare public readonly eaten?: boolean;
+	public readonly measureId: string | number;
+	public readonly measureQuantity?: number;
+	public readonly eaten?: boolean;
+
+	protected constructor(measureId: string | number, measureQuantity?: number, eaten?: boolean) {
+		this.measureId = measureId;
+		this.measureQuantity = measureQuantity;
+		this.eaten = eaten;
+	}
 }

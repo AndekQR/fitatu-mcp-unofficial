@@ -7,8 +7,8 @@ import type { RemoveMealItemsOptions } from "../../../../src/api/dayPlan/RemoveM
 import type { UpdateMealItemOptions } from "../../../../src/api/dayPlan/UpdateMealItemOptions.ts";
 import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
 import {
-	MealItemMutationService,
 	type MealItemMutationProvider,
+	MealItemMutationService,
 } from "../../../../src/services/dayPlan/MealItemMutationService.ts";
 import { ServiceError } from "../../../../src/services/ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../../../../src/services/ServiceErrorCode.ts";

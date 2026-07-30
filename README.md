@@ -90,7 +90,7 @@ http://localhost:3000/mcp
 ## Available Tools
 
 | Tool                 | Purpose                                                                             | Mutates Fitatu data |
-| -------------------- | ----------------------------------------------------------------------------------- | ------------------- |
+|----------------------|-------------------------------------------------------------------------------------|---------------------|
 | `get_current_user`   | Returns a safe subset of the authenticated Fitatu user profile.                     | No                  |
 | `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date.                               | No                  |
 | `get_diet_summary`   | Returns an agent-friendly nutrition and energy summary for an inclusive date range. | No                  |
@@ -110,13 +110,13 @@ Typical workflow:
 1. Call `get_day_plan_items` to inspect available meals and their exact `itemId` UUIDs for a specific day.
 2. Call `search_food` to find a matching `measureId` and exactly one definition identifier: `productId` or raw numeric `recipeId`.
 3. Call `add_meal_items` with `productId` for a product or raw `recipeId` for a recipe. The identifier field selects the variant, so do not send `foodType`.
-   Both catalog variants require `measureId`. A custom item instead requires `name` and `energyKcal`, accepts optional macro values, and has no definition ID
-   or public measure fields.
+   Both catalog variants require `measureId`. A custom item instead requires `name` and `energyKcal`, accepts optional macro values, and has no definition ID or
+   public measure fields.
 4. After `add_meal_items` returns `accepted`, use its `provisionalItemIds` only as provisional identifiers. Call `get_day_plan_items` again and verify each
    requested item.
 5. Use an `itemId` returned by `get_day_plan_items` with `update_meal_item` or `move_meal_item`.
-6. To delete entries, pass `date` and exact `itemIds` UUIDs to `remove_meal_items`. Do not pass product or recipe definition IDs. The destructive operation
-   does not require `mealKey`, validates every UUID first, and performs one atomic synchronization.
+6. To delete entries, pass `date` and exact `itemIds` UUIDs to `remove_meal_items`. Do not pass product or recipe definition IDs. The destructive operation does
+   not require `mealKey`, validates every UUID first, and performs one atomic synchronization.
 
 An agent may also use `get_diet_summary` to fetch periodic diet data and track nutrition over time.
 
@@ -132,13 +132,13 @@ subsequent day-plan read.
    `measureId` to `add_meal_items` without searching for the newly created recipe again. All recipe-tool IDs use the unprefixed numeric string.
 4. Use `search_recipes` to list or search the authenticated user's recipes, the public catalog, or both. Queries are trimmed before matching. For
    `scope=all`, results from an available source are returned with `warnings[]` when the other source fails; the search fails only if both sources fail.
-5. Call `update_recipe` only for an owned, editable recipe. Always use the returned raw `recipeId` afterward because Fitatu may replace the recipe and
-   assign a new ID.
-6. Call `delete_recipe` to soft-delete the catalog definition. It requires the current recipe name in `expectedName`; existing and historical day-plan
-   snapshots are retained, while the deleted definition cannot be added again.
+5. Call `update_recipe` only for an owned, editable recipe. Always use the returned raw `recipeId` afterward because Fitatu may replace the recipe and assign a
+   new ID.
+6. Call `delete_recipe` to soft-delete the catalog definition. It requires the current recipe name in `expectedName`; existing and historical day-plan snapshots
+   are retained, while the deleted definition cannot be added again.
 
-Recipe ingredient `productId`/`measureId` pairs must be unique, and each measure must belong to its selected product. Custom tags are accepted only with Fitatu's
-user-tag category; updates also accept categories already present on the current recipe. All recipe tools publish an MCP `outputSchema`. Invalid tool
+Recipe ingredient `productId`/`measureId` pairs must be unique, and each measure must belong to its selected product. Custom tags are accepted only with
+Fitatu's user-tag category; updates also accept categories already present on the current recipe. All recipe tools publish an MCP `outputSchema`. Invalid tool
 arguments are rejected by the MCP SDK with protocol error `-32602` before the tool handler runs.
 
 ## Configuration
@@ -146,7 +146,7 @@ arguments are rejected by the MCP SDK with protocol error `-32602` before the to
 Runtime configuration is read from environment variables and validated at startup.
 
 | Variable          | Required | Default       | Sensitive | Description                             |
-| ----------------- | -------- | ------------- | --------- | --------------------------------------- |
+|-------------------|----------|---------------|-----------|-----------------------------------------|
 | `FITATU_EMAIL`    | Yes      | none          | Yes       | Fitatu account email address.           |
 | `FITATU_PASSWORD` | Yes      | none          | Yes       | Fitatu account password.                |
 | `PORT`            | No       | `3000`        | No        | HTTP server port.                       |

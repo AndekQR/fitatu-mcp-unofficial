@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RecipeClient } from "../../../../src/api/recipes/RecipeClient.ts";
+import { RecipeDeleteResult } from "../../../../src/api/recipes/RecipeDeleteResult.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import { createAuthClientStub } from "../../support/authTestDouble.ts";
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
@@ -224,7 +225,10 @@ describe("RecipeClient", () => {
 		);
 		const client = createClient(fetchStub);
 
-		await expect(client.deleteRecipe("159081309")).resolves.toEqual({ recipeId: "159081309" });
+		const result = await client.deleteRecipe("159081309");
+
+		expect(result).toBeInstanceOf(RecipeDeleteResult);
+		expect(result).toEqual({ recipeId: "159081309", deleted: true });
 		expect(fetchStub.calls[0]?.input).toBe("https://fitatu.test/api/recipes/159081309");
 		expect(fetchStub.calls[0]?.init?.method).toBe("DELETE");
 		expect(fetchStub.calls[1]?.input).toBe("https://fitatu.test/api/recipes-and-user-action/159081309/test-user");

@@ -1,9 +1,12 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+
 export class FitatuDietGenerationLimit {
-	declare public readonly max?: number;
-	declare public readonly min?: number;
+	public readonly max?: number;
+	public readonly min?: number;
 
 	private constructor(data: Record<string, unknown>) {
-		Object.assign(this, data);
+		this.max = optionalNumber(data.max);
+		this.min = optionalNumber(data.min);
 	}
 
 	public static fromApiResponse(data: unknown): FitatuDietGenerationLimit | null {
@@ -11,6 +14,10 @@ export class FitatuDietGenerationLimit {
 			return null;
 		}
 
-		return new FitatuDietGenerationLimit(data as Record<string, unknown>);
+		return ObjectUtils.isRecord(data) ? new FitatuDietGenerationLimit(data) : null;
 	}
+}
+
+function optionalNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

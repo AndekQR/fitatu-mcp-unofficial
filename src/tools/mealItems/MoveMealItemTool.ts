@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
@@ -65,13 +66,9 @@ export class MoveMealItemTool {
 			},
 			async ({ fromDate, fromMealKey, itemId, toDate, toMealKey }) => {
 				try {
-					const result = await this.mealItemMutationService.moveMealItem({
-						fromDate,
-						fromMealKey,
-						itemId,
-						toDate,
-						toMealKey,
-					});
+					const result = await this.mealItemMutationService.moveMealItem(
+						new MoveMealItemOptions(fromDate, fromMealKey, itemId, toDate, toMealKey),
+					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(this.name, "Unable to move Fitatu meal item.", error);

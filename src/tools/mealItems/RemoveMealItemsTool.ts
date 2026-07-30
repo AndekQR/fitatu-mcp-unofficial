@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
@@ -50,10 +51,9 @@ export class RemoveMealItemsTool {
 			},
 			async ({ date, itemIds }) => {
 				try {
-					const result = await this.mealItemMutationService.removeMealItems({
-						date,
-						itemIds,
-					});
+					const result = await this.mealItemMutationService.removeMealItems(
+						new RemoveMealItemsOptions(date, itemIds),
+					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(this.name, "Unable to remove Fitatu meal items.", error);

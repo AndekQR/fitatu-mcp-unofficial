@@ -8,6 +8,8 @@ interface TrackedMealItem {
 	readonly itemId: string;
 }
 
+const CLEANUP_ATTEMPTS = 60;
+
 export class CleanupTracker {
 	private readonly items;
 	private readonly recipeIds;
@@ -104,7 +106,7 @@ export class CleanupTracker {
 	}
 
 	private async waitUntilAbsent(item: TrackedMealItem): Promise<void> {
-		for (let attempt = 0; attempt < 20; attempt += 1) {
+		for (let attempt = 0; attempt < CLEANUP_ATTEMPTS; attempt += 1) {
 			const dayPlan = await this.dayPlanClient.getDayPlan({ date: item.date });
 			const meal = dayPlan.meals.find((candidate) => candidate.mealKey === item.mealKey);
 			const exists = meal?.items.some((candidate) => candidate.itemId === item.itemId) ?? false;

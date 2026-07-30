@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
-import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
-import type { RecipeServiceDetails } from "../../services/recipes/RecipeServiceResult.ts";
+import { RecipeIngredientInput } from "../../api/recipes/RecipeIngredientInput.ts";
+import { RecipeTag } from "../../api/recipes/RecipeTag.ts";
+import { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
+import type { RecipeServiceDetails } from "../../services/recipes/RecipeServiceDetails.ts";
 import type { RecipeWarning } from "../../services/recipes/RecipeWarning.ts";
 import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
@@ -350,22 +352,20 @@ export function toRecipeUpdateInput(input: {
 	readonly preparationTimeMinutes?: number | null;
 	readonly mealSchema?: readonly string[];
 }): RecipeUpdateInput {
-	return Object.fromEntries(
-		Object.entries(input)
-			.filter(([, value]) => value !== undefined)
-			.map(([key, value]) => [
-				key === "steps" ? "description" : key,
-				key === "steps" && Array.isArray(value)
-					? toRecipeDescription(value)
-					: key === "ingredients" && Array.isArray(value)
-						? value.map(({ productId, ...ingredient }) => ({
-								...ingredient,
-								itemId: productId,
-								type: "PRODUCT" as const,
-							}))
-						: value,
-			]),
-	) as RecipeUpdateInput;
+	return new RecipeUpdateInput(
+		input.name,
+		input.ingredients?.map(
+			(ingredient) =>
+				new RecipeIngredientInput(ingredient.productId, ingredient.measureId, ingredient.measureQuantity),
+		),
+		input.tags?.map((tag) => new RecipeTag(tag.name, tag.category, tag.translation)),
+		input.servings,
+		input.shared,
+		input.steps === undefined ? undefined : toRecipeDescription(input.steps),
+		input.cookingTimeMinutes,
+		input.preparationTimeMinutes,
+		input.mealSchema,
+	);
 }
 
 export function toRecipeDescription(steps: readonly string[]): string | null {

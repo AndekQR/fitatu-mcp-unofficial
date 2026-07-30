@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { FoodSearchOptions } from "../../api/foodSearch/FoodSearchOptions.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { FoodSearchProvider } from "../../services/foodSearch/FoodSearchService.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
@@ -161,7 +162,18 @@ export class SearchFoodTool {
 			},
 			async (input) => {
 				try {
-					const result = await this.foodSearchService.search(input);
+					const result = await this.foodSearchService.search(
+						new FoodSearchOptions(
+							input.queries,
+							undefined,
+							input.locale,
+							input.limit,
+							input.includeUserFood,
+							input.includePublicFood,
+							input.includeDetails,
+							input.detailsLimit,
+						),
+					);
 					return createTextResult(new FoodSearchResultForMcp(result), {
 						keepEmptyArrayKeys: ["items", ...FITATU_CLIENT_ERROR_EMPTY_ARRAY_KEYS],
 						keepNullKeys: FITATU_CLIENT_ERROR_NULL_KEYS,

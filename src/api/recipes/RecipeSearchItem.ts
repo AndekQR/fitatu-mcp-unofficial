@@ -3,10 +3,17 @@ import { StringUtils } from "../../shared/StringUtils.ts";
 import type { RecipeSearchSource } from "./RecipeSearchSource.ts";
 
 export class RecipeSearchItem {
-	declare public readonly recipeId: string;
-	declare public readonly name: string;
-	declare public readonly source: RecipeSearchSource;
-	declare public readonly energyKcal: number | null;
+	public readonly recipeId: string;
+	public readonly name: string;
+	public readonly source: RecipeSearchSource;
+	public readonly energyKcal: number | null;
+
+	public constructor(recipeId: string, name: string, source: RecipeSearchSource, energyKcal: number | null) {
+		this.recipeId = recipeId;
+		this.name = name;
+		this.source = source;
+		this.energyKcal = energyKcal;
+	}
 
 	public static fromApiResponse(
 		response: Record<string, unknown>,
@@ -24,11 +31,6 @@ export class RecipeSearchItem {
 		if (!recipeId || !name) {
 			return null;
 		}
-		return {
-			recipeId,
-			name,
-			source,
-			energyKcal: NumberUtils.parseOptionalFiniteNumber(response.energy),
-		};
+		return new RecipeSearchItem(recipeId, name, source, NumberUtils.parseOptionalFiniteNumber(response.energy));
 	}
 }

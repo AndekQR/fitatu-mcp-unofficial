@@ -1,4 +1,4 @@
-import type { FoodSearchItem } from "../../services/foodSearch/FoodSearchTypes.ts";
+import type { FoodSearchItem } from "../../api/foodSearch/FoodSearchItem.ts";
 import { FoodSearchItemForMcp } from "./FoodSearchItemForMcp.ts";
 
 export class FoodSearchQueryResultForMcp {

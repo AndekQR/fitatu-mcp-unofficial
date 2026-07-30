@@ -63,6 +63,7 @@ describe("RecipeClient", () => {
 		const recipe = await client.getRecipe("159081309");
 
 		expect(fetchStub.calls[0]?.input).toBe("https://fitatu.test/api/recipes-and-user-action/159081309/test-user");
+		expect(fetchStub.calls[0]?.init?.headers).not.toHaveProperty("accept");
 		expect(recipe).toEqual({
 			recipeId: "159081309",
 			userId: "test-user",

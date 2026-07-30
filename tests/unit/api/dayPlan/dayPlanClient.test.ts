@@ -27,6 +27,7 @@ describe("DayPlanClient.getDayPlan", () => {
 		expect(fetchStub.calls[0]?.input).toBe(
 			"https://fitatu.test/api/diet-and-activity-plan/user-1/day/2026-07-12?withRating=true",
 		);
+		expect(fetchStub.calls[0]?.init?.headers).not.toHaveProperty("accept");
 	});
 
 	it("rejects an invalid date before making a request", async () => {

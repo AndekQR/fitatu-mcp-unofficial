@@ -10,6 +10,7 @@ import { FitatuClientError } from "../../../../src/api/fitatuApiClientBase/Fitat
 import { FITATU_CLIENT_OPERATIONS } from "../../../../src/api/fitatuApiClientBase/FitatuClientOperations.ts";
 import type { FitatuJsonRequestOptions } from "../../../../src/api/fitatuApiClientBase/FitatuJsonRequestOptions.ts";
 import { FitatuResponseDecodeError } from "../../../../src/api/fitatuApiClientBase/FitatuResponseDecodeError.ts";
+import { FitatuMobileClientProfile } from "../../../../src/api/fitatuApiClientBase/FitatuMobileClientProfile.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
 
@@ -37,6 +38,7 @@ describe("FitatuApiClientBase", () => {
 			fetchFn: fetchStub.fetchFn,
 			authClient: authProvider,
 			userClient: userProvider,
+			mobileClientProfile: new FitatuMobileClientProfile("Dart/3.11 (dart:io)", "4.15.0", "BUILD.123"),
 		});
 
 		const response = await client.request({
@@ -60,10 +62,13 @@ describe("FitatuApiClientBase", () => {
 			body: '{"limit":10}',
 			headers: {
 				"api-cluster": "dart-pl-pluser-1",
+				"api-apk-uuid": "BUILD.123",
 				"app-locale": "pl_PL",
 				"app-searchlocale": "en_GB",
 				"app-storagelocale": "pl_PL",
+				"app-version": "4.15.0",
 				authorization: "Bearer expired-token",
+				"user-agent": "Dart/3.11 (dart:io)",
 			},
 		});
 		expect(fetchStub.calls[1]?.init).toMatchObject({

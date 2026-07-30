@@ -72,7 +72,6 @@ export class CleanupTracker {
 					date: item.date,
 					mealKey: item.mealKey,
 					itemId: item.itemId,
-					itemKind: "auto",
 				});
 				await this.waitUntilAbsent(item);
 				this.untrack(item.date, item.mealKey, item.itemId);

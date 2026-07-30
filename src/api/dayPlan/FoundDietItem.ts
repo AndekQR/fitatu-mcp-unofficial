@@ -1,8 +1,6 @@
 import { ScalarUtils } from "../../shared/ScalarUtils.ts";
-import { FoodType } from "./FoodType.ts";
 import { nowTimestamp } from "./DayPlanTimestamps.ts";
 import { MealItemOperationSummary } from "./MealItemOperationSummary.ts";
-import type { MealItemKind } from "./RemoveMealItemOptions.ts";
 
 export class FoundDietItem {
 	public readonly mealKey: string;
@@ -20,29 +18,6 @@ export class FoundDietItem {
 		this.item = item;
 		this.items = items;
 		this.index = index;
-	}
-
-	public resolveKind(): Exclude<MealItemKind, "auto"> {
-		const foodType = FoodType.fromUpstream(this.item.foodType, "PRODUCT");
-		const source = String(this.item.source ?? "")
-			.trim()
-			.toUpperCase();
-		const hasProductId = this.item.productId !== null && this.item.productId !== undefined;
-		const quantity =
-			typeof this.item.measureQuantity === "number"
-				? this.item.measureQuantity
-				: Number(this.item.measureQuantity ?? 0);
-
-		if (foodType === "PRODUCT" || hasProductId) {
-			return "normal_item";
-		}
-		if (foodType === "CUSTOM_ITEM") {
-			return source === "API" && Number.isFinite(quantity) && quantity <= 2
-				? "custom_recipe_item"
-				: "custom_add_item";
-		}
-
-		return "normal_item";
 	}
 
 	public createDeletedMarker(): Record<string, unknown> {

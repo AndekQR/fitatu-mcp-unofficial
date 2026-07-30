@@ -1,5 +1,7 @@
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
+import { DayRevisions } from "../dayPlan/DayRevisions.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
 import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
@@ -7,6 +9,7 @@ import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOpe
 import { FitatuFallbackRunner } from "../fitatuApiClientBase/FitatuFallbackRunner.ts";
 import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { getApiProblemMessage } from "../dayPlan/DayPlanApiResponse.ts";
+import { DaySyncReceipt } from "./DaySyncReceipt.ts";
 import type { SyncDaysRequest } from "./SyncDaysRequest.ts";
 
 /** HTTP adapter for POST /diet-plan/{userId}/days, including Fitatu version fallbacks. */
@@ -15,7 +18,7 @@ export class DaysClient extends FitatuApiClientBase {
 		super(options);
 	}
 
-	public async syncDays(request: SyncDaysRequest): Promise<void> {
+	public async syncDays(request: SyncDaysRequest): Promise<DayRevisions> {
 		const userId = StringUtils.firstNonEmptyString(request.userId);
 		if (!userId || !ObjectUtils.isRecord(request.daysPayload)) {
 			throw FitatuClientError.invalidRequest({
@@ -25,26 +28,25 @@ export class DaysClient extends FitatuApiClientBase {
 		}
 
 		const paths = this.paths(userId);
-		await FitatuFallbackRunner.run(
+		return FitatuFallbackRunner.run(
 			paths,
-			async (path) => {
-				await this.post(path, request.daysPayload);
-			},
+			(path) => this.post(path, request.daysPayload),
 			(error) => error.failure.kind === "http" && error.failure.statusCode === 404,
 		);
 	}
 
-	private async post(path: string, body: Record<string, unknown>): Promise<void> {
-		await this.performCallout({
+	private async post(path: string, body: Record<string, unknown>): Promise<DayRevisions> {
+		const allowEmptyLegacyResponse = path.startsWith("/v2/") || path.startsWith("/v3/");
+		return this.performCallout({
 			operation: FITATU_CLIENT_OPERATIONS.dayPlanSync,
 			method: "POST",
 			path,
 			endpointTemplate: endpointTemplateForPath(path),
 			failureMessage: "Fitatu day synchronization request failed",
 			invalidResponseMessage: "Fitatu day synchronization response was invalid",
-			headers: { accept: this.V3_ACCEPT_HEADER, "content-type": "application/json" },
+			headers: { "content-type": "application/json;charset=UTF-8" },
 			body: JSON.stringify(body),
-			decoder: decodeSyncResponse,
+			decoder: (data) => decodeSyncResponse(data, allowEmptyLegacyResponse),
 		});
 	}
 
@@ -58,13 +60,33 @@ export class DaysClient extends FitatuApiClientBase {
 	}
 }
 
-function decodeSyncResponse(data: unknown): null {
-	const apiProblem = getApiProblemMessage(data);
-	if (apiProblem) {
-		throw new FitatuResponseDecodeError(apiProblem);
+function decodeSyncResponse(data: unknown, allowEmptyLegacyResponse: boolean): DayRevisions {
+	if (data === null) {
+		if (allowEmptyLegacyResponse) {
+			return DayRevisions.empty();
+		}
+		throw new FitatuResponseDecodeError("Fitatu day synchronization response was empty");
 	}
-
-	return null;
+	if (!Array.isArray(data)) {
+		const apiProblem = getApiProblemMessage(data);
+		if (apiProblem) {
+			throw new FitatuResponseDecodeError(apiProblem);
+		}
+		throw new FitatuResponseDecodeError("Fitatu day synchronization response was not an array");
+	}
+	const receipts = data.map((receipt) => DaySyncReceipt.fromApiResponse(receipt));
+	const failedReceipt = receipts.find(({ errorMessage }) => errorMessage !== null);
+	if (failedReceipt?.errorMessage) {
+		throw new FitatuResponseDecodeError(failedReceipt.errorMessage);
+	}
+	try {
+		return DayRevisions.fromReceipts(receipts);
+	} catch (error) {
+		if (!(error instanceof ValidationError)) {
+			throw error;
+		}
+		throw new FitatuResponseDecodeError(error.message);
+	}
 }
 
 function endpointTemplateForPath(path: string): string {

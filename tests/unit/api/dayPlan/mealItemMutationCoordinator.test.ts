@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DayRevisions } from "../../../../src/api/dayPlan/DayRevisions.ts";
 import { MealItemMutationCoordinator } from "../../../../src/api/dayPlan/MealItemMutationCoordinator.ts";
 import type { MealItemInput } from "../../../../src/api/dayPlan/MealItemInput.ts";
 import type { DayPlanSyncProvider } from "../../../../src/api/dayPlan/DayPlanSyncProvider.ts";
@@ -21,6 +22,8 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 		});
 
 		expect(result).toMatchObject({ operation: "add", operationCount: 1, itemIdChanged: false });
+		expect(result.dayRevisions).toBeInstanceOf(DayRevisions);
+		expect(result.dayRevisions.toRecord()).toEqual({ "2026-07-01": "revision-2026-07-01" });
 		expect(result.provisionalItemIds).toHaveLength(1);
 		expect(syncService.syncCalls).toHaveLength(1);
 		expect(mealItems(syncService.currentPayload, "breakfast")[0]).toMatchObject({
@@ -117,26 +120,28 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 		});
 	});
 
-	it("marks a custom recipe item as deleted and hidden", async () => {
+	it("removes a recipe by adding only the current Fitatu deletedAt marker", async () => {
 		const syncService = new RecordingDayPlanSyncCoordinator(
 			createPayload({ breakfast: [createRecipeItem({ itemId: "recipe-1", recipeId: 501 })] }),
 		);
 		const service = new MealItemMutationCoordinator(syncService);
+		const itemBefore = structuredClone(syncService.item("breakfast", "recipe-1"));
 
 		const result = await service.removeMealItem({
 			userId: "user-1",
 			date: "2026-07-01",
 			mealKey: "breakfast",
 			itemId: "recipe-1",
-			itemKind: "custom_recipe_item",
 		});
 
 		expect(result.deletedItemIds).toEqual(["recipe-1"]);
-		expect(syncService.item("breakfast", "recipe-1")).toMatchObject({
-			measureQuantity: 0.01,
-			visible: false,
-		});
-		expect(syncService.item("breakfast", "recipe-1")?.deletedAt).toBeTruthy();
+		const itemAfter = syncService.item("breakfast", "recipe-1");
+		expect(itemAfter?.deletedAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+		expect(itemAfter).toEqual({ ...itemBefore, deletedAt: itemAfter?.deletedAt });
+		expect(itemAfter).not.toHaveProperty("updatedAt");
+		expect(itemAfter).not.toHaveProperty("visible");
+		expect(result.dayRevisions).toBeInstanceOf(DayRevisions);
+		expect(result.dayRevisions.toRecord()).toEqual({ "2026-07-01": "revision-2026-07-01" });
 	});
 
 	it("rejects an update without changes before synchronizing", async () => {
@@ -354,19 +359,23 @@ class RecordingDayPlanSyncCoordinator implements DayPlanSyncProvider {
 		return structuredClone(this.getPayload(date));
 	}
 
-	public async syncSingleDay(userId: string, date: string, payload: DaySyncPayload): Promise<void> {
+	public async syncSingleDay(userId: string, date: string, payload: DaySyncPayload): Promise<DayRevisions> {
 		this.stalePayload = structuredClone(this.getPayload(date));
 		this.payloads[date] = payload;
 		this.syncCalls.push({ userId, date, payload });
+		return DayRevisions.fromRecord({ [date]: `revision-${date}` });
 	}
 
-	public async syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<void> {
+	public async syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<DayRevisions> {
 		this.syncDaysCalls.push({ userId, daysPayload });
 		for (const [date, payload] of Object.entries(daysPayload)) {
 			if (isDaySyncPayload(payload)) {
 				this.payloads[date] = payload;
 			}
 		}
+		return DayRevisions.fromRecord(
+			Object.fromEntries(Object.keys(daysPayload).map((date) => [date, `revision-${date}`])),
+		);
 	}
 
 	public item(mealKey: string, itemId: string, date = "2026-07-01"): Record<string, unknown> | null {
@@ -389,8 +398,11 @@ class RecordingDayPlanSyncCoordinator implements DayPlanSyncProvider {
 
 function createPayload(meals: Record<string, readonly Record<string, unknown>[]>): DaySyncPayload {
 	return {
+		planDayRevisions: [],
+		activities: [],
 		dietPlan: Object.fromEntries(Object.entries(meals).map(([mealKey, items]) => [mealKey, { items: [...items] }])),
-		toiletItems: [],
+		toilet: [],
+		water: { waterConsumption: 0 },
 		note: null,
 		tagsIds: [],
 	};

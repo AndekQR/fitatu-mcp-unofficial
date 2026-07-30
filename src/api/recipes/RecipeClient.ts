@@ -58,7 +58,6 @@ export class RecipeClient extends FitatuApiClientBase {
 			endpointTemplate: "/recipes-and-user-action/:recipeId/:userId",
 			failureMessage: "Fitatu recipe details request failed",
 			invalidResponseMessage: "Fitatu recipe response was invalid",
-			headers: { accept: JSON_ACCEPT_HEADER },
 			decoder: decodeRecipeDetails,
 		});
 	}

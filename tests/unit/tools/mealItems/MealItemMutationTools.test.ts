@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AddMealItemsOptions } from "../../../../src/api/dayPlan/AddMealItemsOptions.ts";
+import { DayRevisions } from "../../../../src/api/dayPlan/DayRevisions.ts";
 import type { MealItemMutationResult } from "../../../../src/api/dayPlan/MealItemMutationResult.ts";
 import type { DayPlanClient } from "../../../../src/api/dayPlan/DayPlanClient.ts";
 import type { MoveMealItemOptions } from "../../../../src/api/dayPlan/MoveMealItemOptions.ts";
@@ -73,6 +74,7 @@ const successCases = [
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			operationCount: 1,
+			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
 			acceptedItems: [
 				{
 					index: 0,
@@ -122,6 +124,7 @@ const successCases = [
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			operationCount: 1,
+			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
 			acceptedItems: [
 				{
 					index: 0,
@@ -158,6 +161,7 @@ const successCases = [
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			operationCount: 1,
+			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
 			acceptedItems: [
 				{
 					index: 0,
@@ -207,6 +211,7 @@ const successCases = [
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			operationCount: 1,
+			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
 			acceptedItems: [
 				{
 					index: 0,
@@ -816,5 +821,6 @@ function createMutationResult(options: {
 		oldItemId: options.oldItemId ?? null,
 		newItemId: options.newItemId ?? null,
 		itemIdChanged: Boolean(options.oldItemId && options.newItemId && options.oldItemId !== options.newItemId),
+		dayRevisions: DayRevisions.fromRecord({ [options.targetDate]: `revision-${options.targetDate}` }),
 	};
 }

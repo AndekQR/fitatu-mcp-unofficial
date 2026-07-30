@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+	DEFAULT_FITATU_API_APK_UUID,
+	DEFAULT_FITATU_APP_VERSION,
+	DEFAULT_FITATU_USER_AGENT,
+} from "./api/fitatuApiClientBase/FitatuApiDefaults.ts";
+import { FitatuMobileClientProfile } from "./api/fitatuApiClientBase/FitatuMobileClientProfile.ts";
 
 const configSchema = z.object({
 	PORT: z.coerce.number().default(3000),
@@ -8,6 +14,9 @@ const configSchema = z.object({
 	LOG_LEVEL: z.enum(["silent", "error", "warn", "info", "debug"]).default("info"),
 	FITATU_EMAIL: z.string().email("FITATU_EMAIL must be a valid email address"),
 	FITATU_PASSWORD: z.string().min(1, "FITATU_PASSWORD is required"),
+	FITATU_USER_AGENT: z.string().trim().min(1).default(DEFAULT_FITATU_USER_AGENT),
+	FITATU_APP_VERSION: z.string().trim().min(1).default(DEFAULT_FITATU_APP_VERSION),
+	FITATU_API_APK_UUID: z.string().trim().min(1).default(DEFAULT_FITATU_API_APK_UUID),
 });
 
 const loggerConfigSchema = configSchema.pick({
@@ -34,6 +43,15 @@ export function getFitatuUsername(): string {
 
 export function getFitatuPassword(): string {
 	return getConfig().FITATU_PASSWORD;
+}
+
+export function getFitatuMobileClientProfile(): FitatuMobileClientProfile {
+	const config = getConfig();
+	return new FitatuMobileClientProfile(
+		config.FITATU_USER_AGENT,
+		config.FITATU_APP_VERSION,
+		config.FITATU_API_APK_UUID,
+	);
 }
 
 export function isProduction(): boolean {

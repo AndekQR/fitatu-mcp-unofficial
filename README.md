@@ -113,7 +113,8 @@ Typical workflow:
    Both catalog variants require `measureId`. A custom item instead requires `name` and `energyKcal`, accepts optional macro values, and has no definition ID or
    public measure fields.
 4. After `add_meal_items` returns `accepted`, use its `provisionalItemIds` only as provisional identifiers. Call `get_day_plan_items` again and verify each
-   requested item.
+   requested item. Every meal-item mutation also returns `dayRevisions`, keyed by synchronized date; the map is empty only when a legacy Fitatu fallback
+   accepts the write without returning receipts.
 5. Use an `itemId` returned by `get_day_plan_items` with `update_meal_item` or `move_meal_item`.
 6. To delete entries, pass `date` and exact `itemIds` UUIDs to `remove_meal_items`. Do not pass product or recipe definition IDs. The destructive operation does
    not require `mealKey`, validates every UUID first, and performs one atomic synchronization.
@@ -145,17 +146,22 @@ arguments are rejected by the MCP SDK with protocol error `-32602` before the to
 
 Runtime configuration is read from environment variables and validated at startup.
 
-| Variable          | Required | Default       | Sensitive | Description                             |
-|-------------------|----------|---------------|-----------|-----------------------------------------|
-| `FITATU_EMAIL`    | Yes      | none          | Yes       | Fitatu account email address.           |
-| `FITATU_PASSWORD` | Yes      | none          | Yes       | Fitatu account password.                |
-| `PORT`            | No       | `3000`        | No        | HTTP server port.                       |
-| `NODE_ENV`        | No       | `development` | No        | `development`, `production`, or `test`. |
-| `SERVER_NAME`     | No       | `fitatu-mcp`  | No        | MCP server name.                        |
-| `SERVER_VERSION`  | No       | `2.0.0`       | No        | MCP server version.                     |
-| `LOG_LEVEL`       | No       | `info`        | No        | `error`, `warn`, `info`, or `debug`.    |
+| Variable              | Required | Default                | Sensitive | Description                                      |
+|-----------------------|----------|------------------------|-----------|--------------------------------------------------|
+| `FITATU_EMAIL`        | Yes      | none                   | Yes       | Fitatu account email address.                    |
+| `FITATU_PASSWORD`     | Yes      | none                   | Yes       | Fitatu account password.                         |
+| `FITATU_USER_AGENT`   | No       | `Dart/3.10 (dart:io)`  | No        | Fitatu mobile runtime user agent.                 |
+| `FITATU_APP_VERSION`  | No       | `4.14.4`               | No        | Fitatu mobile application version.                |
+| `FITATU_API_APK_UUID` | No       | `BE4B.251210.005`      | No        | Fitatu mobile build identifier sent to the API.   |
+| `PORT`                | No       | `3000`                 | No        | HTTP server port.                                 |
+| `NODE_ENV`            | No       | `development`          | No        | `development`, `production`, or `test`.           |
+| `SERVER_NAME`         | No       | `fitatu-mcp`            | No        | MCP server name.                                  |
+| `SERVER_VERSION`      | No       | `2.0.0`                | No        | MCP server version.                               |
+| `LOG_LEVEL`           | No       | `info`                 | No        | `error`, `warn`, `info`, or `debug`.              |
 
 Do not commit `.env`. The repository keeps `.env.example` as documentation only.
+The mobile client profile defaults match Fitatu 4.14.4 traffic captured on 2026-07-30. Override these values when a newer Fitatu release changes its request
+profile; no code change is required.
 
 ## Local Development
 

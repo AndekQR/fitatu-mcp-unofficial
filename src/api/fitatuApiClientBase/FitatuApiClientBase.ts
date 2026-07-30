@@ -6,6 +6,7 @@ import {
 	DEFAULT_APP_TIMEZONE,
 	DEFAULT_FITATU_API_BASE_URL,
 	DEFAULT_FITATU_HEADERS,
+	DEFAULT_FITATU_MOBILE_CLIENT_PROFILE,
 } from "./FitatuApiDefaults.ts";
 import { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "./FitatuApiRequestOptions.ts";
@@ -25,6 +26,7 @@ export abstract class FitatuApiClientBase {
 	private readonly hasExplicitBaseUrl: boolean;
 	private readonly authClient: FitatuApiClientBaseOptions["authClient"];
 	private readonly userClient: FitatuApiClientBaseOptions["userClient"];
+	private readonly mobileClientProfile;
 
 	protected constructor(options: FitatuApiClientBaseOptions = {}) {
 		const resolvedOptions = new FitatuApiClientBaseOptions(options);
@@ -33,6 +35,7 @@ export abstract class FitatuApiClientBase {
 		this.fetchFn = resolvedOptions.fetchFn ?? fetch;
 		this.authClient = resolvedOptions.authClient;
 		this.userClient = resolvedOptions.userClient;
+		this.mobileClientProfile = resolvedOptions.mobileClientProfile ?? DEFAULT_FITATU_MOBILE_CLIENT_PROFILE;
 	}
 
 	public async getContextUserId(userId?: string): Promise<string | undefined> {
@@ -259,6 +262,7 @@ export abstract class FitatuApiClientBase {
 
 		return filterHeaders({
 			...DEFAULT_FITATU_HEADERS,
+			...this.mobileClientProfile.toHeaders(),
 			"api-cluster": this.createApiClusterHeaderValue(clusterUserId, user),
 			"app-storagelocale": storageLocale ?? DEFAULT_APP_LOCALE,
 			"app-timezone": timezone,

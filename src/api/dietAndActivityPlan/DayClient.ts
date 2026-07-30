@@ -40,7 +40,6 @@ export class DayClient extends FitatuApiClientBase {
 			endpointTemplate: "/diet-and-activity-plan/:userId/day/:date",
 			failureMessage: "Fitatu day plan request failed",
 			invalidResponseMessage: "Fitatu day plan response was invalid",
-			headers: { accept: this.V3_ACCEPT_HEADER },
 			query: request.withRating === true ? { withRating: true } : undefined,
 			decoder: decodeDayResponse,
 		});

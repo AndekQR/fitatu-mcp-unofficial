@@ -1,5 +1,6 @@
 import type { FitatuAuthSession } from "../auth/FitatuAuthSession.ts";
 import type { FitatuUserProfile } from "../users/FitatuUserProfile.ts";
+import type { FitatuMobileClientProfile } from "./FitatuMobileClientProfile.ts";
 
 export interface FitatuAuthProvider {
 	getSession(): Promise<FitatuAuthSession>;
@@ -16,11 +17,13 @@ export class FitatuApiClientBaseOptions {
 	public readonly fetchFn?: typeof fetch;
 	public readonly authClient?: FitatuAuthProvider;
 	public readonly userClient?: FitatuUserProvider;
+	public readonly mobileClientProfile?: FitatuMobileClientProfile;
 
 	public constructor(options: Partial<FitatuApiClientBaseOptions> = {}) {
 		this.baseUrl = options.baseUrl;
 		this.fetchFn = options.fetchFn;
 		this.authClient = options.authClient;
 		this.userClient = options.userClient;
+		this.mobileClientProfile = options.mobileClientProfile;
 	}
 }

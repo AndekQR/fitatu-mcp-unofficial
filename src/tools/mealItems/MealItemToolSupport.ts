@@ -4,9 +4,8 @@ import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
 import { ProductMealItemInput } from "../../api/dayPlan/ProductMealItemInput.ts";
 import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
-import type { MealItemKind } from "../../api/dayPlan/RemoveMealItemOptions.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
-import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
+import { isoCalendarDateSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
 const catalogMealItemInputShape = {
 	measureId: z
@@ -115,6 +114,11 @@ const mealItemMutationOutputObjectSchema = z.object({
 		.number()
 		.int()
 		.describe("Number of meal items submitted in the synchronization request accepted by Fitatu."),
+	dayRevisions: z
+		.record(isoCalendarDateSchema(), z.string().min(1))
+		.describe(
+			"Fitatu synchronization revisions keyed by YYYY-MM-DD date. Empty only for a legacy endpoint response without receipts.",
+		),
 	acceptedItems: z.array(acceptedItemOutputSchema),
 	provisionalItemIds: z
 		.array(z.string())
@@ -137,12 +141,6 @@ const mealItemMutationOutputObjectSchema = z.object({
 
 export const mealItemMutationOutputSchema = mealItemMutationOutputObjectSchema.shape;
 export type MealItemMutationForMcp = z.infer<typeof mealItemMutationOutputObjectSchema>;
-
-export const itemKindSchema = z
-	.enum(["auto", "normal_item", "custom_add_item", "custom_recipe_item"])
-	.describe(
-		"Fitatu item kind used when removing an item. Use auto unless a previous response identifies a specific kind.",
-	);
 
 export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): MealItemInput {
 	if ("productId" in input) {
@@ -169,6 +167,7 @@ export function toMealItemMutationForMcp(result: MealItemMutationResult): MealIt
 		targetDate: result.targetDate,
 		mealKey: result.mealKey ?? undefined,
 		operationCount: result.operationCount,
+		dayRevisions: result.dayRevisions.toRecord(),
 		acceptedItems: result.acceptedItems.map((item) => {
 			if (item.foodType === "CUSTOM_ITEM") {
 				return {
@@ -205,10 +204,6 @@ function requireDefinitionId(value: string | number | null, fieldName: string): 
 		throw new Error(`${fieldName} is required for accepted meal item`);
 	}
 	return String(value);
-}
-
-export function toMealItemKind(input: z.infer<typeof itemKindSchema> | undefined): MealItemKind | undefined {
-	return input;
 }
 
 export function createSafeMealItemErrorResult(toolName: string, fallbackMessage: string, error: unknown) {

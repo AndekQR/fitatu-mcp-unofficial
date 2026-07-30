@@ -196,7 +196,6 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			date,
 			mealKey: sourceMealKey,
 			itemId: combinedItemId,
-			itemKind: "auto",
 		});
 		expect(removeResult.operation).toBe("remove");
 		expect(removeResult.deletedItemIds).toEqual([combinedItemId]);
@@ -267,7 +266,6 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			date,
 			mealKey,
 			itemId,
-			itemKind: "auto",
 		});
 		expect(removeResult.deletedItemIds).toEqual([itemId]);
 		cleanup.untrack(date, mealKey, itemId);

@@ -10,6 +10,7 @@ import { DietSummaryService } from "./dietSummary/DietSummaryService.ts";
 import { MealItemMutationService } from "./dayPlan/MealItemMutationService.ts";
 import { FoodSearchService } from "./foodSearch/FoodSearchService.ts";
 import { RecipeService } from "./recipes/RecipeService.ts";
+import { getFitatuMobileClientProfile } from "../config.ts";
 
 /**
  * Process-wide composition root. MCP tools receive services from this class
@@ -24,12 +25,13 @@ export class ApplicationServices {
 	public readonly recipeService: RecipeService;
 
 	public constructor() {
-		const authClient = FitatuAuthClient.getInstance();
-		const userClient = FitatuUserClient.getInstance({ authClient });
-		const dayPlanClient = new DayPlanClient({ authClient, userClient });
-		const summaryClient = new SummaryClient({ authClient, userClient });
-		const foodSearchClient = new FoodSearchClient({ authClient, userClient });
-		const recipeClient = new RecipeClient({ authClient, userClient });
+		const mobileClientProfile = getFitatuMobileClientProfile();
+		const authClient = FitatuAuthClient.getInstance({ mobileClientProfile });
+		const userClient = FitatuUserClient.getInstance({ authClient, mobileClientProfile });
+		const dayPlanClient = new DayPlanClient({ authClient, userClient, mobileClientProfile });
+		const summaryClient = new SummaryClient({ authClient, userClient, mobileClientProfile });
+		const foodSearchClient = new FoodSearchClient({ authClient, userClient, mobileClientProfile });
+		const recipeClient = new RecipeClient({ authClient, userClient, mobileClientProfile });
 
 		this.currentUserService = new CurrentUserService(userClient);
 		this.dayPlanQueryService = new DayPlanQueryService(dayPlanClient);

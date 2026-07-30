@@ -6,6 +6,7 @@ import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOpe
 import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { GetDayPlanOptions } from "./GetDayPlanOptions.ts";
 import { DayPlanSyncProvider } from "./DayPlanSyncProvider.ts";
+import type { DayRevisions } from "./DayRevisions.ts";
 import { DaySyncPayload } from "./DaySyncPayload.ts";
 
 export class DayPlanSyncCoordinator extends DayPlanSyncProvider {
@@ -52,18 +53,21 @@ export class DayPlanSyncCoordinator extends DayPlanSyncProvider {
 		}
 
 		return new DaySyncPayload({
+			planDayRevisions: Array.isArray(data.planDayRevisions) ? data.planDayRevisions : [],
+			activities: Array.isArray(data.activityPlan) ? data.activityPlan : [],
 			dietPlan: data.dietPlan,
-			toiletItems: Array.isArray(data.toiletItems) ? data.toiletItems : [],
+			toilet: Array.isArray(data.toilet) ? data.toilet : Array.isArray(data.toiletItems) ? data.toiletItems : [],
+			water: ObjectUtils.isRecord(data.water) ? data.water : { waterConsumption: 0 },
 			note: data.note ?? null,
 			tagsIds: Array.isArray(data.tagsIds) ? data.tagsIds : [],
 		});
 	}
 
-	public async syncSingleDay(userId: string, date: string, dayPayload: DaySyncPayload): Promise<void> {
-		await this.syncDays(userId, { [date]: dayPayload });
+	public async syncSingleDay(userId: string, date: string, dayPayload: DaySyncPayload): Promise<DayRevisions> {
+		return this.syncDays(userId, { [date]: dayPayload });
 	}
 
-	public async syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<void> {
-		await this.daysClient.syncDays({ userId, daysPayload });
+	public async syncDays(userId: string, daysPayload: Record<string, unknown>): Promise<DayRevisions> {
+		return this.daysClient.syncDays({ userId, daysPayload });
 	}
 }

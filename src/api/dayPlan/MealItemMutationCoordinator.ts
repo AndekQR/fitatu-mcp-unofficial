@@ -10,7 +10,7 @@ import { DayItemPayload } from "./DayItemPayload.ts";
 import { DayPlanDietPlan } from "./DayPlanDietPlan.ts";
 import { createPlanDayDietItemId } from "./DayPlanItemIdFactory.ts";
 import { nowTimestamp } from "./DayPlanTimestamps.ts";
-import { normalizeItemKind, normalizeMealKey } from "./DayPlanValidators.ts";
+import { normalizeMealKey } from "./DayPlanValidators.ts";
 import { FoundDietItem } from "./FoundDietItem.ts";
 import { MealItemMutationResult } from "./MealItemMutationResult.ts";
 import type { MoveMealItemOptions } from "./MoveMealItemOptions.ts";
@@ -51,12 +51,13 @@ export class MealItemMutationCoordinator {
 			.getMealItems(mealKey)
 			.push(...acceptedItems.map(({ payload }) => payload));
 
-		await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
+		const dayRevisions = await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
 
 		return MealItemMutationResult.acceptedAdd(
 			date,
 			mealKey,
 			acceptedItems.map(({ summary }) => summary),
+			dayRevisions,
 		);
 	}
 
@@ -115,30 +116,23 @@ export class MealItemMutationCoordinator {
 		}
 		target.item.updatedAt = nowTimestamp();
 
-		await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
+		const dayRevisions = await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
 
-		return MealItemMutationResult.acceptedUpdate(date, target.toOperationSummary(0, itemId));
+		return MealItemMutationResult.acceptedUpdate(date, target.toOperationSummary(0, itemId), dayRevisions);
 	}
 
 	public async removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
 		const itemId = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem, () => {
 			normalizeMealKey(options.mealKey, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
-			normalizeItemKind(options.itemKind ?? "auto", FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
 			return StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
 		});
-		const result = await this.removeMealItems(
-			new RemoveMealItemsOptions(
-				options.date,
-				[itemId],
-				{ [options.itemId]: options.itemKind ?? "auto" },
-				userId,
-			),
-		);
+		const result = await this.removeMealItems(new RemoveMealItemsOptions(options.date, [itemId], userId));
 		return MealItemMutationResult.acceptedRemove(
 			result.targetDate,
 			result.acceptedItems,
 			result.acceptedItems[0]?.mealKey ?? null,
+			result.dayRevisions,
 		);
 	}
 
@@ -166,27 +160,16 @@ export class MealItemMutationCoordinator {
 		const deletedAt = nowTimestamp();
 		for (const target of targets) {
 			target.item.deletedAt = deletedAt;
-			target.item.updatedAt = deletedAt;
-			target.item.measureQuantity = 0.01;
-			const targetId = getRequiredItemId(target.item);
-			const requestedKind = normalizeItemKind(
-				options.itemKinds?.[targetId] ?? "auto",
-				FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems,
-			);
-			const resolvedKind = requestedKind === "auto" ? target.resolveKind() : requestedKind;
-			if (resolvedKind === "custom_recipe_item") {
-				target.item.visible = false;
-			}
 		}
 
-		await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
+		const dayRevisions = await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
 		await this.waitForRemovedItems(userId, date, itemIds);
 
 		const acceptedItems = targets.map((target, index) =>
 			target.toOperationSummary(index, getRequiredItemId(target.item)),
 		);
 
-		return MealItemMutationResult.acceptedRemove(date, acceptedItems);
+		return MealItemMutationResult.acceptedRemove(date, acceptedItems, null, dayRevisions);
 	}
 
 	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {
@@ -243,7 +226,7 @@ export class MealItemMutationCoordinator {
 			daysPayload[toDate] = targetPayload;
 		}
 
-		await this.dayPlanSyncProvider.syncDays(userId, daysPayload);
+		const dayRevisions = await this.dayPlanSyncProvider.syncDays(userId, daysPayload);
 
 		const acceptedItem = new FoundDietItem(
 			toMealKey,
@@ -251,7 +234,7 @@ export class MealItemMutationCoordinator {
 			destinationItems,
 			destinationItems.length - 1,
 		).toOperationSummary(0, newItemId);
-		return MealItemMutationResult.acceptedMove(fromDate, fromMealKey, itemId, acceptedItem);
+		return MealItemMutationResult.acceptedMove(fromDate, fromMealKey, itemId, acceptedItem, dayRevisions);
 	}
 
 	private async waitForRemovedItems(userId: string, date: string, itemIds: ReadonlySet<string>): Promise<void> {

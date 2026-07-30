@@ -1,3 +1,4 @@
+import { DayRevisions } from "./DayRevisions.ts";
 import type { MealItemOperationSummary } from "./MealItemOperationSummary.ts";
 
 export type MealItemOperationName = "add" | "update" | "remove" | "move";
@@ -16,6 +17,7 @@ export class MealItemMutationResult {
 	public readonly deletedItemIds: readonly string[];
 	public readonly oldItemId: string | null;
 	public readonly newItemId: string | null;
+	public readonly dayRevisions: DayRevisions;
 
 	private constructor(
 		operation: MealItemOperationName,
@@ -28,6 +30,7 @@ export class MealItemMutationResult {
 		deletedItemIds: readonly string[],
 		oldItemId: string | null,
 		newItemId: string | null,
+		dayRevisions: DayRevisions,
 	) {
 		this.operation = operation;
 		this.message = message;
@@ -39,6 +42,7 @@ export class MealItemMutationResult {
 		this.deletedItemIds = deletedItemIds;
 		this.oldItemId = oldItemId;
 		this.newItemId = newItemId;
+		this.dayRevisions = dayRevisions;
 		this.operationCount = acceptedItems.length;
 		this.itemIdChanged = oldItemId !== null && newItemId !== null && oldItemId !== newItemId;
 	}
@@ -47,6 +51,7 @@ export class MealItemMutationResult {
 		targetDate: string,
 		mealKey: string,
 		acceptedItems: readonly MealItemOperationSummary[],
+		dayRevisions: DayRevisions,
 	): MealItemMutationResult {
 		return new MealItemMutationResult(
 			"add",
@@ -59,10 +64,15 @@ export class MealItemMutationResult {
 			[],
 			null,
 			null,
+			dayRevisions,
 		);
 	}
 
-	public static acceptedUpdate(targetDate: string, acceptedItem: MealItemOperationSummary): MealItemMutationResult {
+	public static acceptedUpdate(
+		targetDate: string,
+		acceptedItem: MealItemOperationSummary,
+		dayRevisions: DayRevisions,
+	): MealItemMutationResult {
 		return new MealItemMutationResult(
 			"update",
 			"Meal item update request accepted by Fitatu.",
@@ -74,6 +84,7 @@ export class MealItemMutationResult {
 			[],
 			null,
 			null,
+			dayRevisions,
 		);
 	}
 
@@ -81,6 +92,7 @@ export class MealItemMutationResult {
 		targetDate: string,
 		acceptedItems: readonly MealItemOperationSummary[],
 		mealKey: string | null = null,
+		dayRevisions: DayRevisions = DayRevisions.empty(),
 	): MealItemMutationResult {
 		return new MealItemMutationResult(
 			"remove",
@@ -93,6 +105,7 @@ export class MealItemMutationResult {
 			acceptedItems.map(({ itemId }) => itemId),
 			null,
 			null,
+			dayRevisions,
 		);
 	}
 
@@ -101,6 +114,7 @@ export class MealItemMutationResult {
 		sourceMealKey: string,
 		oldItemId: string,
 		acceptedItem: MealItemOperationSummary,
+		dayRevisions: DayRevisions,
 	): MealItemMutationResult {
 		return new MealItemMutationResult(
 			"move",
@@ -113,6 +127,7 @@ export class MealItemMutationResult {
 			[oldItemId],
 			oldItemId,
 			acceptedItem.itemId,
+			dayRevisions,
 		);
 	}
 }

@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
-import type { FitatuApiErrorDetails } from "../../../src/api/fitatuApiClientBase/FitatuApiError.ts";
+import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../../../src/api/fitatuApiClientBase/FitatuClientOperations.ts";
 import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
-import { FoodSearchError } from "../../../src/api/foodSearch/FoodSearchError.ts";
 import type { FoodSearchItem } from "../../../src/api/foodSearch/FoodSearchItem.ts";
 import type { FoodSearchResult } from "../../../src/api/foodSearch/FoodSearchResult.ts";
 import type { FoodSearchSource } from "../../../src/api/foodSearch/FoodSearchSource.ts";
@@ -168,32 +168,30 @@ describe.sequential("Fitatu food search integration", () => {
 	});
 
 	it("returns a structured MCP error when all requested food search requests fail", async () => {
-		const fitatuApiErrors: readonly FitatuApiErrorDetails[] = [
-			{
-				statusCode: 503,
+		const publicError = await FitatuClientError.http({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: "Fitatu public food search failed",
+			method: "GET",
+			endpointTemplate: "/search/new/food",
+			response: new Response('{"message":"temporary outage","code":"temporarily_unavailable"}', {
+				status: 503,
 				statusText: "Service Unavailable",
-				method: "GET",
-				path: "/search/new/food",
-				upstreamMessage: "temporary outage",
-				upstreamCode: "temporarily_unavailable",
-				responseSnippet: '{"message":"temporary outage"}',
-			},
-			{
-				statusCode: 503,
+			}),
+		});
+		const userError = await FitatuClientError.http({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: "Fitatu user food search failed",
+			method: "GET",
+			endpointTemplate: "/search/food/user/:userId",
+			response: new Response('{"message":"temporary outage","code":"temporarily_unavailable"}', {
+				status: 503,
 				statusText: "Service Unavailable",
-				method: "GET",
-				path: "/search/food/user/123",
-				upstreamMessage: "temporary outage",
-				upstreamCode: "temporarily_unavailable",
-				responseSnippet: '{"message":"temporary outage"}',
-			},
-		];
+			}),
+		});
+		const clientError = userError.withAttempts([publicError.failure], "All Fitatu food search requests failed");
 		const fakeFoodSearchClient = {
 			search: async () => {
-				throw new FoodSearchError("All Fitatu food search requests failed", {
-					statusCode: 503,
-					fitatuApiErrors,
-				});
+				throw clientError;
 			},
 		} as unknown as FoodSearchClient;
 		const tool = new SearchFoodTool(fakeFoodSearchClient);
@@ -203,9 +201,14 @@ describe.sequential("Fitatu food search integration", () => {
 		const expectedError = {
 			status: "error",
 			toolName: "search_food",
-			errorName: "FoodSearchError",
-			message: "All Fitatu food search requests failed",
-			fitatuApiErrors,
+			error: {
+				source: "fitatuApi",
+				name: "FitatuClientError",
+				message: "All Fitatu food search requests failed",
+				operation: "food.search",
+				failure: userError.failure,
+				attempts: [publicError.failure],
+			},
 		};
 
 		expect(result.isError).toBe(true);

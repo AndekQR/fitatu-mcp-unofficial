@@ -1,11 +1,17 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
-import { createSafeMealItemErrorResult, mealItemMutationOutputSchema } from "./MealItemToolSupport.ts";
+import {
+	createSafeMealItemErrorResult,
+	mealItemMutationOutputSchema,
+	toMealItemMutationForMcp,
+} from "./MealItemToolSupport.ts";
+import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
 export class RemoveMealItemsTool {
-	public readonly name = "remove_meal_items";
+	public static readonly toolName = "remove_meal_items";
 
 	private readonly mealItemMutationService: Pick<MealItemMutationProvider, "removeMealItems">;
 
@@ -15,23 +21,25 @@ export class RemoveMealItemsTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			RemoveMealItemsTool.toolName,
 			{
 				title: "Remove Fitatu Meal Items",
 				description:
-					"Removes all active PRODUCT meal items matching one or more productIds from a YYYY-MM-DD date. Copy productId strings from get_day_plan_items. This is destructive. The items are removed in one Fitatu day sync; accepted means Fitatu accepted the sync request.",
-				inputSchema: {
-					date: z
-						.string()
-						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
-						.describe("Day containing the products to remove, in YYYY-MM-DD format."),
-					productIds: z
-						.array(z.string().min(1))
-						.min(1)
-						.describe(
-							"One or more Fitatu product id strings copied from get_day_plan_items. All active occurrences of each productId are removed from the whole day.",
-						),
-				},
+					"Atomically removes and confirms exact Fitatu day-plan entries of any food type. Copy itemId UUID values from get_day_plan_items; do not pass productId or recipeId. mealKey is unnecessary because each itemId identifies one concrete entry. If any requested active item is missing, nothing is synchronized. A successful accepted result means every selected item is absent from the persisted active day plan.",
+				inputSchema: z
+					.object({
+						date: isoCalendarDateSchema().describe("Day containing the exact meal items to remove."),
+						itemIds: z
+							.array(z.string().uuid())
+							.min(1)
+							.refine((itemIds) => new Set(itemIds).size === itemIds.length, {
+								message: "itemIds must contain unique UUID values",
+							})
+							.describe(
+								"Unique itemId UUID values copied from get_day_plan_items. Each identifies one exact PRODUCT, RECIPE, or CUSTOM_ITEM entry; productId and recipeId are not accepted.",
+							),
+					})
+					.strict(),
 				outputSchema: mealItemMutationOutputSchema,
 				annotations: {
 					title: "Remove Fitatu Meal Items",
@@ -41,15 +49,18 @@ export class RemoveMealItemsTool {
 					openWorldHint: true,
 				},
 			},
-			async ({ date, productIds }) => {
+			async ({ date, itemIds }) => {
 				try {
-					const result = await this.mealItemMutationService.removeMealItems({
-						date,
-						productIds,
-					});
-					return createTextResult(result);
+					const result = await this.mealItemMutationService.removeMealItems(
+						new RemoveMealItemsOptions(date, itemIds),
+					);
+					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
-					return createSafeMealItemErrorResult(this.name, "Unable to remove Fitatu meal items.", error);
+					return createSafeMealItemErrorResult(
+						RemoveMealItemsTool.toolName,
+						"Unable to remove Fitatu meal items.",
+						error,
+					);
 				}
 			},
 		);

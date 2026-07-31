@@ -1,7 +1,12 @@
-const DEFAULT_TEST_DATE = "2035-02-15";
+const DEFAULT_TEST_DATE = "2041-02-15";
 
 export function getIntegrationTestDate(): string {
 	return normalizeDate(process.env.FITATU_INTEGRATION_TEST_DATE ?? DEFAULT_TEST_DATE);
+}
+
+export function getIntegrationTestCleanupDates(): readonly string[] {
+	const date = getIntegrationTestDate();
+	return [date, addDays(date, 1), addDays(date, 3)];
 }
 
 export function addDays(date: string, days: number): string {

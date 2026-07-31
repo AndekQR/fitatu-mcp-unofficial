@@ -1,6 +1,7 @@
 import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
 import type { FoodMeasure } from "../../../src/api/foodSearch/FoodMeasure.ts";
 import type { FoodSearchItem } from "../../../src/api/foodSearch/FoodSearchItem.ts";
+import type { FoodTypeName } from "../../../src/api/dayPlan/FoodType.ts";
 
 export interface SelectedMeasure {
 	readonly measureId: string;
@@ -11,7 +12,7 @@ export interface SelectedMeasure {
 
 export interface SelectedProduct {
 	readonly productId: string;
-	readonly foodType: string | undefined;
+	readonly foodType: FoodTypeName;
 	readonly displayName: string;
 	readonly measure: SelectedMeasure;
 	readonly availableMeasures: readonly SelectedMeasure[];
@@ -112,7 +113,7 @@ function toSelectedProduct(
 
 	return {
 		productId: item.productId,
-		foodType: item.foodType ?? undefined,
+		foodType: item.foodType,
 		displayName: item.displayName,
 		measure,
 		availableMeasures: measures,

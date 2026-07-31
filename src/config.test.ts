@@ -29,6 +29,38 @@ describe("getConfig", () => {
 		expect(getFitatuPassword()).toBe("test-password");
 	});
 
+	it("provides the current Fitatu mobile client profile by default", async () => {
+		const { getFitatuMobileClientProfile } = await loadConfigWithEnv({
+			FITATU_EMAIL: "test@example.com",
+			FITATU_PASSWORD: "test-password",
+			FITATU_USER_AGENT: undefined,
+			FITATU_APP_VERSION: undefined,
+			FITATU_API_APK_UUID: undefined,
+		});
+
+		expect(getFitatuMobileClientProfile()).toEqual({
+			userAgent: "Dart/3.10 (dart:io)",
+			appVersion: "4.14.4",
+			apiApkUuid: "BE4B.251210.005",
+		});
+	});
+
+	it("allows the mobile client profile to be updated through environment variables", async () => {
+		const { getFitatuMobileClientProfile } = await loadConfigWithEnv({
+			FITATU_EMAIL: "test@example.com",
+			FITATU_PASSWORD: "test-password",
+			FITATU_USER_AGENT: "Dart/3.11 (dart:io)",
+			FITATU_APP_VERSION: "4.15.0",
+			FITATU_API_APK_UUID: "BUILD.123",
+		});
+
+		expect(getFitatuMobileClientProfile()).toEqual({
+			userAgent: "Dart/3.11 (dart:io)",
+			appVersion: "4.15.0",
+			apiApkUuid: "BUILD.123",
+		});
+	});
+
 	it("exits when Fitatu email is invalid", async () => {
 		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 		const exit = vi.spyOn(process, "exit").mockImplementation((() => {

@@ -1,7 +1,11 @@
-import { DayPlanError } from "../dayPlan/DayPlanError.ts";
-import { createFitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
+import { DateUtils } from "../../shared/DateUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
 import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
+import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS, type FitatuClientOperation } from "../fitatuApiClientBase/FitatuClientOperations.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import type { GetEnergySummaryRequest } from "./GetEnergySummaryRequest.ts";
 import type { GetEnergySummaryResponse } from "./GetEnergySummaryResponse.ts";
 import type { GetSummaryRequest } from "./GetSummaryRequest.ts";
@@ -29,7 +33,9 @@ export class SummaryClient extends FitatuApiClientBase {
 
 	public async getSummary(request: GetSummaryRequest): Promise<GetSummaryResponse> {
 		return this.get({
-			path: `/v2/diet-plan/${encodeURIComponent(request.userId)}/summary/custom`,
+			operation: FITATU_CLIENT_OPERATIONS.dietSummaryGet,
+			resourcePath: "/summary/custom",
+			endpointTemplate: "/v2/diet-plan/:userId/summary/custom",
 			request,
 			errorMessage: "Fitatu diet plan summary request failed",
 			responseSchema: summaryResponseSchema,
@@ -38,7 +44,9 @@ export class SummaryClient extends FitatuApiClientBase {
 
 	public async getEnergySummary(request: GetEnergySummaryRequest): Promise<GetEnergySummaryResponse> {
 		return this.get({
-			path: `/v2/diet-plan/${encodeURIComponent(request.userId)}/summary/energy/custom`,
+			operation: FITATU_CLIENT_OPERATIONS.dietEnergySummaryGet,
+			resourcePath: "/summary/energy/custom",
+			endpointTemplate: "/v2/diet-plan/:userId/summary/energy/custom",
 			request,
 			errorMessage: "Fitatu diet plan energy summary request failed",
 			responseSchema: energySummaryResponseSchema,
@@ -46,52 +54,61 @@ export class SummaryClient extends FitatuApiClientBase {
 	}
 
 	private async get<ResponseBody>(options: {
-		readonly path: string;
+		readonly operation: FitatuClientOperation;
+		readonly resourcePath: string;
+		readonly endpointTemplate: string;
 		readonly request: GetSummaryRequest | GetEnergySummaryRequest;
 		readonly errorMessage: string;
 		readonly responseSchema: z.ZodType<ResponseBody>;
 	}): Promise<ResponseBody> {
-		const fromDate = normalizeSummaryDate(options.request.fromDate, "fromDate");
-		const toDate = normalizeSummaryDate(options.request.toDate, "toDate");
-		if (fromDate > toDate) {
-			throw new DayPlanError("fromDate must be before or equal to toDate");
+		const userId = StringUtils.firstNonEmptyString(options.request.userId);
+		if (!userId) {
+			throw FitatuClientError.invalidRequest({
+				operation: options.operation,
+				message: "Fitatu user id is required",
+			});
 		}
+		const fromDate = normalizeSummaryDate(options.request.fromDate, "fromDate", options.operation);
+		const toDate = normalizeSummaryDate(options.request.toDate, "toDate", options.operation);
+		if (fromDate > toDate) {
+			throw FitatuClientError.invalidRequest({
+				operation: options.operation,
+				message: "fromDate must be before or equal to toDate",
+			});
+		}
+		const path = `/v2/diet-plan/${encodeURIComponent(userId)}${options.resourcePath}`;
 
-		const response = await this.fetchFitatuApi({
+		return this.performCallout({
+			operation: options.operation,
 			method: "GET",
-			path: options.path,
+			path,
+			endpointTemplate: options.endpointTemplate,
+			failureMessage: options.errorMessage,
+			invalidResponseMessage: "Fitatu diet plan summary response was invalid",
 			headers: { accept: this.V3_ACCEPT_HEADER },
 			query: { fromDate, toDate },
+			decoder: (data) => decodeSummaryResponse(data, options.responseSchema),
 		});
-
-		if (!response.ok) {
-			const fitatuApiError = await createFitatuApiErrorDetails(response, {
-				method: "GET",
-				path: options.path,
-			});
-			throw new DayPlanError(options.errorMessage, { statusCode: response.status, fitatuApiError });
-		}
-
-		const data: unknown = await response.json();
-		const result = options.responseSchema.safeParse(data);
-		if (!result.success) {
-			throw new DayPlanError("Fitatu diet plan summary response was invalid");
-		}
-
-		return result.data;
 	}
 }
 
-function normalizeSummaryDate(value: string, fieldName: string): string {
-	const date = value.trim();
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-		throw new DayPlanError(`${fieldName} must use YYYY-MM-DD format`);
+function normalizeSummaryDate(value: string, fieldName: string, operation: FitatuClientOperation): string {
+	try {
+		return DateUtils.validateIsoDate(value, { fieldName });
+	} catch (error) {
+		if (!(error instanceof ValidationError)) {
+			throw error;
+		}
+
+		throw FitatuClientError.invalidRequest({ operation, message: error.message });
+	}
+}
+
+function decodeSummaryResponse<ResponseBody>(data: unknown, schema: z.ZodType<ResponseBody>): ResponseBody {
+	const result = schema.safeParse(data);
+	if (!result.success) {
+		throw new FitatuResponseDecodeError("Fitatu diet plan summary response was invalid");
 	}
 
-	const parsed = new Date(`${date}T00:00:00.000Z`);
-	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
-		throw new DayPlanError(`${fieldName} must be a valid calendar date`);
-	}
-
-	return date;
+	return result.data;
 }

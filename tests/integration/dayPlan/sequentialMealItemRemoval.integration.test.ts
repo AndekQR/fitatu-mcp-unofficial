@@ -1,52 +1,25 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
-import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
-import type { MealItemInput } from "../../../src/api/dayPlan/MealItemMutation.ts";
-import { CleanupTracker } from "../helpers/cleanupTracker.ts";
-import { findMealItem } from "../helpers/dayPlanAssertions.ts";
-import { getIntegrationTestDate } from "../helpers/testDates.ts";
+import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
+import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
+import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
+import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
+import { CleanupTracker, CleanupTrackingMealItemMutationConfirmer } from "../helpers/cleanupTracker.ts";
+import { expectMealItem, expectNoMealItem } from "../helpers/dayPlanAssertions.ts";
+import { selectProductsByMeasure } from "../helpers/productSelection.ts";
+import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 
 const dayPlanClient = new DayPlanClient();
+const foodSearchClient = new FoodSearchClient();
 const cleanup = new CleanupTracker(dayPlanClient);
-const READ_AFTER_WRITE_ATTEMPTS = 20;
+const mealItemMutationService = new MealItemMutationService(
+	dayPlanClient,
+	foodSearchClient,
+	new RecipeClient(),
+	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
+);
 const MEAL_KEY = "breakfast";
-const INCORRECT_BREAKFAST_ITEMS: readonly MealItemInput[] = [
-	{
-		foodId: "146822727",
-		foodType: "PRODUCT",
-		measureId: "2",
-		measureQuantity: 0.5,
-		eaten: true,
-	},
-	{
-		foodId: "117741055",
-		foodType: "PRODUCT",
-		measureId: "1",
-		measureQuantity: 40,
-		eaten: true,
-	},
-	{
-		foodId: "53858645",
-		foodType: "PRODUCT",
-		measureId: "1",
-		measureQuantity: 62.5,
-		eaten: true,
-	},
-	{
-		foodId: "145823013",
-		foodType: "PRODUCT",
-		measureId: "2",
-		measureQuantity: 0.5,
-		eaten: true,
-	},
-	{
-		foodId: "116885192",
-		foodType: "PRODUCT",
-		measureId: "1",
-		measureQuantity: 75,
-		eaten: true,
-	},
-];
+const REPLACEMENT_MEAL_KEY = "supper";
 
 describe.sequential("Fitatu sequential meal-item removal integration", () => {
 	afterEach(async () => {
@@ -55,57 +28,125 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 
 	it("removes batch-added breakfast products in one accepted day sync", async () => {
 		const date = getIntegrationTestDate();
-		const addResult = await dayPlanClient.addMealItems({
+		const products = await selectProductsByMeasure({ foodSearchClient, date });
+		const items = [products.fallbackProduct, products.gramProduct, products.packageProduct].map((product) => ({
+			productId: product.productId,
+			foodType: "PRODUCT" as const,
+			measureId: product.measure.measureId,
+			measureQuantity: 1,
+			eaten: true,
+		}));
+		await cleanup.prepareMealAddition(date, MEAL_KEY, items.length);
+		const addResult = await mealItemMutationService.addMealItems({
 			date,
 			mealKey: MEAL_KEY,
-			items: INCORRECT_BREAKFAST_ITEMS,
+			items,
 		});
 
 		expect(addResult.status).toBe("accepted");
 		expect(addResult.operation).toBe("add");
-		expect(addResult.operationCount).toBe(INCORRECT_BREAKFAST_ITEMS.length);
-		expect(addResult.createdItemIds).toHaveLength(INCORRECT_BREAKFAST_ITEMS.length);
+		expect(addResult.operationCount).toBe(items.length);
+		expect(addResult.provisionalItemIds).toHaveLength(items.length);
 
-		for (const itemId of addResult.createdItemIds) {
+		const persistedItemIds = addResult.provisionalItemIds;
+		const afterAdd = await dayPlanClient.getDayPlan({ date });
+		for (const itemId of persistedItemIds) {
+			expectMealItem(afterAdd, MEAL_KEY, itemId);
+		}
+		for (const itemId of persistedItemIds) {
 			cleanup.track(date, MEAL_KEY, itemId);
-			await waitForItem(date, MEAL_KEY, itemId);
 		}
 
-		const removeResult = await dayPlanClient.removeMealItems({
+		const removeResult = await mealItemMutationService.removeMealItems({
 			date,
-			productIds: INCORRECT_BREAKFAST_ITEMS.map((item) => requireFoodId(item.foodId)),
+			itemIds: persistedItemIds,
 		});
 
 		expect(removeResult.status).toBe("accepted");
 		expect(removeResult.operation).toBe("remove");
-		expect(removeResult.operationCount).toBeGreaterThanOrEqual(INCORRECT_BREAKFAST_ITEMS.length);
-		expect(removeResult.deletedItemIds).toEqual(expect.arrayContaining([...addResult.createdItemIds]));
+		expect(removeResult.operationCount).toBe(items.length);
+		expect(removeResult.deletedItemIds).toEqual(persistedItemIds);
+		const afterRemoval = await dayPlanClient.getDayPlan({ date });
+		for (const itemId of persistedItemIds) {
+			expectNoMealItem(afterRemoval, MEAL_KEY, itemId);
+			cleanup.untrack(date, MEAL_KEY, itemId);
+		}
+	}, 180_000);
+
+	it("removes a catalog item before adding its custom replacement", async () => {
+		const date = addDays(getIntegrationTestDate(), 3);
+		const products = await selectProductsByMeasure({ foodSearchClient, date });
+		await cleanup.prepareMealAddition(date, REPLACEMENT_MEAL_KEY, 1);
+		const addCatalogResult = await mealItemMutationService.addMealItems({
+			date,
+			mealKey: REPLACEMENT_MEAL_KEY,
+			items: [
+				{
+					productId: products.gramProduct.productId,
+					foodType: "PRODUCT",
+					measureId: products.gramProduct.measure.measureId,
+					measureQuantity: 250,
+					eaten: true,
+				},
+			],
+		});
+		const provisionalCatalogItemId = requireItemId(addCatalogResult.provisionalItemIds[0] ?? null);
+		cleanup.track(date, REPLACEMENT_MEAL_KEY, provisionalCatalogItemId);
+
+		const catalogItemId = provisionalCatalogItemId;
+		expectMealItem(await dayPlanClient.getDayPlan({ date }), REPLACEMENT_MEAL_KEY, catalogItemId);
+
+		const removeResult = await mealItemMutationService.removeMealItems({
+			date,
+			itemIds: [catalogItemId],
+		});
+		expect(removeResult).toMatchObject({
+			status: "accepted",
+			operation: "remove",
+			deletedItemIds: [catalogItemId],
+		});
+
+		const replacementName = `Fitatu MCP custom replacement ${Date.now()}`;
+		await cleanup.prepareMealAddition(date, REPLACEMENT_MEAL_KEY, 1);
+		const addCustomResult = await mealItemMutationService.addMealItems({
+			date,
+			mealKey: REPLACEMENT_MEAL_KEY,
+			items: [
+				{
+					foodType: "CUSTOM_ITEM",
+					name: replacementName,
+					energyKcal: 330,
+					proteinG: 32,
+					fatG: 22,
+					carbohydrateG: 0,
+					eaten: true,
+				},
+			],
+		});
+		const customItemId = requireItemId(addCustomResult.provisionalItemIds[0] ?? null);
+		cleanup.track(date, REPLACEMENT_MEAL_KEY, customItemId);
+
+		const finalItems =
+			(await dayPlanClient.getDayPlan({ date })).meals.find((meal) => meal.mealKey === REPLACEMENT_MEAL_KEY)
+				?.items ?? [];
+		expect(finalItems.some((item) => item.itemId === catalogItemId)).toBe(false);
+		expect(finalItems.find((item) => item.itemId === customItemId)).toMatchObject({
+			name: replacementName,
+			foodType: "CUSTOM_ITEM",
+			energy: 330,
+			protein: 32,
+			fat: 22,
+			carbohydrate: 0,
+			eaten: true,
+		});
+		cleanup.untrack(date, REPLACEMENT_MEAL_KEY, catalogItemId);
 	}, 180_000);
 });
 
-async function waitForItem(date: string, mealKey: string, itemId: string): Promise<DayPlanItem> {
-	for (let attempt = 0; attempt < READ_AFTER_WRITE_ATTEMPTS; attempt += 1) {
-		const dayPlan = await dayPlanClient.getDayPlan({ date });
-		const item = findMealItem(dayPlan, mealKey, itemId);
-		if (item) {
-			return item;
-		}
-		await wait(1_000);
-	}
-
-	throw new Error(`Meal item ${itemId} did not appear in ${mealKey} on ${date}`);
-}
-
-function requireFoodId(value: string | number | undefined): string {
-	if (typeof value !== "string") {
-		throw new Error("Expected test meal item to define foodId as a string");
+function requireItemId(value: string | null): string {
+	if (!value) {
+		throw new Error("Expected Fitatu to return a meal item id");
 	}
 
 	return value;
-}
-
-function wait(milliseconds: number): Promise<void> {
-	return new Promise((resolve) => {
-		setTimeout(resolve, milliseconds);
-	});
 }

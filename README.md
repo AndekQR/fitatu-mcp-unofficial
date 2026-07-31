@@ -2,10 +2,12 @@
 
 # Fitatu MCP Unofficial
 
-Unofficial Model Context Protocol (MCP) server for Fitatu. It exposes selected Fitatu account operations as typed MCP tools so an MCP client can inspect and update your own meal plan.
+Unofficial Model Context Protocol (MCP) server for Fitatu. It exposes selected Fitatu account operations as typed MCP tools so an MCP client can inspect and
+update your own meal plan.
 
 > [!IMPORTANT]
-> This project is not affiliated with, endorsed by, or sponsored by Fitatu. Fitatu credentials and account data are sensitive. Use this server only with your own account.
+> This project is not affiliated with, endorsed by, or sponsored by Fitatu. Fitatu credentials and account data are sensitive. Use this server only with your
+> own account.
 
 ## Features
 
@@ -15,6 +17,7 @@ Unofficial Model Context Protocol (MCP) server for Fitatu. It exposes selected F
 - Diet summary tool for an inclusive date range, including period energy, key nutrients, and full nutrient details.
 - Food search with product and measure identifiers for follow-up mutations.
 - Meal item add, update, move, and remove tools.
+- Recipe search and complete recipe lifecycle tools: create, inspect, update, and delete.
 - Docker workflow for local/private deployment.
 
 ## Requirements
@@ -61,12 +64,12 @@ For clients that launch MCP servers through a command, use `mcp-remote`:
 
 ```json
 {
-  "mcpServers": {
-    "fitatu": {
-      "command": "npx",
-      "args": ["mcp-remote", "http://localhost:3000/mcp"]
-    }
-  }
+	"mcpServers": {
+		"fitatu": {
+			"command": "npx",
+			"args": ["mcp-remote", "http://localhost:3000/mcp"]
+		}
+	}
 }
 ```
 
@@ -86,43 +89,42 @@ http://localhost:3000/mcp
 
 ## Available Tools
 
-| Tool | Purpose | Mutates Fitatu data |
-| --- | --- | --- |
-| `get_current_user` | Returns a safe subset of the authenticated Fitatu user profile. | No |
-| `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date. | No |
-| `get_diet_summary` | Returns an agent-friendly nutrition and energy summary for an inclusive date range. | No |
-| `search_food` | Searches Fitatu food catalogs for product, recipe, and measure identifiers. | No |
-| `add_meal_items` | Adds one or more products or recipes to a meal. | Yes |
-| `update_meal_item` | Updates quantity, measure, or eaten state for an existing meal item. | Yes |
-| `move_meal_item` | Moves a meal item to another meal, date, or both. | Yes |
-| `remove_meal_items` | Removes active product meal items by `productIds` across the whole day. | Yes |
-
-Typical workflow:
-
-1. Call `get_day_plan_items` to inspect available meals, items, and canonical string `productId` values for a specific day.
-2. Call `search_food` to find a matching `foodId`, `foodType`, and `measureId`.
-3. Call `add_meal_items` with the canonical `foodId` and `measureId` strings (plus `foodType` when available), or use another mutation tool. Pass `productId` strings from `get_day_plan_items` directly to `remove_meal_items.productIds`.
-4. After `add_meal_items` returns `accepted`, wait for synchronization and call `get_day_plan_items` again. Treat `accepted` only as confirmation that Fitatu accepted the synchronization request, and verify that each requested item is present before reporting that it was added.
-
-An agent may also use `get_diet_summary` to fetch periodic diet data and track nutrition over time.
-
-Fitatu applies some mutations asynchronously, so a very fast follow-up read may briefly return the previous state. An accepted synchronization request can still omit an individual item when its `foodId`, `measureId`, or `foodType` is not recognized by Fitatu.
+| Tool                 | Purpose                                                                             | Mutates Fitatu data |
+|----------------------|-------------------------------------------------------------------------------------|---------------------|
+| `get_current_user`   | Returns a safe subset of the authenticated Fitatu user profile.                     | No                  |
+| `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date.                               | No                  |
+| `get_diet_summary`   | Returns an agent-friendly nutrition and energy summary for an inclusive date range. | No                  |
+| `search_food`        | Searches Fitatu food catalogs for product, recipe, and measure identifiers.         | No                  |
+| `add_meal_items`     | Adds products, recipes, or one-off custom items to a meal.                          | Yes                 |
+| `update_meal_item`   | Updates quantity, measure, or eaten state for an existing meal item.                | Yes                 |
+| `move_meal_item`     | Moves a meal item to another meal, date, or both.                                   | Yes                 |
+| `remove_meal_items`  | Atomically removes exact day-plan entries of any food type by item UUID.            | Yes                 |
+| `search_recipes`     | Lists or searches the user's recipes, public recipes, or both catalogs.             | No                  |
+| `get_recipe`         | Returns canonical per-serving details for a recipe.                                 | No                  |
+| `create_recipe`      | Creates a private recipe by default from product and measure identifiers.           | Yes                 |
+| `update_recipe`      | Partially updates an owned, editable recipe and returns its resulting recipe ID.    | Yes                 |
+| `delete_recipe`      | Soft-deletes a recipe definition after exact-name confirmation.                     | Yes                 |
 
 ## Configuration
 
 Runtime configuration is read from environment variables and validated at startup.
 
-| Variable | Required | Default | Sensitive | Description |
-| --- | --- | --- | --- | --- |
-| `FITATU_EMAIL` | Yes | none | Yes | Fitatu account email address. |
-| `FITATU_PASSWORD` | Yes | none | Yes | Fitatu account password. |
-| `PORT` | No | `3000` | No | HTTP server port. |
-| `NODE_ENV` | No | `development` | No | `development`, `production`, or `test`. |
-| `SERVER_NAME` | No | `fitatu-mcp` | No | MCP server name. |
-| `SERVER_VERSION` | No | `1.0.0` | No | MCP server version. |
-| `LOG_LEVEL` | No | `info` | No | `error`, `warn`, `info`, or `debug`. |
+| Variable              | Required | Default                | Sensitive | Description                                      |
+|-----------------------|----------|------------------------|-----------|--------------------------------------------------|
+| `FITATU_EMAIL`        | Yes      | none                   | Yes       | Fitatu account email address.                    |
+| `FITATU_PASSWORD`     | Yes      | none                   | Yes       | Fitatu account password.                         |
+| `FITATU_USER_AGENT`   | No       | `Dart/3.10 (dart:io)`  | No        | Fitatu mobile runtime user agent.                 |
+| `FITATU_APP_VERSION`  | No       | `4.14.4`               | No        | Fitatu mobile application version.                |
+| `FITATU_API_APK_UUID` | No       | `BE4B.251210.005`      | No        | Fitatu mobile build identifier sent to the API.   |
+| `PORT`                | No       | `3000`                 | No        | HTTP server port.                                 |
+| `NODE_ENV`            | No       | `development`          | No        | `development`, `production`, or `test`.           |
+| `SERVER_NAME`         | No       | `fitatu-mcp`            | No        | MCP server name.                                  |
+| `SERVER_VERSION`      | No       | `2.0.0`                | No        | MCP server version.                               |
+| `LOG_LEVEL`           | No       | `info`                 | No        | `error`, `warn`, `info`, or `debug`.              |
 
 Do not commit `.env`. The repository keeps `.env.example` as documentation only.
+The mobile client profile defaults match Fitatu 4.14.4 traffic captured on 2026-07-30. Override these values when a newer Fitatu release changes its request
+profile; no code change is required.
 
 ## Local Development
 
@@ -153,7 +155,8 @@ npm run test:ci
 npm run build
 ```
 
-`test:ci` runs deterministic unit tests with an informational V8 coverage report and does not load Fitatu credentials. Generate the same text, HTML, and JSON coverage reports locally with:
+`test:ci` runs deterministic unit tests with an informational V8 coverage report and does not load Fitatu credentials. Generate the same text, HTML, and JSON
+coverage reports locally with:
 
 ```bash
 npm run test:coverage
@@ -171,7 +174,8 @@ Integration tests stay separate:
 npm run test:integration
 ```
 
-Integration tests require valid Fitatu credentials in `.env` and may read or mutate data in the authenticated account.
+Integration tests require valid Fitatu credentials in `.env` and may read or mutate meal-plan and recipe data in the authenticated account. Recipe workflow
+tests create temporary recipes and attempt to remove them during cleanup.
 
 ## Docker
 
@@ -189,7 +193,8 @@ Build the Docker image:
 docker build -t fitatu-mcp .
 ```
 
-The build copies `.env` into the image so the server can read it at runtime. Treat the built image as sensitive. Do not push it to a public registry or share it with other people.
+The build copies `.env` into the image so the server can read it at runtime. Treat the built image as sensitive. Do not push it to a public registry or share it
+with other people.
 
 Run the container:
 
@@ -222,6 +227,8 @@ Cloudflare will print a public tunnel URL. Use that URL with the `/mcp` path as 
 - Do not expose full upstream Fitatu responses in issues, logs, tests, fixtures, or MCP responses.
 - Captured HTTP traffic should be used only for legitimate work with your own account and your own network traffic.
 - Review mutation tool calls carefully before allowing an MCP client to execute them.
+- Treat `remove_meal_items` as destructive and atomic for its selected day-plan UUIDs.
+- `delete_recipe` soft-deletes only the catalog definition and leaves existing or historical day-plan snapshots intact.
 
 ## Contributing
 

@@ -1,4 +1,6 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { JsonUtils } from "../../shared/JsonUtils.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { McpResponseFormatter, type McpResponseFormatterOptions } from "./McpResponseFormatter.ts";
 
 const responseFormatter = new McpResponseFormatter();
@@ -6,7 +8,7 @@ const responseFormatter = new McpResponseFormatter();
 /** Creates an MCP success result from data that is safe to return to the caller. */
 export function createTextResult(data: unknown, options: McpResponseFormatterOptions = {}): CallToolResult {
 	const plainData = responseFormatter.format(data, options);
-	const structuredContent = isRecord(plainData) ? plainData : undefined;
+	const structuredContent = ObjectUtils.isRecord(plainData) ? plainData : undefined;
 
 	return {
 		content: [
@@ -21,7 +23,7 @@ export function createTextResult(data: unknown, options: McpResponseFormatterOpt
 
 /** Creates an MCP error result without compacting diagnostic fields. */
 export function createErrorResult(data: unknown): CallToolResult {
-	const plainData = toJsonValue(data === undefined ? null : data);
+	const plainData = JsonUtils.toJsonValue(data === undefined ? null : data);
 
 	return {
 		isError: true,
@@ -32,12 +34,4 @@ export function createErrorResult(data: unknown): CallToolResult {
 			},
 		],
 	};
-}
-
-function toJsonValue(data: unknown): unknown {
-	return JSON.parse(JSON.stringify(data));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

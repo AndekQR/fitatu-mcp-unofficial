@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { DietSummaryRequest, DietSummaryResult } from "../../../../src/services/dietSummary/DietSummaryTypes.ts";
+import { DietSummaryDailyEnergy } from "../../../../src/services/dietSummary/DietSummaryDailyEnergy.ts";
+import { DietSummaryEnergy } from "../../../../src/services/dietSummary/DietSummaryEnergy.ts";
+import { DietSummaryPeriod } from "../../../../src/services/dietSummary/DietSummaryPeriod.ts";
+import type { DietSummaryRequest } from "../../../../src/services/dietSummary/DietSummaryRequest.ts";
+import { DietSummaryResult } from "../../../../src/services/dietSummary/DietSummaryResult.ts";
 import type { DietSummaryProvider } from "../../../../src/services/dietSummary/DietSummaryService.ts";
 import { GetDietSummaryTool } from "../../../../src/tools/dietSummary/GetDietSummaryTool.ts";
 import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
@@ -52,8 +56,11 @@ describe("GetDietSummaryTool", () => {
 		expect(parseTextContent(result)).toEqual({
 			status: "error",
 			toolName: "get_diet_summary",
-			errorName: "Error",
-			message: "Unable to fetch Fitatu diet summary.",
+			error: {
+				source: "internal",
+				name: "Error",
+				message: "Unable to fetch Fitatu diet summary.",
+			},
 		});
 		expect(result.structuredContent).toBeUndefined();
 		expect(getTextContent(result)).not.toContain("secret summary response");
@@ -82,20 +89,13 @@ class FakeDietSummaryService implements DietSummaryProvider {
 }
 
 function createSummary(): DietSummaryResult {
-	return {
-		period: { fromDate: "2026-07-13", toDate: "2026-07-14", dayCount: 2 },
-		energy: {
-			loggedTotal: 4100,
-			targetTotal: 5000,
-			averageLogged: 2050,
-			averageTarget: 2500,
-			remainingToTarget: 900,
-			daily: [
-				{ date: "2026-07-13", logged: 2000, target: 2500, remainingToTarget: 500 },
-				{ date: "2026-07-14", logged: 2100, target: 2500, remainingToTarget: 400 },
-			],
-		},
-		keyNutrients: [],
-		allNutrients: [],
-	};
+	return new DietSummaryResult(
+		new DietSummaryPeriod("2026-07-13", "2026-07-14", 2),
+		new DietSummaryEnergy(4100, 5000, 2050, 2500, 900, [
+			new DietSummaryDailyEnergy("2026-07-13", 2000, 2500, 500),
+			new DietSummaryDailyEnergy("2026-07-14", 2100, 2500, 400),
+		]),
+		[],
+		[],
+	);
 }

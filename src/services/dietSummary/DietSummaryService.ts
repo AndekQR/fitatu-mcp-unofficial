@@ -1,17 +1,20 @@
-import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
 import type { GetEnergySummaryResponse } from "../../api/dietPlan/GetEnergySummaryResponse.ts";
 import type { GetSummaryResponse, SummaryMeasure } from "../../api/dietPlan/GetSummaryResponse.ts";
 import { SummaryClient } from "../../api/dietPlan/SummaryClient.ts";
 import { FitatuUserClient } from "../../api/users/FitatuUserClient.ts";
 import type { FitatuUserProfile } from "../../api/users/FitatuUserProfile.ts";
-import type {
-	DietSummaryDailyEnergy,
-	DietSummaryEnergy,
-	DietSummaryNutrient,
-	DietSummaryRequest,
-	DietSummaryResult,
-	NutrientStatus,
-} from "./DietSummaryTypes.ts";
+import { DateUtils } from "../../shared/DateUtils.ts";
+import { NumberUtils } from "../../shared/NumberUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
+import { DietSummaryDailyEnergy } from "./DietSummaryDailyEnergy.ts";
+import { DietSummaryEnergy } from "./DietSummaryEnergy.ts";
+import { DietSummaryNutrient } from "./DietSummaryNutrient.ts";
+import type { DietSummaryRequest } from "./DietSummaryRequest.ts";
+import { DietSummaryResult } from "./DietSummaryResult.ts";
+import { DietSummaryPeriod } from "./DietSummaryPeriod.ts";
+import type { NutrientStatus } from "./NutrientStatus.ts";
+import { ServiceError } from "../ServiceError.ts";
+import { SERVICE_ERROR_CODES } from "../ServiceErrorCode.ts";
 
 interface SummaryApiClient {
 	getSummary(request: {
@@ -149,11 +152,22 @@ export class DietSummaryService implements DietSummaryProvider {
 		const fromDate = normalizeDate(request.fromDate, "fromDate");
 		const toDate = normalizeDate(request.toDate, "toDate");
 		if (fromDate > toDate) {
-			throw new DayPlanError("fromDate must be before or equal to toDate");
+			throw new ServiceError(
+				"fromDate must be before or equal to toDate",
+				"invalidInput",
+				SERVICE_ERROR_CODES.invalidDateRange,
+			);
 		}
 
 		const user = await this.userClient.getAuthenticatedUser();
-		const userId = normalizeUserId(user.id);
+		const userId = StringUtils.firstNonEmptyString(user.id);
+		if (!userId) {
+			throw new ServiceError(
+				"Fitatu user id is required",
+				"authenticationRequired",
+				SERVICE_ERROR_CODES.authenticationRequired,
+			);
+		}
 		const [summary, energySummary] = await Promise.all([
 			this.summaryClient.getSummary({ userId, fromDate, toDate }),
 			this.summaryClient.getEnergySummary({ userId, fromDate, toDate }),
@@ -161,44 +175,35 @@ export class DietSummaryService implements DietSummaryProvider {
 		const dates = eachDate(fromDate, toDate);
 		const allNutrients = Object.entries(summary).map(([key, measure]) => this.toNutrient(key, measure));
 
-		return {
-			period: {
-				fromDate,
-				toDate,
-				dayCount: dates.length,
-			},
-			energy: this.toEnergy(energySummary, dates),
-			keyNutrients: KEY_NUTRIENT_KEYS.flatMap((key) => {
+		return new DietSummaryResult(
+			new DietSummaryPeriod(fromDate, toDate, dates.length),
+			this.toEnergy(energySummary, dates),
+			KEY_NUTRIENT_KEYS.flatMap((key) => {
 				const nutrient = allNutrients.find((item) => item.key === key);
 				return nutrient ? [nutrient] : [];
 			}),
 			allNutrients,
-		};
+		);
 	}
 
 	private toEnergy(summary: GetEnergySummaryResponse, dates: readonly string[]): DietSummaryEnergy {
 		const daily = dates.map((date) => {
 			const logged = numberOrNull(summary.measures[date]) ?? 0;
 			const target = numberOrNull(summary.targets[date]);
-			return {
-				date,
-				logged,
-				target,
-				remainingToTarget: target === null ? null : round(target - logged),
-			} satisfies DietSummaryDailyEnergy;
+			return new DietSummaryDailyEnergy(date, logged, target, target === null ? null : round(target - logged));
 		});
 		const loggedTotal = sumNumbers(daily.map((item) => item.logged));
 		const targetTotal = sumNumbers(daily.map((item) => item.target));
 		const dayCount = dates.length || 1;
 
-		return {
+		return new DietSummaryEnergy(
 			loggedTotal,
 			targetTotal,
-			averageLogged: round(loggedTotal / dayCount),
-			averageTarget: round(targetTotal / dayCount),
-			remainingToTarget: round(targetTotal - loggedTotal),
+			round(loggedTotal / dayCount),
+			round(targetTotal / dayCount),
+			round(targetTotal - loggedTotal),
 			daily,
-		};
+		);
 	}
 
 	private toNutrient(key: string, measure: SummaryMeasure): DietSummaryNutrient {
@@ -207,19 +212,19 @@ export class DietSummaryService implements DietSummaryProvider {
 		const max = numberOrNull(measure.max);
 		const status = nutrientStatus(current, min, max);
 
-		return {
+		return new DietSummaryNutrient(
 			key,
-			label: NUTRIENT_LABELS[key] ?? labelFromKey(key),
-			unit: NUTRIENT_UNITS[key],
+			NUTRIENT_LABELS[key] ?? labelFromKey(key),
+			NUTRIENT_UNITS[key],
 			current,
 			min,
 			max,
-			eaten: numberOrNull(measure.eaten),
+			numberOrNull(measure.eaten),
 			status,
-			amountToMinimum: current !== null && min !== null && current < min ? round(min - current) : undefined,
-			amountOverMaximum: current !== null && max !== null && current > max ? round(current - max) : undefined,
-			remainingToMaximum: current !== null && max !== null && current <= max ? round(max - current) : undefined,
-		};
+			current !== null && min !== null && current < min ? round(min - current) : undefined,
+			current !== null && max !== null && current > max ? round(current - max) : undefined,
+			current !== null && max !== null && current <= max ? round(max - current) : undefined,
+		);
 	}
 }
 
@@ -240,29 +245,19 @@ function nutrientStatus(current: number | null, min: number | null, max: number 
 }
 
 function normalizeDate(value: string, fieldName: string): string {
-	const date = value.trim();
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-		throw new DayPlanError(`${fieldName} must use YYYY-MM-DD format`);
+	try {
+		return DateUtils.validateIsoDate(value, {
+			fieldName,
+			minimumYear: 1,
+			minimumYearErrorMessage: `${fieldName} year must be between 0001 and 9999`,
+		});
+	} catch (error) {
+		throw new ServiceError(
+			error instanceof Error ? error.message : `${fieldName} was invalid`,
+			"invalidInput",
+			SERVICE_ERROR_CODES.invalidDateRange,
+		);
 	}
-	if (date.startsWith("0000-")) {
-		throw new DayPlanError(`${fieldName} year must be between 0001 and 9999`);
-	}
-
-	const parsed = new Date(`${date}T00:00:00.000Z`);
-	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
-		throw new DayPlanError(`${fieldName} must be a valid calendar date`);
-	}
-
-	return date;
-}
-
-function normalizeUserId(value: string | null | undefined): string {
-	const userId = value?.trim();
-	if (!userId) {
-		throw new DayPlanError("Fitatu user id is required");
-	}
-
-	return userId;
 }
 
 function eachDate(fromDate: string, toDate: string): readonly string[] {
@@ -283,7 +278,9 @@ function sumNumbers(values: readonly (number | null)[]): number {
 }
 
 function numberOrNull(value: number | null | undefined): number | null {
-	return typeof value === "number" && Number.isFinite(value) ? round(value) : null;
+	return value === null || value === undefined
+		? null
+		: round(NumberUtils.parseFiniteNumber(value, "Diet summary value must be a finite number"));
 }
 
 function round(value: number): number {

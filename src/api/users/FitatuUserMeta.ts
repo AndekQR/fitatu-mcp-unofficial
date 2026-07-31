@@ -1,9 +1,13 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
+
 export class FitatuUserMeta {
-	declare public readonly goalAchievement?: string;
-	declare public readonly userPlannerNutritionParams?: string;
+	public readonly goalAchievement?: string;
+	public readonly userPlannerNutritionParams?: string;
 
 	private constructor(data: Record<string, unknown>) {
-		Object.assign(this, data);
+		this.goalAchievement = StringUtils.firstNonEmptyString(data.goalAchievement);
+		this.userPlannerNutritionParams = StringUtils.firstNonEmptyString(data.userPlannerNutritionParams);
 	}
 
 	public static fromApiResponse(data: unknown): FitatuUserMeta | null {
@@ -11,6 +15,6 @@ export class FitatuUserMeta {
 			return null;
 		}
 
-		return new FitatuUserMeta(data as Record<string, unknown>);
+		return ObjectUtils.isRecord(data) ? new FitatuUserMeta(data) : null;
 	}
 }

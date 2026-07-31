@@ -97,7 +97,16 @@ describe("FoodSearchClient.search", () => {
 		expect(result.items[0]).toMatchObject({ source: "user", foodId: "user-food-1", name: "Domowa granola" });
 		expect(result.warnings).toHaveLength(1);
 		expect(result.warnings[0]).toContain("public search failed for query='granola'");
-		expect(result.warningDetails[0]).toMatchObject({ query: "granola", source: "public" });
+		expect(result.warningDetails[0]).toMatchObject({
+			query: "granola",
+			source: "public",
+			clientError: {
+				name: "FitatuClientError",
+				operation: "food.search",
+				failure: { kind: "http", statusCode: 503 },
+				attempts: [{ kind: "http", statusCode: 503 }],
+			},
+		});
 	});
 
 	it("preserves query order and deduplicates repeated rows within each query", async () => {
@@ -140,14 +149,20 @@ describe("FoodSearchClient.search", () => {
 		});
 
 		await expect(client.search({ queries: ["granola"] })).rejects.toMatchObject({
-			name: "FoodSearchError",
+			name: "FitatuClientError",
 			message: "All Fitatu food search requests failed",
-			statusCode: 503,
+			operation: "food.search",
+			failure: { kind: "http", statusCode: 503 },
+			attempts: [
+				{ kind: "http", statusCode: 503 },
+				{ kind: "http", statusCode: 503 },
+				{ kind: "http", statusCode: 503 },
+			],
 		});
 		expect(fetchStub.calls).toHaveLength(4);
 	});
 
-	it("treats malformed successful JSON as a failed search boundary", async () => {
+	it("maps malformed successful JSON to an invalid response error", async () => {
 		const fetchStub = createFetchStub(
 			new Response("not-json", { status: 200, headers: { "content-type": "application/json" } }),
 		);
@@ -161,8 +176,109 @@ describe("FoodSearchClient.search", () => {
 		await expect(
 			client.search({ queries: ["granola"], includePublicFood: true, includeUserFood: false }),
 		).rejects.toMatchObject({
-			name: "FoodSearchError",
+			name: "FitatuClientError",
 			message: "All Fitatu food search requests failed",
+			operation: "food.search",
+			failure: {
+				kind: "invalidResponse",
+				method: "GET",
+				endpointTemplate: "/search/new/food",
+			},
+			attempts: [],
 		});
+	});
+
+	it("omits candidates with a zero text match score and keeps the warning", async () => {
+		const fetchStub = createFetchStub(createJsonResponse([{ id: "food-1", name: "Completely unrelated" }]));
+		const client = new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient,
+		});
+
+		const result = await client.search({
+			queries: ["deleted exact recipe name"],
+			includePublicFood: true,
+			includeUserFood: false,
+		});
+
+		expect(result.items).toEqual([]);
+		expect(result.warnings).toContain("low_confidence_results");
+	});
+
+	it("does not warn about low confidence when a useful positive match is returned", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse([
+				{ id: "food-1", name: "Granola" },
+				{ id: "food-2", name: "Completely unrelated" },
+			]),
+		);
+		const client = new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient,
+		});
+
+		const result = await client.search({
+			queries: ["granola"],
+			includePublicFood: true,
+			includeUserFood: false,
+		});
+
+		expect(result.items.map((item) => item.foodId)).toEqual(["food-1"]);
+		expect(result.items[0]?.matchScore).toBe(1);
+		expect(result.warnings).not.toContain("low_confidence_results");
+	});
+
+	it("matches Polish letters when the query omits diacritics", async () => {
+		const fetchStub = createFetchStub(createJsonResponse([{ id: "food-1", name: "Jabłko" }]));
+		const client = new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient,
+		});
+
+		const result = await client.search({
+			queries: ["jablko"],
+			includePublicFood: true,
+			includeUserFood: false,
+		});
+
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0]?.matchScore).toBe(1);
+	});
+
+	it("reads available measures from a type-specific details endpoint", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse({
+				measures: [
+					{ id: 1, name: "g", weight: 1, energy: 1.25 },
+					{ id: 39, name: "portion", weight: 200, energy: 250 },
+				],
+				simpleMeasures: [{ measureId: 39, weight: 300, energy: 375 }],
+			}),
+			createJsonResponse({
+				measures: [
+					{ id: 1, name: "g" },
+					{ id: 39, name: "portion" },
+				],
+			}),
+		);
+		const client = new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient,
+		});
+
+		await expect(client.getAvailableMeasures("100", "RECIPE")).resolves.toEqual([
+			{ measureId: "1", measureName: "g", weightG: 1, unit: null, energyKcal: 1.25 },
+			{ measureId: "39", measureName: "portion", weightG: 200, unit: null, energyKcal: 250 },
+		]);
+		await expect(client.getAvailableMeasureIds("100", "RECIPE")).resolves.toEqual(new Set(["1", "39"]));
+		expect(fetchStub.calls[0]?.input).toBe("https://fitatu.test/api/recipes/100");
 	});
 });

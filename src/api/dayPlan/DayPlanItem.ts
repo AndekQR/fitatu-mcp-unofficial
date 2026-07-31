@@ -1,3 +1,8 @@
+import { NumberUtils } from "../../shared/NumberUtils.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { ScalarUtils } from "../../shared/ScalarUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
+
 export class DayPlanItem {
 	public readonly itemId: string | null;
 	public readonly name: string | null;
@@ -21,30 +26,30 @@ export class DayPlanItem {
 	public readonly eaten: boolean | null;
 
 	private constructor(data: Record<string, unknown>) {
-		this.itemId = optionalString(data.planDayDietItemId);
-		this.name = optionalString(data.name);
-		this.foodType = optionalString(data.foodType);
-		this.productId = optionalId(data.productId);
-		this.recipeId = optionalId(data.recipeId);
-		this.brand = optionalString(data.brand);
-		this.measureId = optionalId(data.measureId);
-		this.measureName = optionalString(data.measureName);
-		this.measureQuantity = optionalNumber(data.measureQuantity);
-		this.weight = optionalNumber(data.weight);
-		this.capacity = optionalNumber(data.capacity);
-		this.energy = optionalNumber(data.energy);
-		this.protein = optionalNumber(data.protein);
-		this.fat = optionalNumber(data.fat);
-		this.carbohydrate = optionalNumber(data.carbohydrate);
-		this.fiber = optionalNumber(data.fiber);
-		this.sugars = optionalNumber(data.sugars);
-		this.salt = optionalNumber(data.salt);
+		this.itemId = StringUtils.stringOrNull(data.planDayDietItemId);
+		this.name = StringUtils.stringOrNull(data.name);
+		this.foodType = StringUtils.stringOrNull(data.foodType);
+		this.productId = ScalarUtils.stringOrFiniteNumberOrNull(data.productId);
+		this.recipeId = ScalarUtils.stringOrFiniteNumberOrNull(data.recipeId);
+		this.brand = StringUtils.stringOrNull(data.brand);
+		this.measureId = ScalarUtils.stringOrFiniteNumberOrNull(data.measureId);
+		this.measureName = StringUtils.stringOrNull(data.measureName);
+		this.measureQuantity = NumberUtils.parseOptionalFiniteNumber(data.measureQuantity);
+		this.weight = NumberUtils.parseOptionalFiniteNumber(data.weight);
+		this.capacity = NumberUtils.parseOptionalFiniteNumber(data.capacity);
+		this.energy = NumberUtils.parseOptionalFiniteNumber(data.energy);
+		this.protein = NumberUtils.parseOptionalFiniteNumber(data.protein);
+		this.fat = NumberUtils.parseOptionalFiniteNumber(data.fat);
+		this.carbohydrate = NumberUtils.parseOptionalFiniteNumber(data.carbohydrate);
+		this.fiber = NumberUtils.parseOptionalFiniteNumber(data.fiber);
+		this.sugars = NumberUtils.parseOptionalFiniteNumber(data.sugars);
+		this.salt = NumberUtils.parseOptionalFiniteNumber(data.salt);
 		this.visible = optionalBoolean(data.visible);
 		this.eaten = optionalBoolean(data.eaten);
 	}
 
 	public static fromApiResponse(data: unknown): DayPlanItem | null {
-		if (!isRecord(data)) {
+		if (!ObjectUtils.isRecord(data)) {
 			return null;
 		}
 
@@ -67,30 +72,6 @@ export class DayPlanItem {
 	}
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function optionalString(value: unknown): string | null {
-	return typeof value === "string" ? value : null;
-}
-
-function optionalNumber(value: unknown): number | null {
-	return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
 function optionalBoolean(value: unknown): boolean | null {
 	return typeof value === "boolean" ? value : null;
-}
-
-function optionalId(value: unknown): number | string | null {
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return value;
-	}
-
-	if (typeof value === "string" && value.trim().length > 0) {
-		return value;
-	}
-
-	return null;
 }

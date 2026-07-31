@@ -1,12 +1,24 @@
-import type { FitatuApiErrorDetails } from "../fitatuApiClientBase/FitatuApiError.ts";
+import type { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
 import type { FoodSearchSource } from "./FoodSearchSource.ts";
 
-export interface FoodSearchWarningDetail {
-	readonly message: string;
-	readonly errorName: string;
-	readonly query?: string;
-	readonly source?: FoodSearchSource;
-	readonly foodId?: string;
-	readonly fitatuApiError?: FitatuApiErrorDetails;
-	readonly fitatuApiErrors?: readonly FitatuApiErrorDetails[];
+export class FoodSearchWarningDetail {
+	public readonly message: string;
+	public readonly clientError: FitatuClientError;
+	public readonly query?: string;
+	public readonly source?: FoodSearchSource;
+	public readonly foodId?: string;
+
+	public constructor(
+		message: string,
+		clientError: FitatuClientError,
+		query?: string,
+		source?: FoodSearchSource,
+		foodId?: string,
+	) {
+		this.message = message;
+		this.clientError = clientError;
+		this.query = query;
+		this.source = source;
+		this.foodId = foodId;
+	}
 }

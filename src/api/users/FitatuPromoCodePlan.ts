@@ -1,6 +1,10 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+
 export class FitatuPromoCodePlan {
+	public readonly rawData: Readonly<Record<string, unknown>>;
+
 	private constructor(data: Record<string, unknown>) {
-		Object.assign(this, data);
+		this.rawData = Object.freeze({ ...data });
 	}
 
 	public static fromApiResponse(data: unknown): FitatuPromoCodePlan | null {
@@ -8,7 +12,7 @@ export class FitatuPromoCodePlan {
 			return null;
 		}
 
-		return new FitatuPromoCodePlan(data as Record<string, unknown>);
+		return ObjectUtils.isRecord(data) ? new FitatuPromoCodePlan(data) : null;
 	}
 
 	public static fromApiResponseArray(data: unknown): readonly FitatuPromoCodePlan[] {

@@ -52,7 +52,13 @@ describe("SummaryClient", () => {
 
 		await expect(
 			client.getSummary({ userId: "user-1", fromDate: "2026-07-14", toDate: "2026-07-13" }),
-		).rejects.toThrow("fromDate must be before or equal to toDate");
+		).rejects.toMatchObject({
+			name: "FitatuClientError",
+			message: "fromDate must be before or equal to toDate",
+			operation: "dietSummary.get",
+			failure: { kind: "invalidRequest" },
+			attempts: [],
+		});
 		expect(fetchStub.calls).toHaveLength(0);
 	});
 
@@ -68,6 +74,16 @@ describe("SummaryClient", () => {
 
 		await expect(
 			client.getEnergySummary({ userId: "user-1", fromDate: "2026-07-13", toDate: "2026-07-13" }),
-		).rejects.toThrow("Fitatu diet plan summary response was invalid");
+		).rejects.toMatchObject({
+			name: "FitatuClientError",
+			message: "Fitatu diet plan summary response was invalid",
+			operation: "dietSummary.energy.get",
+			failure: {
+				kind: "invalidResponse",
+				method: "GET",
+				endpointTemplate: "/v2/diet-plan/:userId/summary/energy/custom",
+			},
+			attempts: [],
+		});
 	});
 });

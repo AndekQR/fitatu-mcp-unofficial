@@ -1,28 +1,19 @@
-import { DayPlanError } from "./DayPlanError.ts";
+import { JsonUtils } from "../../shared/JsonUtils.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 
 export function asRecord(value: unknown, fieldName: string): Record<string, unknown> {
-	if (!isRecord(value)) {
-		throw new DayPlanError(`${fieldName} was not a valid JSON object`);
+	if (!ObjectUtils.isRecord(value)) {
+		throw new FitatuResponseDecodeError(`${fieldName} was not a valid JSON object`);
 	}
 
 	return value;
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export async function parseOptionalJson(response: Response): Promise<unknown> {
 	const text = await response.text();
-	if (!text.trim()) {
-		return null;
-	}
-
-	try {
-		return JSON.parse(text);
-	} catch {
-		return null;
-	}
+	return text.trim() ? JsonUtils.parse(text) : null;
 }
 
 export function getApiProblemMessage(data: unknown): string | null {
@@ -36,33 +27,36 @@ export function getApiProblemMessage(data: unknown): string | null {
 		return null;
 	}
 
-	if (!isRecord(data)) {
+	if (!ObjectUtils.isRecord(data)) {
 		return null;
 	}
 
-	const errorMessage = firstNonEmptyString(data.errorMessage, data.error);
+	const errorMessage = parseOptionalProblemMessage(data.errorMessage, data.error);
 	if (errorMessage) {
 		return errorMessage;
 	}
 
 	if (data.ok === false) {
-		return firstNonEmptyString(data.message) ?? "Fitatu request failed";
+		return parseOptionalProblemMessage(data.message) ?? "Fitatu request failed";
 	}
 
 	const status = typeof data.status === "string" ? data.status.toLowerCase() : "";
 	if (["error", "failed", "failure"].includes(status)) {
-		return firstNonEmptyString(data.message) ?? "Fitatu request failed";
+		return parseOptionalProblemMessage(data.message) ?? "Fitatu request failed";
 	}
 
 	return null;
 }
 
-function firstNonEmptyString(...values: unknown[]): string | null {
-	for (const value of values) {
-		if (typeof value === "string" && value.trim()) {
-			return value.trim();
-		}
+function parseOptionalProblemMessage(...values: readonly unknown[]): string | null {
+	if (values.every((value) => value === null || value === undefined)) {
+		return null;
 	}
 
-	return null;
+	const message = StringUtils.firstNonEmptyString(...values);
+	if (!message) {
+		throw new FitatuResponseDecodeError("Fitatu problem message must be a non-empty string");
+	}
+
+	return message;
 }

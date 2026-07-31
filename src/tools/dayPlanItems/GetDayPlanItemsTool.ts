@@ -1,9 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { GetDayPlanOptions } from "../../api/dayPlan/GetDayPlanOptions.ts";
+import { DateUtils } from "../../shared/DateUtils.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { DayPlanQueryProvider } from "../../services/dayPlan/DayPlanQueryService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { mealKeySchema } from "../mealItems/MealItemToolSupport.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
+import { isoCalendarDateSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
 const dayPlanItemSchema = z.object({
 	itemId: z
@@ -18,16 +22,12 @@ const dayPlanItemSchema = z.object({
 	productId: z
 		.string()
 		.optional()
-		.describe("Fitatu product id string to pass to remove_meal_items, when applicable."),
-	recipeId: z
-		.union([z.number(), z.string()])
+		.describe("Fitatu product definition id, when applicable. This is not a removable day-plan itemId."),
+	recipeId: rawRecipeIdSchema
 		.optional()
-		.describe("Fitatu recipe id for recipe items, when applicable."),
+		.describe("Raw Fitatu recipe definition id for recipe items, when applicable."),
 	brand: z.string().optional().describe("Product brand or producer name, when available."),
-	measureId: z
-		.union([z.number(), z.string()])
-		.optional()
-		.describe("Measure id currently used by the meal item, when available."),
+	measureId: z.string().optional().describe("Measure id currently used by the meal item, when available."),
 	measureName: z.string().optional().describe("Human-readable name of the current measure, when available."),
 	measureQuantity: z.number().optional().describe("Quantity of the current measure, when available."),
 	weight: z.number().optional().describe("Item weight in grams when Fitatu provides it."),
@@ -48,7 +48,9 @@ const dayPlanOutputSchema = {
 	meals: z
 		.array(
 			z.object({
-				mealKey: z.string().describe("Fitatu meal key used by add, update, remove, and move meal item tools."),
+				mealKey: mealKeySchema.describe(
+					"Canonical Fitatu meal key accepted by add, update, and move meal item tools.",
+				),
 				mealTime: z.string().optional().describe("Meal time configured in Fitatu, when available."),
 				items: z
 					.array(dayPlanItemSchema)
@@ -60,7 +62,7 @@ const dayPlanOutputSchema = {
 };
 
 export class GetDayPlanItemsTool {
-	public readonly name = "get_day_plan_items";
+	public static readonly toolName = "get_day_plan_items";
 
 	private readonly dayPlanQueryService: DayPlanQueryProvider;
 
@@ -70,23 +72,25 @@ export class GetDayPlanItemsTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			GetDayPlanItemsTool.toolName,
 			{
 				title: "Get Fitatu Day Plan Items",
 				description:
-					"Fetches the authenticated Fitatu user's day plan meals and added food items for a YYYY-MM-DD date. Product items include productId strings that can be passed directly to remove_meal_items. Defaults to today's local date when omitted.",
-				inputSchema: {
-					date: z
-						.string()
-						.regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD format")
-						.optional()
-						.describe("Day to fetch in YYYY-MM-DD format. Defaults to today's local date when omitted."),
-					withRating: z
-						.boolean()
-						.default(false)
-						.optional()
-						.describe("Whether to ask Fitatu for rating-related day plan data when supported."),
-				},
+					"Fetches Fitatu meals and concrete day-plan entries. Copy itemId UUID values to update_meal_item, move_meal_item, or remove_meal_items; productId and raw recipeId identify food definitions, not removable entries. Defaults to today's local date.",
+				inputSchema: z
+					.object({
+						date: isoCalendarDateSchema()
+							.optional()
+							.describe(
+								"Day to fetch in YYYY-MM-DD format. Defaults to today's local date when omitted.",
+							),
+						withRating: z
+							.boolean()
+							.default(false)
+							.optional()
+							.describe("Whether to ask Fitatu for rating-related day plan data when supported."),
+					})
+					.strict(),
 				outputSchema: dayPlanOutputSchema,
 				annotations: {
 					title: "Get Fitatu Day Plan Items",
@@ -97,10 +101,9 @@ export class GetDayPlanItemsTool {
 			},
 			async ({ date, withRating }) => {
 				try {
-					const dayPlan = await this.dayPlanQueryService.getDayPlan({
-						date: date ?? localDateString(),
-						withRating: withRating === true,
-					});
+					const dayPlan = await this.dayPlanQueryService.getDayPlan(
+						new GetDayPlanOptions(date ?? DateUtils.toLocalDateString(), undefined, withRating === true),
+					);
 					return createTextResult({
 						date: dayPlan.date,
 						meals: dayPlan.meals.map((meal) => ({
@@ -110,22 +113,39 @@ export class GetDayPlanItemsTool {
 						})),
 					});
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to fetch Fitatu day plan items.", error);
+					return ToolErrorResult.create(
+						GetDayPlanItemsTool.toolName,
+						"Unable to fetch Fitatu day plan items.",
+						error,
+					);
 				}
 			},
 		);
 	}
 }
 
-function toDayPlanItemForMcp(item: DayPlanItem): Omit<DayPlanItem, "productId"> & { productId?: string } {
-	const { productId, ...otherFields } = item;
-	return productId === null ? otherFields : { ...otherFields, productId: String(productId) };
+function toDayPlanItemForMcp(item: DayPlanItem): Omit<DayPlanItem, "productId" | "recipeId" | "measureId"> & {
+	productId?: string;
+	recipeId?: string;
+	measureId?: string;
+} {
+	const { productId, recipeId, measureId, energy, protein, fat, carbohydrate, fiber, sugars, salt, ...otherFields } =
+		item;
+	return {
+		...otherFields,
+		energy: roundNutritionValue(energy),
+		protein: roundNutritionValue(protein),
+		fat: roundNutritionValue(fat),
+		carbohydrate: roundNutritionValue(carbohydrate),
+		fiber: roundNutritionValue(fiber),
+		sugars: roundNutritionValue(sugars),
+		salt: roundNutritionValue(salt),
+		...(productId === null ? {} : { productId: String(productId) }),
+		...(recipeId === null ? {} : { recipeId: String(recipeId) }),
+		...(measureId === null ? {} : { measureId: String(measureId) }),
+	};
 }
 
-function localDateString(): string {
-	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, "0");
-	const day = String(now.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
+function roundNutritionValue(value: number | null): number | null {
+	return value === null ? null : Math.round(value * 100) / 100;
 }

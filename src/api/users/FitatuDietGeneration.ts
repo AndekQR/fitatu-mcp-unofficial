@@ -1,3 +1,4 @@
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { FitatuDietGenerationIndicatedLimits } from "./FitatuDietGenerationIndicatedLimits.ts";
 
 export class FitatuDietGeneration {
@@ -12,6 +13,6 @@ export class FitatuDietGeneration {
 			return null;
 		}
 
-		return new FitatuDietGeneration(data as Record<string, unknown>);
+		return ObjectUtils.isRecord(data) ? new FitatuDietGeneration(data) : null;
 	}
 }

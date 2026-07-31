@@ -1,8 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { FoodSearchOptions } from "../../api/foodSearch/FoodSearchOptions.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { FoodSearchProvider } from "../../services/foodSearch/FoodSearchService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
+import {
+	FITATU_CLIENT_ERROR_EMPTY_ARRAY_KEYS,
+	FITATU_CLIENT_ERROR_NULL_KEYS,
+	fitatuClientErrorOutputSchema,
+} from "../shared/FitatuClientErrorOutputSchema.ts";
 import { FoodSearchResultForMcp } from "./FoodSearchResultForMcp.ts";
 
 const measureOutputSchema = z.object({
@@ -13,33 +20,57 @@ const measureOutputSchema = z.object({
 	energyKcal: z.number().optional().describe("Energy for one unit of this measure in kcal, when available."),
 });
 
-const fitatuApiErrorOutputSchema = z.object({
-	statusCode: z.number().int().describe("HTTP status code returned by Fitatu."),
-	statusText: z.string().optional().describe("HTTP status text returned by Fitatu, when available."),
-	method: z.string().describe("HTTP method used for the upstream Fitatu request."),
-	path: z.string().describe("Fitatu API path that produced the warning or error."),
-	upstreamMessage: z.string().optional().describe("Safe upstream error message returned by Fitatu, when available."),
-	upstreamCode: z
-		.union([z.string(), z.number()])
-		.optional()
-		.describe("Safe upstream error code returned by Fitatu, when available."),
-	responseSnippet: z.string().optional().describe("Short safe snippet of the upstream response, when available."),
-});
-
 const warningDetailOutputSchema = z.object({
 	message: z.string().describe("Human-readable warning message."),
-	errorName: z.string().describe("Name of the internal error type that produced this warning."),
+	clientError: fitatuClientErrorOutputSchema.describe(
+		"Complete safe Fitatu client error that produced this warning.",
+	),
 	query: z.string().optional().describe("Search query related to the warning, when applicable."),
 	source: z.enum(["public", "user"]).optional().describe("Catalog source related to the warning, when applicable."),
-	foodId: z.string().optional().describe("Food id related to a product details warning, when applicable."),
-	fitatuApiError: fitatuApiErrorOutputSchema
-		.optional()
-		.describe("Single upstream Fitatu error related to the warning."),
-	fitatuApiErrors: z
-		.array(fitatuApiErrorOutputSchema)
-		.optional()
-		.describe("Multiple upstream Fitatu errors related to the warning."),
 });
+
+const foodCandidateBaseShape = {
+	index: z.number().int().describe("Zero-based global index of this candidate across all result groups."),
+	source: z.enum(["public", "user"]).describe("Fitatu catalog source for this candidate."),
+	name: z.string().optional().describe("Raw product or recipe name returned by Fitatu."),
+	displayName: z.string().describe("Readable product label assembled from available Fitatu fields."),
+	brand: z.string().optional().describe("Product brand or producer name when available."),
+	measureId: z.string().optional().describe("Default measure id to pass to add_meal_items when appropriate."),
+	measureName: z.string().optional().describe("Default measure name returned by Fitatu."),
+	measureQuantity: z.number().optional().describe("Default quantity for the returned measure, when available."),
+	weightG: z.number().optional().describe("Default measure weight in grams, when available."),
+	kcal: z.number().optional().describe("Energy in kcal for the default measure, when available."),
+	verified: z.boolean().optional().describe("Whether Fitatu marks this product as verified."),
+	photoUrl: z.string().optional().describe("Product photo URL when Fitatu provides one."),
+	matchScore: z.number().describe("Local text match score used for ranking candidates. Higher is generally better."),
+	measures: z
+		.array(measureOutputSchema)
+		.optional()
+		.describe("Available measures from product details. Use these when the default measure is unsuitable."),
+};
+
+const foodCandidateOutputSchema = z.union([
+	z
+		.object({
+			...foodCandidateBaseShape,
+			productId: z
+				.string()
+				.describe(
+					"Product candidate identifier. Copy productId with a listed measureId to the PRODUCT variant of add_meal_items; do not send recipeId.",
+				),
+		})
+		.strict()
+		.describe("PRODUCT candidate identified by productId."),
+	z
+		.object({
+			...foodCandidateBaseShape,
+			recipeId: rawRecipeIdSchema.describe(
+				"Recipe candidate identifier. Copy raw recipeId with a listed measureId to the RECIPE variant of add_meal_items; do not send productId.",
+			),
+		})
+		.strict()
+		.describe("RECIPE candidate identified by recipeId."),
+]);
 
 const foodSearchOutputSchema = {
 	queryCount: z.number().int().describe("Number of search queries processed by this call."),
@@ -50,59 +81,7 @@ const foodSearchOutputSchema = {
 				queryIndex: z.number().int().describe("Zero-based index of the input query for this result group."),
 				query: z.string().describe("Search query for this result group."),
 				count: z.number().int().describe("Number of returned candidate items for this query."),
-				items: z
-					.array(
-						z.object({
-							index: z
-								.number()
-								.int()
-								.describe("Zero-based global index of this candidate across all result groups."),
-							source: z.enum(["public", "user"]).describe("Fitatu catalog source for this candidate."),
-							foodId: z
-								.string()
-								.describe("Canonical food id to pass to add_meal_items for products and recipes."),
-							productId: z
-								.string()
-								.describe("Fitatu product id retained for product inspection and other operations."),
-							foodType: z
-								.string()
-								.optional()
-								.describe("Fitatu food type to pass to add_meal_items when available."),
-							name: z.string().optional().describe("Raw product or recipe name returned by Fitatu."),
-							displayName: z
-								.string()
-								.describe("Readable product label assembled from available Fitatu fields."),
-							brand: z.string().optional().describe("Product brand or producer name when available."),
-							measureId: z
-								.string()
-								.optional()
-								.describe("Default measure id to pass to add_meal_items when appropriate."),
-							measureName: z.string().optional().describe("Default measure name returned by Fitatu."),
-							measureQuantity: z
-								.number()
-								.optional()
-								.describe("Default quantity for the returned measure, when available."),
-							weightG: z.number().optional().describe("Default measure weight in grams, when available."),
-							kcal: z
-								.number()
-								.optional()
-								.describe("Energy in kcal for the default measure, when available."),
-							verified: z.boolean().optional().describe("Whether Fitatu marks this product as verified."),
-							photoUrl: z.string().optional().describe("Product photo URL when Fitatu provides one."),
-							matchScore: z
-								.number()
-								.describe(
-									"Local text match score used for ranking candidates. Higher is generally better.",
-								),
-							measures: z
-								.array(measureOutputSchema)
-								.optional()
-								.describe(
-									"Available measures from product details. Use these measureId values when default measure is unsuitable.",
-								),
-						}),
-					)
-					.describe("Candidate items returned for this query."),
+				items: z.array(foodCandidateOutputSchema).describe("Candidate items returned for this query."),
 			}),
 		)
 		.describe("Search results grouped by input query."),
@@ -120,7 +99,7 @@ const inputSchema = {
 	queries: z
 		.array(z.string().min(1))
 		.min(1)
-		.describe("One or more product search phrases. Use a single-element array when looking up one product."),
+		.describe("One or more food search phrases. Use a single-element array when looking up one item."),
 	locale: z.string().min(1).default("pl_PL").optional().describe("Fitatu search locale. Defaults to pl_PL."),
 	limit: z
 		.number()
@@ -141,7 +120,7 @@ const inputSchema = {
 		.default(false)
 		.optional()
 		.describe(
-			"Whether to fetch product or recipe details for top candidates, including additional measures. Defaults to false.",
+			"Whether to include additional product or recipe information and available measures. These details can be useful when adding a selected item to a day plan. Defaults to false.",
 		),
 	detailsLimit: z
 		.number()
@@ -170,8 +149,8 @@ export class SearchFoodTool {
 			{
 				title: "Search Fitatu Food",
 				description:
-					"Searches Fitatu food catalogs for food ids and measure ids. Provide one precise query per desired product; use a single-element queries array for one product. Results are grouped by input query and default to 3 candidates per query per source to keep responses compact. For each result group, compare displayName/name, brand, source, matchScore, verified, kcal, default measureId/measureName/weightG, and measures[].measureId/measureName/weightG/energyKcal. Choose the candidate whose name, brand, weight, kcal, and measure best match that query and the user's requested portion. Next action: call add_meal_items with the selected foodId, foodType when present, and the most appropriate measureId; use a measure from measures[] when the default measure is unsuitable. Only run follow-up searches for products that remain unresolved, using improved or simplified query text.",
-				inputSchema,
+					"Searches Fitatu catalogs for products and recipes. Set includeDetails=true to include additional information and available measures. These details can be useful when adding a selected item to a day plan. A candidate has exactly one definition id: productId means use the PRODUCT add_meal_items variant; raw recipeId means use the RECIPE variant. Copy that id with a listed measureId. Do not send foodType. Candidates with no positive local text match are omitted and reported as low-confidence warnings.",
+				inputSchema: z.object(inputSchema).strict(),
 				outputSchema: foodSearchOutputSchema,
 				annotations: {
 					title: "Search Fitatu Food",
@@ -183,12 +162,24 @@ export class SearchFoodTool {
 			},
 			async (input) => {
 				try {
-					const result = await this.foodSearchService.search(input);
+					const result = await this.foodSearchService.search(
+						new FoodSearchOptions(
+							input.queries,
+							undefined,
+							input.locale,
+							input.limit,
+							input.includeUserFood,
+							input.includePublicFood,
+							input.includeDetails,
+							input.detailsLimit,
+						),
+					);
 					return createTextResult(new FoodSearchResultForMcp(result), {
-						keepEmptyArrayKeys: ["items"],
+						keepEmptyArrayKeys: ["items", ...FITATU_CLIENT_ERROR_EMPTY_ARRAY_KEYS],
+						keepNullKeys: FITATU_CLIENT_ERROR_NULL_KEYS,
 					});
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to search Fitatu food.", error);
+					return ToolErrorResult.create(this.name, "Unable to search Fitatu food.", error);
 				}
 			},
 		);

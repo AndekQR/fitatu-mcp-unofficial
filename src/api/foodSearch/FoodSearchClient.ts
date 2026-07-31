@@ -1,21 +1,29 @@
+import { DateUtils } from "../../shared/DateUtils.ts";
+import { NumberUtils } from "../../shared/NumberUtils.ts";
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
+import { ValidationError } from "../../shared/ValidationError.ts";
 import { FitatuAuthClient } from "../auth/FitatuAuthClient.ts";
-import { FitatuAuthError } from "../auth/FitatuAuthError.ts";
-import { createFitatuApiErrorDetails, getFitatuApiErrors } from "../fitatuApiClientBase/FitatuApiError.ts";
+import { FoodType, type FoodTypeName } from "../dayPlan/FoodType.ts";
 import { FitatuApiClientBase } from "../fitatuApiClientBase/FitatuApiClientBase.ts";
+import type { FitatuApiClientBaseOptions } from "../fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
+import type { FitatuRequestFailure } from "../fitatuApiClientBase/FitatuClientFailure.ts";
+import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
+import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
+import { FitatuFallbackRunner } from "../fitatuApiClientBase/FitatuFallbackRunner.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { FitatuUserClient } from "../users/FitatuUserClient.ts";
-import type { FoodSearchClientOptions } from "./FoodSearchClientOptions.ts";
-import { FoodSearchError } from "./FoodSearchError.ts";
-import type { FoodMeasure } from "./FoodMeasure.ts";
-import type { FoodNutrition } from "./FoodNutrition.ts";
-import type { FoodSearchItem } from "./FoodSearchItem.ts";
+import { FoodMeasure } from "./FoodMeasure.ts";
+import { FoodNutrition } from "./FoodNutrition.ts";
+import { FoodSearchItem } from "./FoodSearchItem.ts";
 import type { FoodSearchOptions } from "./FoodSearchOptions.ts";
-import type { FoodSearchQueryResult } from "./FoodSearchQueryResult.ts";
-import type { FoodSearchResult } from "./FoodSearchResult.ts";
+import { FoodSearchQueryResult } from "./FoodSearchQueryResult.ts";
+import { FoodSearchResult } from "./FoodSearchResult.ts";
 import type { FoodSearchSource } from "./FoodSearchSource.ts";
-import type { FoodSearchWarningDetail } from "./FoodSearchWarningDetail.ts";
+import { FoodSearchWarningDetail } from "./FoodSearchWarningDetail.ts";
 import type { NestedFirstValue } from "./NestedFirstValue.ts";
-import type { NormalizedFoodSearchItem } from "./NormalizedFoodSearchItem.ts";
-import type { NormalizedFoodSearchOptions } from "./NormalizedFoodSearchOptions.ts";
+import { NormalizedFoodSearchItem } from "./NormalizedFoodSearchItem.ts";
+import { NormalizedFoodSearchOptions } from "./NormalizedFoodSearchOptions.ts";
 
 const DEFAULT_ACCEPT_HEADER = "application/json";
 const DEFAULT_LOCALE = "pl_PL";
@@ -23,7 +31,7 @@ const DEFAULT_LIMIT = 3;
 const DEFAULT_DETAILS_LIMIT = 3;
 
 export class FoodSearchClient extends FitatuApiClientBase {
-	public constructor(options: FoodSearchClientOptions = {}) {
+	public constructor(options: FitatuApiClientBaseOptions = {}) {
 		const authClient = options.authClient ?? FitatuAuthClient.getInstance();
 		const userClient = options.userClient ?? FitatuUserClient.getInstance({ authClient });
 
@@ -35,10 +43,16 @@ export class FoodSearchClient extends FitatuApiClientBase {
 	}
 
 	public async search(options: FoodSearchOptions): Promise<FoodSearchResult> {
-		const normalized = normalizeOptions(options);
+		const normalized = normalizeSearchOptions(options);
 		const userId = normalized.includeUserFood
-			? normalizeRequiredText(await this.getContextUserId(), "Fitatu user id")
+			? StringUtils.firstNonEmptyString(await this.getContextUserId())
 			: undefined;
+		if (normalized.includeUserFood && !userId) {
+			throw FitatuClientError.authentication({
+				operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+				message: "Fitatu user id is required",
+			});
+		}
 		const results: FoodSearchQueryResult[] = [];
 
 		for (const query of normalized.queries) {
@@ -52,25 +66,41 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		const searchSuccessCount = results.reduce((sum, result) => sum + result.searchSuccessCount, 0);
 
 		if (searchAttemptCount > 0 && searchSuccessCount === 0) {
-			const fitatuApiErrors = warningDetails.flatMap((warning) => [
-				...(warning.fitatuApiErrors ?? []),
-				...(warning.fitatuApiError ? [warning.fitatuApiError] : []),
-			]);
-			throw new FoodSearchError("All Fitatu food search requests failed", {
-				statusCode: fitatuApiErrors[0]?.statusCode,
-				fitatuApiErrors,
-			});
+			const errors = warningDetails.map((warning) => warning.clientError);
+			const finalError = errors.at(-1);
+			if (finalError) {
+				const attempts = errors.slice(0, -1).flatMap(toRequestFailures);
+				throw finalError.withAttempts(
+					[...attempts, ...finalError.attempts],
+					"All Fitatu food search requests failed",
+				);
+			}
 		}
 
-		return {
-			date: normalized.date,
-			queries: normalized.queries,
-			queryCount: normalized.queries.length,
-			count: items.length,
-			items,
-			warnings,
-			warningDetails,
-		};
+		return new FoodSearchResult(normalized.date, normalized.queries, items, warnings, warningDetails);
+	}
+
+	public async getAvailableMeasureIds(foodId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>> {
+		const measures = await this.getAvailableMeasures(foodId, foodType);
+		return new Set(measures.flatMap((measure) => (measure.measureId === null ? [] : [measure.measureId])));
+	}
+
+	public async getAvailableMeasures(
+		foodId: string | number,
+		foodType: FoodTypeName,
+	): Promise<readonly FoodMeasure[]> {
+		let normalizedFoodId: string | number;
+		try {
+			normalizedFoodId = StringUtils.parseStringOrSafeInteger(foodId, "foodId is required");
+			FoodType.resolve(foodType, "PRODUCT", "foodType");
+		} catch (error) {
+			if (!(error instanceof ValidationError)) {
+				throw error;
+			}
+			throw invalidFoodSearchRequest(error);
+		}
+		const details = await this.getFoodDetails(String(normalizedFoodId), foodType);
+		return mergeAvailableMeasuresById(normalizeMeasures(details));
 	}
 
 	private async searchOne(
@@ -86,8 +116,9 @@ export class FoodSearchClient extends FitatuApiClientBase {
 
 		if (options.includePublicFood) {
 			searchAttemptCount += 1;
+			let rows: readonly Record<string, unknown>[];
 			try {
-				const rows = await this.fetchSearchRows({
+				rows = await this.fetchSearchRows({
 					path: "/search/new/food",
 					query: {
 						phrase: query,
@@ -99,22 +130,31 @@ export class FoodSearchClient extends FitatuApiClientBase {
 					failureMessage: "Fitatu public food search request failed",
 				});
 				searchSuccessCount += 1;
-				items.push(...this.normalizeRows(rows, "public"));
 			} catch (error) {
-				if (error instanceof FitatuAuthError) {
+				if (!(error instanceof FitatuClientError)) {
 					throw error;
 				}
 				const warning = `public search failed for query='${query}': ${safeWarningMessage(error)}`;
 				warnings.push(warning);
 				warningDetails.push(toWarningDetail(warning, error, { query, source: "public" }));
+				rows = [];
 			}
+			items.push(...this.normalizeRows(rows, "public"));
 		}
 
 		if (options.includeUserFood) {
 			searchAttemptCount += 1;
+			const normalizedUserId = StringUtils.firstNonEmptyString(userId);
+			if (!normalizedUserId) {
+				throw FitatuClientError.authentication({
+					operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+					message: "Fitatu user id is required",
+				});
+			}
+			let rows: readonly Record<string, unknown>[];
 			try {
-				const rows = await this.fetchSearchRows({
-					path: `/search/food/user/${encodeURIComponent(normalizeRequiredText(userId, "Fitatu user id"))}`,
+				rows = await this.fetchSearchRows({
+					path: `/search/food/user/${encodeURIComponent(normalizedUserId)}`,
 					query: {
 						date: options.date,
 						phrase: query,
@@ -124,23 +164,23 @@ export class FoodSearchClient extends FitatuApiClientBase {
 					failureMessage: "Fitatu user food search request failed",
 				});
 				searchSuccessCount += 1;
-				items.push(...this.normalizeRows(rows, "user"));
 			} catch (error) {
-				if (error instanceof FitatuAuthError) {
+				if (!(error instanceof FitatuClientError)) {
 					throw error;
 				}
 				const warning = `user search failed for query='${query}': ${safeWarningMessage(error)}`;
 				warnings.push(warning);
 				warningDetails.push(toWarningDetail(warning, error, { query, source: "user" }));
+				rows = [];
 			}
+			items.push(...this.normalizeRows(rows, "user"));
 		}
 
-		let scoredItems = deduplicateItems(items).map((item) => ({
-			...item,
-			matchScore: matchScore(query, item),
-		}));
+		let scoredItems = deduplicateItems(items).map((item) => item.withMatchScore(matchScore(query, item)));
 
-		if (scoredItems.length > 0 && Math.max(...scoredItems.map((item) => item.matchScore)) <= 0) {
+		const hadCandidates = scoredItems.length > 0;
+		scoredItems = scoredItems.filter((item) => item.matchScore > 0);
+		if (hadCandidates && scoredItems.length === 0) {
 			warnings.push("low_confidence_results");
 		}
 
@@ -148,14 +188,14 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			scoredItems = await this.withDetails(scoredItems, options.detailsLimit, warnings, warningDetails);
 		}
 
-		return {
+		return new FoodSearchQueryResult(
 			query,
-			items: scoredItems,
+			scoredItems,
 			warnings,
 			warningDetails,
 			searchAttemptCount,
 			searchSuccessCount,
-		};
+		);
 	}
 
 	private async fetchSearchRows(options: {
@@ -187,27 +227,22 @@ export class FoodSearchClient extends FitatuApiClientBase {
 			readonly failureMessage: string;
 		}[],
 	): Promise<readonly Record<string, unknown>[]> {
-		const fitatuApiErrors = [];
-
-		for (const variant of variants) {
-			const response = await this.fetchFitatuApi({
-				method: "GET",
-				path: variant.path,
-				query: variant.query,
-				headers: variant.headers,
-			});
-
-			if (response.ok) {
-				return extractRows(await parseJson(response));
-			}
-
-			fitatuApiErrors.push(await createFitatuApiErrorDetails(response, { method: "GET", path: variant.path }));
-		}
-
-		throw new FoodSearchError(variants[0]?.failureMessage ?? "Fitatu food search request failed", {
-			statusCode: fitatuApiErrors.at(-1)?.statusCode,
-			fitatuApiErrors,
-		});
+		return FitatuFallbackRunner.run(
+			variants,
+			(variant) =>
+				this.performCallout({
+					operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+					method: "GET",
+					path: variant.path,
+					endpointTemplate: endpointTemplateForSearchPath(variant.path),
+					query: variant.query,
+					headers: variant.headers,
+					failureMessage: variant.failureMessage,
+					invalidResponseMessage: "Fitatu search response was invalid",
+					decoder: extractRows,
+				}),
+			(error) => error.failure.kind === "http",
+		);
 	}
 
 	private async withDetails(
@@ -224,51 +259,52 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				continue;
 			}
 
+			let details: Record<string, unknown>;
 			try {
-				const details = await this.getProductDetails(item.foodId);
-				detailed.push(mergeDetails(item, details));
+				details = await this.getFoodDetails(
+					item.foodId,
+					item.foodType?.trim().toUpperCase() === "RECIPE" ? "RECIPE" : "PRODUCT",
+				);
 			} catch (error) {
-				if (error instanceof FitatuAuthError) {
+				if (!(error instanceof FitatuClientError)) {
 					throw error;
 				}
 				const warning = `${item.source} details failed for foodId=${item.foodId}: ${safeWarningMessage(error)}`;
 				warnings.push(warning);
 				warningDetails.push(toWarningDetail(warning, error, { source: item.source, foodId: item.foodId }));
 				detailed.push(item);
+				continue;
 			}
+			detailed.push(mergeDetails(item, details));
 		}
 
 		return detailed;
 	}
 
-	private async getProductDetails(productId: string): Promise<Record<string, unknown>> {
-		const encodedProductId = encodeURIComponent(productId);
-		const paths = [
-			`/products/${encodedProductId}`,
-			`/v2/products/${encodedProductId}`,
-			`/v3/products/${encodedProductId}`,
-			`/recipes/${encodedProductId}`,
-		];
-		const fitatuApiErrors = [];
-
-		for (const path of paths) {
-			const response = await this.fetchFitatuApi({
-				method: "GET",
-				path,
-				headers: { accept: DEFAULT_ACCEPT_HEADER },
-			});
-
-			if (response.ok) {
-				return parseJsonObject(response);
-			}
-
-			fitatuApiErrors.push(await createFitatuApiErrorDetails(response, { method: "GET", path }));
-		}
-
-		throw new FoodSearchError("Fitatu product details request failed", {
-			statusCode: fitatuApiErrors.at(-1)?.statusCode,
-			fitatuApiErrors,
-		});
+	private async getFoodDetails(
+		foodId: string,
+		foodType: "PRODUCT" | "RECIPE" | "CUSTOM_ITEM",
+	): Promise<Record<string, unknown>> {
+		const encodedFoodId = encodeURIComponent(foodId);
+		const paths =
+			foodType === "RECIPE"
+				? [`/recipes/${encodedFoodId}`]
+				: [`/products/${encodedFoodId}`, `/v2/products/${encodedFoodId}`, `/v3/products/${encodedFoodId}`];
+		return FitatuFallbackRunner.run(
+			paths,
+			(path) =>
+				this.performCallout({
+					operation: FITATU_CLIENT_OPERATIONS.foodDetailsGet,
+					method: "GET",
+					path,
+					endpointTemplate: endpointTemplateForDetailsPath(path),
+					headers: { accept: DEFAULT_ACCEPT_HEADER },
+					failureMessage: "Fitatu product details request failed",
+					invalidResponseMessage: "Fitatu response was not a valid JSON object",
+					decoder: extractDetails,
+				}),
+			(error) => error.failure.kind === "http",
+		);
 	}
 
 	private normalizeRows(
@@ -278,56 +314,56 @@ export class FoodSearchClient extends FitatuApiClientBase {
 		const items: NormalizedFoodSearchItem[] = [];
 
 		for (const row of rows) {
-			const foodId = stringOrNull(firstValue(row, "foodId", "id", "productId"));
+			const foodId = StringUtils.stringOrNull(firstValue(row, "foodId", "id", "productId"));
 			if (!foodId) {
 				continue;
 			}
 
 			const measure = recordOrUndefined(row.measure);
-			const measureEnergy = numberOrNull(
+			const measureEnergy = NumberUtils.parseOptionalFiniteNumber(
 				firstValue(row, "measureEnergy", { record: measure, keys: ["measureEnergy", "energy"] }),
 			);
 
-			items.push({
-				source,
-				foodId,
-				foodType: stringOrNull(firstValue(row, "type", "foodType")),
-				name: stringOrNull(row.name),
-				brand: stringOrNull(firstValue(row, "brand", "producer")),
-				measureId: stringOrNull(
-					firstValue(row, "measureId", "defaultMeasureId", {
-						record: measure,
-						keys: ["measureId", "defaultMeasureId", "id"],
-					}),
+			items.push(
+				new NormalizedFoodSearchItem(
+					source,
+					foodId,
+					FoodType.fromUpstream(firstValue(row, "type", "foodType"), "PRODUCT"),
+					StringUtils.stringOrNull(row.name),
+					StringUtils.stringOrNull(firstValue(row, "brand", "producer")),
+					StringUtils.stringOrNull(
+						firstValue(row, "measureId", "defaultMeasureId", {
+							record: measure,
+							keys: ["measureId", "defaultMeasureId", "id"],
+						}),
+					),
+					StringUtils.stringOrNull(
+						firstValue(row, "measureName", {
+							record: measure,
+							keys: ["measureName", "name"],
+						}),
+					),
+					NumberUtils.parseOptionalFiniteNumber(
+						firstValue(row, "measureQuantity", "quantity", {
+							record: measure,
+							keys: ["measureQuantity", "quantity"],
+						}),
+					),
+					NumberUtils.parseOptionalFiniteNumber(
+						firstValue(row, "measureWeight", {
+							record: measure,
+							keys: ["measureWeight", "weight", "capacity"],
+						}),
+					),
+					measureEnergy,
+					nutritionFromRecord(row),
+					new FoodNutrition(measureEnergy, null, null, null, null, null, null, null),
+					booleanOrNull(row.verified),
+					photoUrlOrNull(row.photo) ?? photoUrlOrNull(row.mainPhoto),
+					0,
+					[],
 				),
-				measureName: stringOrNull(
-					firstValue(row, "measureName", {
-						record: measure,
-						keys: ["measureName", "name"],
-					}),
-				),
-				measureQuantity: numberOrNull(
-					firstValue(row, "measureQuantity", "quantity", {
-						record: measure,
-						keys: ["measureQuantity", "quantity"],
-					}),
-				),
-				weightG: numberOrNull(
-					firstValue(row, "measureWeight", {
-						record: measure,
-						keys: ["measureWeight", "weight", "capacity"],
-					}),
-				),
-				kcal: measureEnergy,
-				nutritionPer100g: nutritionFromRecord(row),
-				nutritionPerDefaultMeasure: nutrition({
-					energyKcal: measureEnergy,
-				}),
-				verified: booleanOrNull(row.verified),
-				photoUrl: photoUrlOrNull(row.photo) ?? photoUrlOrNull(row.mainPhoto),
-				matchScore: 0,
-				measures: [],
-			});
+			);
 		}
 
 		return items;
@@ -338,29 +374,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 
 		for (const [queryIndex, result] of results.entries()) {
 			for (const item of result.items) {
-				output.push({
-					index: output.length,
-					queryIndex,
-					query: result.query,
-					source: item.source,
-					foodId: item.foodId,
-					productId: item.foodId,
-					foodType: item.foodType,
-					name: item.name,
-					displayName: displayName(item),
-					brand: item.brand,
-					measureId: item.measureId,
-					measureName: item.measureName,
-					measureQuantity: item.measureQuantity,
-					weightG: item.weightG,
-					kcal: item.kcal,
-					nutritionPer100g: item.nutritionPer100g,
-					nutritionPerDefaultMeasure: item.nutritionPerDefaultMeasure,
-					verified: item.verified,
-					photoUrl: item.photoUrl,
-					matchScore: item.matchScore,
-					measures: item.measures,
-				});
+				output.push(new FoodSearchItem(item, output.length, queryIndex, result.query, displayName(item)));
 			}
 		}
 
@@ -368,131 +382,127 @@ export class FoodSearchClient extends FitatuApiClientBase {
 	}
 }
 
+function normalizeSearchOptions(options: FoodSearchOptions): NormalizedFoodSearchOptions {
+	try {
+		return normalizeOptions(options);
+	} catch (error) {
+		if (error instanceof FitatuClientError) throw error;
+		if (!(error instanceof ValidationError)) throw error;
+		throw invalidFoodSearchRequest(error);
+	}
+}
+
 function normalizeOptions(options: FoodSearchOptions): NormalizedFoodSearchOptions {
 	const queries = normalizeQueries(options.queries);
-	const limit = options.limit ?? DEFAULT_LIMIT;
-	const detailsLimit = options.detailsLimit ?? DEFAULT_DETAILS_LIMIT;
+	const limit = NumberUtils.parseIntegerInRange(
+		options.limit ?? DEFAULT_LIMIT,
+		1,
+		50,
+		"limit must be between 1 and 50",
+	);
+	const detailsLimit = NumberUtils.parseIntegerInRange(
+		options.detailsLimit ?? DEFAULT_DETAILS_LIMIT,
+		0,
+		50,
+		"detailsLimit must be between 0 and 50",
+	);
 	const includeUserFood = options.includeUserFood ?? true;
 	const includePublicFood = options.includePublicFood ?? true;
 
-	if (limit < 1 || limit > 50) {
-		throw new FoodSearchError("limit must be between 1 and 50");
-	}
-	if (detailsLimit < 0 || detailsLimit > 50) {
-		throw new FoodSearchError("detailsLimit must be between 0 and 50");
-	}
 	if (!includeUserFood && !includePublicFood) {
-		throw new FoodSearchError("At least one food source must be enabled");
+		throw FitatuClientError.invalidRequest({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: "At least one food source must be enabled",
+		});
 	}
 
-	return {
+	return new NormalizedFoodSearchOptions(
 		queries,
-		date: normalizeDate(options.date ?? localDateString()),
-		locale: normalizeRequiredText(options.locale ?? DEFAULT_LOCALE, "locale"),
+		DateUtils.validateIsoDate(options.date ?? DateUtils.toLocalDateString(), {
+			calendarErrorMessage: "date must use YYYY-MM-DD format",
+		}),
+		StringUtils.parseNonEmptyString(options.locale ?? DEFAULT_LOCALE, "locale is required"),
 		limit,
 		includeUserFood,
 		includePublicFood,
-		includeDetails: options.includeDetails ?? false,
+		options.includeDetails ?? false,
 		detailsLimit,
-	};
+	);
 }
 
 function normalizeQueries(queries: readonly string[] | undefined): readonly string[] {
 	if (!queries) {
-		throw new FoodSearchError("queries is required");
+		throw FitatuClientError.invalidRequest({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: "queries is required",
+		});
 	}
 	if (queries.length === 0) {
-		throw new FoodSearchError("queries must not be empty");
+		throw FitatuClientError.invalidRequest({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: "queries must not be empty",
+		});
 	}
 
-	return queries.map((value) => normalizeRequiredText(value, "queries must not contain empty values"));
-}
-
-function normalizeDate(value: string): string {
-	const date = value.trim();
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-		throw new FoodSearchError("date must use YYYY-MM-DD format");
-	}
-
-	const parsed = new Date(`${date}T00:00:00.000Z`);
-	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
-		throw new FoodSearchError("date must use YYYY-MM-DD format");
-	}
-
-	return date;
-}
-
-function localDateString(): string {
-	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, "0");
-	const day = String(now.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-function normalizeRequiredText(value: string | undefined, name: string): string {
-	const normalized = value?.trim();
-	if (!normalized) {
-		throw new FoodSearchError(`${name} is required`);
-	}
-
-	return normalized;
-}
-
-async function parseJsonObject(response: Response): Promise<Record<string, unknown>> {
-	const data: unknown = await response.json();
-	if (!isRecord(data)) {
-		throw new FoodSearchError("Fitatu response was not a valid JSON object");
-	}
-
-	return data;
-}
-
-async function parseJson(response: Response): Promise<unknown> {
-	return response.json();
+	return queries.map((value) =>
+		StringUtils.parseNonEmptyString(value, "queries must not contain empty values is required"),
+	);
 }
 
 function extractRows(data: unknown): readonly Record<string, unknown>[] {
 	if (Array.isArray(data)) {
-		return data.filter(isRecord);
+		return data.filter(ObjectUtils.isRecord);
 	}
-	if (!isRecord(data)) {
-		throw new FoodSearchError("Fitatu search response was not a valid JSON object or array");
+	if (!ObjectUtils.isRecord(data)) {
+		throw new FitatuResponseDecodeError("Fitatu search response was not a valid JSON object or array");
 	}
 
 	const nested = recordOrUndefined(data.data);
 	const rows = listOrUndefined(data.items) ?? listOrUndefined(data.results) ?? listOrUndefined(nested?.items);
-	return rows?.filter(isRecord) ?? [];
+	return rows?.filter(ObjectUtils.isRecord) ?? [];
 }
 
 function mergeDetails(item: NormalizedFoodSearchItem, details: Record<string, unknown>): NormalizedFoodSearchItem {
 	const detailsNutrition = nutritionFromRecord(details);
 	const measures = normalizeMeasures(details);
 
-	return {
-		...item,
-		nutritionPer100g: mergeNutrition(item.nutritionPer100g, detailsNutrition),
-		verified: item.verified ?? booleanOrNull(details.verified),
-		photoUrl: item.photoUrl ?? photoUrlOrNull(details.photo) ?? photoUrlOrNull(details.mainPhoto),
+	return item.withDetails(
+		mergeNutrition(item.nutritionPer100g, detailsNutrition),
+		item.verified ?? booleanOrNull(details.verified),
+		item.photoUrl ?? photoUrlOrNull(details.photo) ?? photoUrlOrNull(details.mainPhoto),
 		measures,
-	};
+	);
 }
 
 function normalizeMeasures(details: Record<string, unknown>): readonly FoodMeasure[] {
 	const measures: FoodMeasure[] = [];
+	const directMeasureId = StringUtils.stringOrNull(firstValue(details, "measureId", "defaultMeasureId"));
+	if (directMeasureId) {
+		measures.push(
+			new FoodMeasure(
+				directMeasureId,
+				StringUtils.stringOrNull(firstValue(details, "measureName")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(details, "measureWeight", "weight", "capacity")),
+				StringUtils.stringOrNull(firstValue(details, "unit", "unitKey")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(details, "measureEnergy", "energy")),
+			),
+		);
+	}
 
 	for (const raw of listOrUndefined(details.measures) ?? []) {
 		const measure = recordOrUndefined(raw);
 		if (!measure) {
 			continue;
 		}
-		measures.push({
-			measureId: stringOrNull(firstValue(measure, "id", "measureId", "key")),
-			measureName: stringOrNull(firstValue(measure, "name", "measureName")),
-			weightG: numberOrNull(firstValue(measure, "weight", "weightPerUnit", "capacity")),
-			unit: stringOrNull(firstValue(measure, "unit", "unitKey")),
-			energyKcal: numberOrNull(firstValue(measure, "energy", "energyPerUnit")),
-		});
+		measures.push(
+			new FoodMeasure(
+				StringUtils.stringOrNull(firstValue(measure, "id", "measureId", "key")),
+				StringUtils.stringOrNull(firstValue(measure, "name", "measureName")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "weight", "weightPerUnit", "capacity")),
+				StringUtils.stringOrNull(firstValue(measure, "unit", "unitKey")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "energy", "energyPerUnit")),
+			),
+		);
 	}
 
 	for (const raw of listOrUndefined(details.simpleMeasures) ?? []) {
@@ -500,24 +510,28 @@ function normalizeMeasures(details: Record<string, unknown>): readonly FoodMeasu
 		if (!measure) {
 			continue;
 		}
-		measures.push({
-			measureId: stringOrNull(firstValue(measure, "measureId", "id", "key")),
-			measureName: stringOrNull(firstValue(measure, "name", "measureName")),
-			weightG: numberOrNull(firstValue(measure, "weight", "capacity")),
-			unit: stringOrNull(firstValue(measure, "unit", "unitKey")),
-			energyKcal: numberOrNull(firstValue(measure, "energy", "energyPerUnit")),
-		});
+		measures.push(
+			new FoodMeasure(
+				StringUtils.stringOrNull(firstValue(measure, "measureId", "id", "key")),
+				StringUtils.stringOrNull(firstValue(measure, "name", "measureName")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "weight", "capacity")),
+				StringUtils.stringOrNull(firstValue(measure, "unit", "unitKey")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(measure, "energy", "energyPerUnit")),
+			),
+		);
 	}
 
 	const initial = recordOrUndefined(details.initialMeasure);
 	if (initial) {
-		measures.push({
-			measureId: stringOrNull(firstValue(initial, "key", "id", "measureId")),
-			measureName: stringOrNull(firstValue(initial, "name", "measureName")),
-			weightG: numberOrNull(firstValue(initial, "weight", "capacity")),
-			unit: stringOrNull(firstValue(initial, "unit", "unitKey")),
-			energyKcal: numberOrNull(firstValue(initial, "energy", "energyPerUnit")),
-		});
+		measures.push(
+			new FoodMeasure(
+				StringUtils.stringOrNull(firstValue(initial, "key", "id", "measureId")),
+				StringUtils.stringOrNull(firstValue(initial, "name", "measureName")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(initial, "weight", "capacity")),
+				StringUtils.stringOrNull(firstValue(initial, "unit", "unitKey")),
+				NumberUtils.parseOptionalFiniteNumber(firstValue(initial, "energy", "energyPerUnit")),
+			),
+		);
 	}
 
 	return deduplicateMeasures(measures);
@@ -555,43 +569,51 @@ function deduplicateMeasures(measures: readonly FoodMeasure[]): readonly FoodMea
 	return deduplicated;
 }
 
-function nutritionFromRecord(record: Record<string, unknown>): FoodNutrition {
-	return nutrition({
-		energyKcal: numberOrNull(record.energy),
-		proteinG: numberOrNull(record.protein),
-		fatG: numberOrNull(record.fat),
-		carbsG: numberOrNull(record.carbohydrate),
-		fiberG: numberOrNull(record.fiber),
-		sugarsG: numberOrNull(record.sugars),
-		saltG: numberOrNull(record.salt),
-		saturatedFatG: numberOrNull(record.saturatedFat),
-	});
+function mergeAvailableMeasuresById(measures: readonly FoodMeasure[]): readonly FoodMeasure[] {
+	const byId = new Map<string, FoodMeasure>();
+	for (const measure of measures) {
+		if (measure.measureId === null) {
+			continue;
+		}
+		const existing = byId.get(measure.measureId);
+		byId.set(
+			measure.measureId,
+			new FoodMeasure(
+				measure.measureId,
+				existing?.measureName ?? measure.measureName,
+				existing?.weightG ?? measure.weightG,
+				existing?.unit ?? measure.unit,
+				existing?.energyKcal ?? measure.energyKcal,
+			),
+		);
+	}
+	return [...byId.values()];
 }
 
-function nutrition(values: Partial<FoodNutrition> = {}): FoodNutrition {
-	return {
-		energyKcal: values.energyKcal ?? null,
-		proteinG: values.proteinG ?? null,
-		fatG: values.fatG ?? null,
-		carbsG: values.carbsG ?? null,
-		fiberG: values.fiberG ?? null,
-		sugarsG: values.sugarsG ?? null,
-		saltG: values.saltG ?? null,
-		saturatedFatG: values.saturatedFatG ?? null,
-	};
+function nutritionFromRecord(record: Record<string, unknown>): FoodNutrition {
+	return new FoodNutrition(
+		NumberUtils.parseOptionalFiniteNumber(record.energy),
+		NumberUtils.parseOptionalFiniteNumber(record.protein),
+		NumberUtils.parseOptionalFiniteNumber(record.fat),
+		NumberUtils.parseOptionalFiniteNumber(record.carbohydrate),
+		NumberUtils.parseOptionalFiniteNumber(record.fiber),
+		NumberUtils.parseOptionalFiniteNumber(record.sugars),
+		NumberUtils.parseOptionalFiniteNumber(record.salt),
+		NumberUtils.parseOptionalFiniteNumber(record.saturatedFat),
+	);
 }
 
 function mergeNutrition(primary: FoodNutrition, fallback: FoodNutrition): FoodNutrition {
-	return {
-		energyKcal: primary.energyKcal ?? fallback.energyKcal,
-		proteinG: primary.proteinG ?? fallback.proteinG,
-		fatG: primary.fatG ?? fallback.fatG,
-		carbsG: primary.carbsG ?? fallback.carbsG,
-		fiberG: primary.fiberG ?? fallback.fiberG,
-		sugarsG: primary.sugarsG ?? fallback.sugarsG,
-		saltG: primary.saltG ?? fallback.saltG,
-		saturatedFatG: primary.saturatedFatG ?? fallback.saturatedFatG,
-	};
+	return new FoodNutrition(
+		primary.energyKcal ?? fallback.energyKcal,
+		primary.proteinG ?? fallback.proteinG,
+		primary.fatG ?? fallback.fatG,
+		primary.carbsG ?? fallback.carbsG,
+		primary.fiberG ?? fallback.fiberG,
+		primary.sugarsG ?? fallback.sugarsG,
+		primary.saltG ?? fallback.saltG,
+		primary.saturatedFatG ?? fallback.saturatedFatG,
+	);
 }
 
 function matchScore(query: string, item: NormalizedFoodSearchItem): number {
@@ -621,10 +643,21 @@ function tokens(value: string): Set<string> {
 			.normalize("NFKD")
 			.toLowerCase()
 			.replace(/\p{Diacritic}/gu, "")
+			.replace(/[łđðþæœø]/g, (character) => LATIN_CHARACTER_FOLD[character] ?? character)
 			.match(/[a-z0-9]+/g)
 			?.filter((token) => token.length > 1) ?? [],
 	);
 }
+
+const LATIN_CHARACTER_FOLD: Readonly<Record<string, string>> = {
+	ł: "l",
+	đ: "d",
+	ð: "d",
+	þ: "th",
+	æ: "ae",
+	œ: "oe",
+	ø: "o",
+};
 
 function displayName(item: NormalizedFoodSearchItem): string {
 	const parts: string[] = [];
@@ -693,30 +726,6 @@ function firstValue(record: Record<string, unknown>, ...keys: readonly (string |
 	return undefined;
 }
 
-function stringOrNull(value: unknown): string | null {
-	if (typeof value === "string") {
-		const trimmed = value.trim();
-		return trimmed.length > 0 ? trimmed : null;
-	}
-	if (typeof value === "number" || typeof value === "boolean") {
-		return String(value);
-	}
-
-	return null;
-}
-
-function numberOrNull(value: unknown): number | null {
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return value;
-	}
-	if (typeof value === "string" && value.trim()) {
-		const parsed = Number(value);
-		return Number.isFinite(parsed) ? parsed : null;
-	}
-
-	return null;
-}
-
 function booleanOrNull(value: unknown): boolean | null {
 	if (typeof value === "boolean") {
 		return value;
@@ -729,8 +738,8 @@ function photoUrlOrNull(value: unknown): string | null {
 	if (typeof value === "string") {
 		return value.trim() || null;
 	}
-	if (isRecord(value)) {
-		return stringOrNull(value.url) ?? stringOrNull(value.path);
+	if (ObjectUtils.isRecord(value)) {
+		return StringUtils.stringOrNull(value.url) ?? StringUtils.stringOrNull(value.path);
 	}
 
 	return null;
@@ -741,11 +750,7 @@ function listOrUndefined(value: unknown): unknown[] | undefined {
 }
 
 function recordOrUndefined(value: unknown): Record<string, unknown> | undefined {
-	return isRecord(value) ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return ObjectUtils.isRecord(value) ? value : undefined;
 }
 
 function isNonEmptyString(value: string | null): value is string {
@@ -754,32 +759,59 @@ function isNonEmptyString(value: string | null): value is string {
 
 function toWarningDetail(
 	message: string,
-	error: unknown,
+	error: FitatuClientError,
 	context: {
 		readonly query?: string;
 		readonly source?: FoodSearchSource;
 		readonly foodId?: string;
 	},
 ): FoodSearchWarningDetail {
-	const fitatuApiErrors = getFitatuApiErrors(error);
-	return {
-		message,
-		errorName: error instanceof Error ? error.name : "UnknownError",
-		...context,
-		...(fitatuApiErrors.length === 1 ? { fitatuApiError: fitatuApiErrors[0] } : {}),
-		...(fitatuApiErrors.length > 1 ? { fitatuApiErrors } : {}),
-	};
+	return new FoodSearchWarningDetail(message, error, context.query, context.source, context.foodId);
 }
 
-function safeWarningMessage(error: unknown): string {
-	const message = error instanceof Error ? error.message : "unknown error";
-	const fitatuApiErrors = getFitatuApiErrors(error);
-	const firstFitatuApiError = fitatuApiErrors[0];
-	if (!firstFitatuApiError) {
-		return message;
+function safeWarningMessage(error: FitatuClientError): string {
+	if (error.failure.kind !== "http") {
+		return error.message;
 	}
 
-	const statusText = firstFitatuApiError.statusText ? ` ${firstFitatuApiError.statusText}` : "";
-	const upstreamMessage = firstFitatuApiError.upstreamMessage ? `: ${firstFitatuApiError.upstreamMessage}` : "";
-	return `${message} (HTTP ${firstFitatuApiError.statusCode}${statusText}${upstreamMessage})`;
+	const statusText = error.failure.statusText ? ` ${error.failure.statusText}` : "";
+	const upstreamMessage = error.failure.upstreamMessage ? `: ${error.failure.upstreamMessage}` : "";
+	return `${error.message} (HTTP ${error.failure.statusCode}${statusText}${upstreamMessage})`;
+}
+
+function invalidFoodSearchRequest(error: unknown): FitatuClientError {
+	return FitatuClientError.invalidRequest({
+		operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+		message: error instanceof Error ? error.message : "Food search request was invalid",
+	});
+}
+
+function extractDetails(data: unknown): Record<string, unknown> {
+	if (!ObjectUtils.isRecord(data)) {
+		throw new FitatuResponseDecodeError("Fitatu response was not a valid JSON object");
+	}
+	return data;
+}
+
+function toRequestFailures(error: FitatuClientError): FitatuRequestFailure[] {
+	const failures = [...error.attempts];
+	if (
+		error.failure.kind === "http" ||
+		error.failure.kind === "transport" ||
+		error.failure.kind === "invalidResponse"
+	) {
+		failures.push(error.failure);
+	}
+	return failures;
+}
+
+function endpointTemplateForSearchPath(path: string): string {
+	return path.startsWith("/search/food/user/") ? "/search/food/user/:userId" : "/search/new/food";
+}
+
+function endpointTemplateForDetailsPath(path: string): string {
+	if (path.startsWith("/recipes/")) return "/recipes/:foodId";
+	if (path.startsWith("/v2/")) return "/v2/products/:foodId";
+	if (path.startsWith("/v3/")) return "/v3/products/:foodId";
+	return "/products/:foodId";
 }

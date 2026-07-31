@@ -1,7 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { DietSummaryRequest } from "../../services/dietSummary/DietSummaryRequest.ts";
 import type { DietSummaryProvider } from "../../services/dietSummary/DietSummaryService.ts";
-import { createToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
+import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 
 const optionalNumber = z.number().optional();
@@ -82,16 +84,16 @@ export class GetDietSummaryTool {
 				title: "Get Fitatu Diet Summary",
 				description:
 					"Fetches the authenticated Fitatu user's nutrition and energy summary for an inclusive date range.",
-				inputSchema: {
-					fromDate: z
-						.string()
-						.regex(/^\d{4}-\d{2}-\d{2}$/, "fromDate must use YYYY-MM-DD format")
-						.describe("Inclusive range start date in YYYY-MM-DD format."),
-					toDate: z
-						.string()
-						.regex(/^\d{4}-\d{2}-\d{2}$/, "toDate must use YYYY-MM-DD format")
-						.describe("Inclusive range end date in YYYY-MM-DD format."),
-				},
+				inputSchema: z
+					.object({
+						fromDate: isoCalendarDateSchema("fromDate").describe(
+							"Inclusive range start date in YYYY-MM-DD format.",
+						),
+						toDate: isoCalendarDateSchema("toDate").describe(
+							"Inclusive range end date in YYYY-MM-DD format.",
+						),
+					})
+					.strict(),
 				outputSchema: dietSummaryOutputSchema,
 				annotations: {
 					title: "Get Fitatu Diet Summary",
@@ -102,10 +104,12 @@ export class GetDietSummaryTool {
 			},
 			async ({ fromDate, toDate }) => {
 				try {
-					const summary = await this.dietSummaryService.getDietSummary({ fromDate, toDate });
+					const summary = await this.dietSummaryService.getDietSummary(
+						new DietSummaryRequest(fromDate, toDate),
+					);
 					return createTextResult(summary, { keepEmptyArrayKeys: ["keyNutrients", "allNutrients", "daily"] });
 				} catch (error) {
-					return createToolErrorResult(this.name, "Unable to fetch Fitatu diet summary.", error);
+					return ToolErrorResult.create(this.name, "Unable to fetch Fitatu diet summary.", error);
 				}
 			},
 		);

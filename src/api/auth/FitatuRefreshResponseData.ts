@@ -1,12 +1,7 @@
-import { FitatuAuthError } from "./FitatuAuthError.ts";
-import type { FitatuAuthSession } from "./FitatuAuthSession.ts";
-
-interface FitatuRefreshApiResponseData {
-	readonly token?: unknown;
-	readonly access_token?: unknown;
-	readonly refresh_token?: unknown;
-	readonly refreshToken?: unknown;
-}
+import { ObjectUtils } from "../../shared/ObjectUtils.ts";
+import { StringUtils } from "../../shared/StringUtils.ts";
+import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
+import { FitatuAuthSession } from "./FitatuAuthSession.ts";
 
 export class FitatuRefreshResponseData {
 	private readonly token: string;
@@ -18,33 +13,38 @@ export class FitatuRefreshResponseData {
 	}
 
 	public static fromApiResponse(data: unknown): FitatuRefreshResponseData {
-		if (!isRefreshApiResponseData(data)) {
-			throw new FitatuAuthError("Refresh response was not a valid JSON object");
+		if (!ObjectUtils.isRecord(data)) {
+			throw new FitatuResponseDecodeError("Refresh response was not a valid JSON object");
 		}
 
-		const token = firstString(data.token, data.access_token);
+		const token = StringUtils.firstNonEmptyString(data.token, data.access_token);
 		if (!token) {
-			throw new FitatuAuthError("Refresh response did not contain an access token");
+			throw new FitatuResponseDecodeError("Refresh response did not contain an access token");
 		}
 
-		return new FitatuRefreshResponseData(token, firstString(data.refresh_token, data.refreshToken));
+		const refreshToken = parseOptionalRefreshToken(data.refresh_token, data.refreshToken);
+
+		return new FitatuRefreshResponseData(token, refreshToken);
 	}
 
 	public toSession(previousSession: FitatuAuthSession): FitatuAuthSession {
-		return {
-			token: this.token,
-			refreshToken: this.refreshToken ?? previousSession.refreshToken,
-			fitatuUserId: previousSession.fitatuUserId,
-		};
+		return new FitatuAuthSession(
+			this.token,
+			previousSession.fitatuUserId,
+			this.refreshToken ?? previousSession.refreshToken,
+		);
 	}
 }
 
-function isRefreshApiResponseData(data: unknown): data is FitatuRefreshApiResponseData {
-	return typeof data === "object" && data !== null && !Array.isArray(data);
-}
+function parseOptionalRefreshToken(...values: readonly unknown[]): string | undefined {
+	if (values.every((value) => value === null || value === undefined)) {
+		return undefined;
+	}
 
-function firstString(...values: readonly unknown[]): string | undefined {
-	return values.find((value): value is string => {
-		return typeof value === "string" && value.trim().length > 0;
-	});
+	const refreshToken = StringUtils.firstNonEmptyString(...values);
+	if (!refreshToken) {
+		throw new FitatuResponseDecodeError("Refresh response refresh token must be a non-empty string");
+	}
+
+	return refreshToken;
 }

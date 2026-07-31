@@ -14,8 +14,7 @@ Sometimes the existing Python project with similar might be helpful, it's under 
 
 ## Build, Test, and Development Commands
 
-Use the commands defined in `package.json`.
-Wo work only on the main branch, if not specified otherwise.
+Use the commands defined in `package.json`. Work on the current branch, if not specified otherwise.
 
 Common expected commands may include:
 
@@ -31,15 +30,25 @@ Common expected commands may include:
 
 Before relying on any command, confirm that it exists in `package.json`.
 
+## Commit Messages
+
+Prefer commit messages with at least two complete sentences describing the introduced changes. Use the first sentence as a concise summary and the following
+sentence or sentences to explain the most important behavioural, architectural, or operational details.
+
+Conventional Commit prefixes such as `feat:`, `fix:`, or `refactor:` are optional. Do not add a prefix unless it makes the message clearer.
+
 ## Coding Style & Naming Conventions
 
 Use TypeScript with ES module syntax.
+
+Only use TypeScript syntax that Node.js supports in strip-only mode. Do not use parameter properties such as `constructor(public readonly value: string)`.
 
 Prefer:
 
 - Explicit types for public APIs.
 - `camelCase` for variables, functions, methods, and object properties.
 - `PascalCase` for classes, interfaces, and types.
+- Prefer classes over interfaces. Each class in its own file.
 - Descriptive names over abbreviations.
 - Small modules with clear responsibilities.
 - `zod` for validating external input.
@@ -54,6 +63,8 @@ Avoid:
 - Logging tokens, cookies, authorization headers, or personal data.
 
 ## Architecture Guidelines
+
+Read and follow [ARCHITECTURE.md](./ARCHITECTURE.md) before introducing or changing public models, service contracts, or mappings between layers.
 
 Keep responsibilities separated.
 
@@ -71,6 +82,18 @@ Prefer object-oriented design where it improves encapsulation, readability, and 
 functions are preferred over large procedural handlers.
 
 Use dependency injection for configuration, logging, and HTTP clients where practical.
+
+For data-model declarations in particular:
+
+- Use classes with constructors or named factories for production data models.
+- A method declaring a class return type must return a real instance of that class, not a structurally compatible object literal.
+- Keep one canonical base model per concept. Add another model only for a genuinely different state or contract.
+- Do not create near-copy object models with `type`, `Omit`, `Partial`, intersections, or repeated fields.
+- Reserve `interface` for behavior, ports, and technical collaboration contracts.
+- Reserve `type` for compile-time constructs such as literal unions, discriminated unions, and Zod-inferred types.
+- Plain objects remain acceptable for technical configuration, private helpers, and final MCP/Zod serialization.
+
+The full rationale, construction policy, extension rules, and review checklist live in [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## MCP Tool Implementation
 

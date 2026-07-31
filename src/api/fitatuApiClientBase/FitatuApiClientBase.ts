@@ -1,3 +1,4 @@
+import { StringUtils } from "../../shared/StringUtils.ts";
 import type { FitatuAuthSession } from "../auth/FitatuAuthSession.ts";
 import type { FitatuUserProfile } from "../users/FitatuUserProfile.ts";
 import {
@@ -5,10 +6,16 @@ import {
 	DEFAULT_APP_TIMEZONE,
 	DEFAULT_FITATU_API_BASE_URL,
 	DEFAULT_FITATU_HEADERS,
+	DEFAULT_FITATU_MOBILE_CLIENT_PROFILE,
 } from "./FitatuApiDefaults.ts";
 import { FitatuApiClientBaseOptions } from "./FitatuApiClientBaseOptions.ts";
 import type { FitatuApiRequestOptions } from "./FitatuApiRequestOptions.ts";
+import type { FitatuRequestFailure } from "./FitatuClientFailure.ts";
+import { FitatuClientError } from "./FitatuClientError.ts";
+import type { FitatuClientRequestOptions } from "./FitatuClientRequestOptions.ts";
+import type { FitatuJsonRequestOptions } from "./FitatuJsonRequestOptions.ts";
 import type { FitatuRequestContext } from "./FitatuRequestContext.ts";
+import { FitatuResponseDecodeError } from "./FitatuResponseDecodeError.ts";
 
 export abstract class FitatuApiClientBase {
 	protected readonly V3_ACCEPT_HEADER = "application/json; version=v3";
@@ -19,6 +26,7 @@ export abstract class FitatuApiClientBase {
 	private readonly hasExplicitBaseUrl: boolean;
 	private readonly authClient: FitatuApiClientBaseOptions["authClient"];
 	private readonly userClient: FitatuApiClientBaseOptions["userClient"];
+	private readonly mobileClientProfile;
 
 	protected constructor(options: FitatuApiClientBaseOptions = {}) {
 		const resolvedOptions = new FitatuApiClientBaseOptions(options);
@@ -27,27 +35,33 @@ export abstract class FitatuApiClientBase {
 		this.fetchFn = resolvedOptions.fetchFn ?? fetch;
 		this.authClient = resolvedOptions.authClient;
 		this.userClient = resolvedOptions.userClient;
+		this.mobileClientProfile = resolvedOptions.mobileClientProfile ?? DEFAULT_FITATU_MOBILE_CLIENT_PROFILE;
 	}
 
-	protected async fetchFitatuApi(options: FitatuApiRequestOptions): Promise<Response> {
-		const response = await this.fetchFitatuApiOnce(options);
-
-		if (response.status !== 401 || !this.canRefreshAuthentication(options)) {
-			return response;
-		}
-
-		await this.refreshAuthenticationContext();
-		return this.fetchFitatuApiOnce(options);
-	}
-
-	protected async getContextUserId(userId?: string): Promise<string | undefined> {
-		const [session, user] = await Promise.all([this.getProvidedSession(), this.getProvidedCurrentUser()]);
+	public async getContextUserId(userId?: string): Promise<string | undefined> {
+		const [session, user] = await Promise.all([
+			this.getOptionalAuthSession(),
+			this.getOptionalCurrentUserProfile(),
+		]);
 
 		return this.resolveContextUserId(userId, user, session);
 	}
 
+	protected async performCallout<T>(options: FitatuJsonRequestOptions<T>): Promise<T> {
+		const { response, attempts } = await this.performResponseCallout(options);
+		return this.decodeJsonResponse(response, options, attempts);
+	}
+
+	protected async getContextSearchLocale(): Promise<string> {
+		const user = await this.getOptionalCurrentUserProfile();
+		return StringUtils.firstNonEmptyString(user?.searchLocale, user?.locale) ?? DEFAULT_APP_LOCALE;
+	}
+
 	protected async createRequestContext(options: FitatuApiRequestOptions): Promise<FitatuRequestContext> {
-		const [session, user] = await Promise.all([this.getProvidedSession(), this.getProvidedCurrentUser()]);
+		const [session, user] = await Promise.all([
+			this.getOptionalAuthSession(),
+			this.getOptionalCurrentUserProfile(),
+		]);
 		const userId = this.resolveContextUserId(undefined, user, session);
 		const baseUrl = this.resolveBaseUrl(user);
 
@@ -61,13 +75,137 @@ export abstract class FitatuApiClientBase {
 		};
 	}
 
-	private async fetchFitatuApiOnce(options: FitatuApiRequestOptions): Promise<Response> {
-		const context = await this.createRequestContext(options);
+	private async decodeJsonResponse<T>(
+		response: Response,
+		options: FitatuJsonRequestOptions<T>,
+		attempts: readonly FitatuRequestFailure[],
+	): Promise<T> {
+		let data: unknown;
 
+		try {
+			const text = await response.text();
+			data = text.trim() ? JSON.parse(text) : null;
+		} catch (error) {
+			if (!(error instanceof SyntaxError)) {
+				throw error;
+			}
+
+			throw this.createInvalidResponseError(options, error, attempts);
+		}
+
+		try {
+			return options.decoder(data);
+		} catch (error) {
+			if (error instanceof FitatuClientError) {
+				throw error;
+			}
+			if (!(error instanceof FitatuResponseDecodeError)) {
+				throw error;
+			}
+
+			throw this.createInvalidResponseError(options, error, attempts);
+		}
+	}
+
+	private createInvalidResponseError<T>(
+		options: FitatuJsonRequestOptions<T>,
+		cause: unknown,
+		attempts: readonly FitatuRequestFailure[],
+	): FitatuClientError {
+		return FitatuClientError.invalidResponse({
+			message: options.invalidResponseMessage ?? options.failureMessage,
+			operation: options.operation,
+			method: options.method,
+			endpointTemplate: options.endpointTemplate,
+			cause,
+			attempts,
+		});
+	}
+
+	private sendHttpRequest(context: FitatuRequestContext, options: FitatuApiRequestOptions): Promise<Response> {
 		return this.fetchFn(context.url, {
 			method: options.method,
 			headers: context.headers,
 			...(options.body !== undefined ? { body: options.body } : {}),
+		});
+	}
+
+	private async performResponseCallout(
+		options: FitatuClientRequestOptions,
+	): Promise<{ readonly response: Response; readonly attempts: readonly FitatuRequestFailure[] }> {
+		const firstResponse = await this.sendHttpRequestWithTransportErrorMapping(options);
+
+		if (firstResponse.status !== 401 || !this.canRefreshAuthentication(options)) {
+			return {
+				response: await this.requireSuccessfulResponse(firstResponse, options),
+				attempts: [],
+			};
+		}
+
+		const firstError = await FitatuClientError.http({
+			message: options.failureMessage,
+			operation: options.operation,
+			method: options.method,
+			endpointTemplate: options.endpointTemplate,
+			response: firstResponse,
+		});
+		const attempts = [firstError.failure];
+		try {
+			await this.refreshAuthenticationContext();
+		} catch (error) {
+			if (error instanceof FitatuClientError) {
+				throw error.withAttempts([...attempts, ...error.attempts]);
+			}
+			throw error;
+		}
+
+		const secondResponse = await this.sendHttpRequestWithTransportErrorMapping(options, attempts);
+		return {
+			response: await this.requireSuccessfulResponse(secondResponse, options, attempts),
+			attempts,
+		};
+	}
+
+	private async sendHttpRequestWithTransportErrorMapping(
+		options: FitatuClientRequestOptions,
+		attempts: readonly FitatuRequestFailure[] = [],
+	): Promise<Response> {
+		const context = await this.createRequestContext(options);
+
+		try {
+			return await this.sendHttpRequest(context, options);
+		} catch (error) {
+			if (!isRecognizedTransportError(error)) {
+				throw error;
+			}
+
+			throw FitatuClientError.transport({
+				message: options.failureMessage,
+				operation: options.operation,
+				method: options.method,
+				endpointTemplate: options.endpointTemplate,
+				error,
+				attempts,
+			});
+		}
+	}
+
+	private async requireSuccessfulResponse(
+		response: Response,
+		options: FitatuClientRequestOptions,
+		attempts: readonly FitatuRequestFailure[] = [],
+	): Promise<Response> {
+		if (response.ok) {
+			return response;
+		}
+
+		throw await FitatuClientError.http({
+			message: options.failureMessage,
+			operation: options.operation,
+			method: options.method,
+			endpointTemplate: options.endpointTemplate,
+			response,
+			attempts,
 		});
 	}
 
@@ -76,10 +214,10 @@ export abstract class FitatuApiClientBase {
 		user: FitatuUserProfile | undefined,
 		session: FitatuAuthSession | undefined,
 	): string | undefined {
-		return nonEmptyString(userId) ?? nonEmptyString(user?.id) ?? nonEmptyString(session?.fitatuUserId);
+		return StringUtils.firstNonEmptyString(userId, user?.id, session?.fitatuUserId);
 	}
 
-	private async getProvidedSession(): Promise<FitatuAuthSession | undefined> {
+	private async getOptionalAuthSession(): Promise<FitatuAuthSession | undefined> {
 		if (!this.authClient) {
 			return undefined;
 		}
@@ -87,16 +225,12 @@ export abstract class FitatuApiClientBase {
 		return this.authClient.getSession();
 	}
 
-	private async getProvidedCurrentUser(): Promise<FitatuUserProfile | undefined> {
+	private async getOptionalCurrentUserProfile(): Promise<FitatuUserProfile | undefined> {
 		if (!this.userClient) {
 			return undefined;
 		}
 
-		try {
-			return await this.userClient.getCurrentUser();
-		} catch {
-			return undefined;
-		}
+		return this.userClient.getCurrentUser();
 	}
 
 	private canRefreshAuthentication(options: FitatuApiRequestOptions): boolean {
@@ -121,24 +255,25 @@ export abstract class FitatuApiClientBase {
 		clusterUserId: string | undefined,
 		sessionToken: string | undefined,
 	): Record<string, string> {
-		const appLocale = nonEmptyString(user?.locale) ?? DEFAULT_APP_LOCALE;
-		const searchLocale = nonEmptyString(user?.searchLocale) ?? nonEmptyString(user?.locale);
-		const storageLocale = nonEmptyString(user?.storageLocale) ?? nonEmptyString(user?.locale);
-		const timezone = nonEmptyString(user?.timezone) ?? DEFAULT_APP_TIMEZONE;
+		const appLocale = StringUtils.firstNonEmptyString(user?.locale) ?? DEFAULT_APP_LOCALE;
+		const searchLocale = StringUtils.firstNonEmptyString(user?.searchLocale, user?.locale);
+		const storageLocale = StringUtils.firstNonEmptyString(user?.storageLocale, user?.locale);
+		const timezone = StringUtils.firstNonEmptyString(user?.timezone) ?? DEFAULT_APP_TIMEZONE;
 
 		return filterHeaders({
 			...DEFAULT_FITATU_HEADERS,
-			"api-cluster": this.createApiCluster(clusterUserId, user),
+			...this.mobileClientProfile.toHeaders(),
+			"api-cluster": this.createApiClusterHeaderValue(clusterUserId, user),
 			"app-storagelocale": storageLocale ?? DEFAULT_APP_LOCALE,
 			"app-timezone": timezone,
 			"app-searchlocale": searchLocale ?? DEFAULT_APP_LOCALE,
 			"app-locale": appLocale,
-			authorization: this.createAuthorizationValue(sessionToken),
+			authorization: this.createAuthorizationHeaderValue(sessionToken),
 		});
 	}
 
-	private createAuthorizationValue(sessionToken: string | undefined): string | undefined {
-		const token = nonEmptyString(sessionToken);
+	private createAuthorizationHeaderValue(sessionToken: string | undefined): string | undefined {
+		const token = StringUtils.firstNonEmptyString(sessionToken);
 		if (!token) {
 			return undefined;
 		}
@@ -146,8 +281,8 @@ export abstract class FitatuApiClientBase {
 		return `Bearer ${token}`;
 	}
 
-	private createApiCluster(userId: string | undefined, user?: FitatuUserProfile): string | undefined {
-		const normalizedUserId = nonEmptyString(userId);
+	private createApiClusterHeaderValue(userId: string | undefined, user?: FitatuUserProfile): string | undefined {
+		const normalizedUserId = StringUtils.firstNonEmptyString(userId);
 		if (!normalizedUserId) {
 			return undefined;
 		}
@@ -168,7 +303,7 @@ function headersToRecord(headers: Record<string, string | null | undefined> | un
 function filterHeaders(headers: Record<string, string | null | undefined>): Record<string, string> {
 	return Object.fromEntries(
 		Object.entries(headers).flatMap(([name, value]) => {
-			const headerValue = nonEmptyString(value);
+			const headerValue = StringUtils.firstNonEmptyString(value);
 			return headerValue ? [[name, headerValue]] : [];
 		}),
 	);
@@ -207,11 +342,9 @@ function toLocaleSegment(locale: string): string {
 	return locale.replaceAll("_", "-").toLowerCase();
 }
 
-function nonEmptyString(value: string | null | undefined): string | undefined {
-	if (!value) {
-		return undefined;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
+function isRecognizedTransportError(error: unknown): error is Error {
+	return (
+		error instanceof TypeError ||
+		(error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError"))
+	);
 }

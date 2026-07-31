@@ -20,9 +20,16 @@ describe("DayPlan.fromApiResponse", () => {
 		expect(plan.meals[0]?.items[0]).toMatchObject({ itemId: "item-1", name: "Apple", productId: 101, energy: 52 });
 	});
 
-	it("rejects a response without dietPlan", () => {
+	it("rejects malformed day-plan response shapes", () => {
 		expect(() => DayPlan.fromApiResponse({ date: "2026-07-12", userId: "user-1", data: {} })).toThrow(
 			"DayPlan response did not contain dietPlan",
 		);
+		expect(() =>
+			DayPlan.fromApiResponse({
+				date: "2026-07-12",
+				userId: "user-1",
+				data: { dietPlan: { unknown_meal: { items: [] } } },
+			}),
+		).toThrow("DayPlan response contained an unknown meal key");
 	});
 });

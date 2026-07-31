@@ -1,74 +1,58 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { FitatuAuthError } from "../../api/auth/FitatuAuthError.ts";
-import { DayPlanError } from "../../api/dayPlan/DayPlanError.ts";
-import { getFitatuApiErrors, isErrorWithFitatuApiDetails } from "../../api/fitatuApiClientBase/FitatuApiError.ts";
-import { FoodSearchError } from "../../api/foodSearch/FoodSearchError.ts";
-import { FitatuUserError } from "../../api/users/FitatuUserError.ts";
-import { createErrorResult } from "./ToolResult.ts";
 import { logger } from "../../logger.ts";
+import { FitatuClientError } from "../../api/fitatuApiClientBase/FitatuClientError.ts";
+import { ServiceError } from "../../services/ServiceError.ts";
+import { FitatuClientErrorPublic } from "./FitatuClientErrorPublic.ts";
+import { SafeLoggedError } from "./SafeLoggedError.ts";
+import { createErrorResult } from "./ToolResult.ts";
 
-export function createToolErrorResult(toolName: string, fallbackMessage: string, error: unknown): CallToolResult {
-	const errorResponse = toToolErrorResponse(toolName, fallbackMessage, error);
+export class ToolErrorResult {
+	public static create(toolName: string, fallbackMessage: string, error: unknown): CallToolResult {
+		const publicError = this.toPublicError(fallbackMessage, error);
 
-	logger.error(
-		{
+		logger.error(
+			{
+				toolName,
+				errorName: error instanceof Error ? error.name : "UnknownError",
+				error: SafeLoggedError.create(error, fallbackMessage),
+				errorSource: publicError.source,
+				statusCode:
+					error instanceof FitatuClientError && error.failure.kind === "http"
+						? error.failure.statusCode
+						: undefined,
+			},
+			"Tool execution failed",
+		);
+
+		return createErrorResult({
+			status: "error",
 			toolName,
-			errorName: errorResponse.errorName,
-			statusCode: firstStatusCode(errorResponse),
-		},
-		"Tool execution failed",
-	);
-
-	return createErrorResult(errorResponse);
-}
-
-function toToolErrorResponse(toolName: string, fallbackMessage: string, error: unknown): Record<string, unknown> {
-	const errorName = error instanceof Error ? error.name : "UnknownError";
-	const message = isKnownToolError(error) ? error.message : fallbackMessage;
-	const fitatuApiErrors = getFitatuApiErrors(error);
-	const statusCode = isErrorWithFitatuApiDetails(error) ? error.statusCode : undefined;
-	const response: Record<string, unknown> = {
-		status: "error",
-		toolName,
-		errorName,
-		message,
-	};
-
-	if (fitatuApiErrors.length === 1) {
-		response.fitatuApiError = fitatuApiErrors[0];
-	} else if (fitatuApiErrors.length > 1) {
-		response.fitatuApiErrors = fitatuApiErrors;
-	} else if (statusCode !== undefined) {
-		response.fitatuApiError = { statusCode };
+			error: publicError,
+		});
 	}
 
-	return response;
-}
+	private static toPublicError(fallbackMessage: string, error: unknown): Record<string, unknown> {
+		if (error instanceof FitatuClientError) {
+			return {
+				source: "fitatuApi",
+				...new FitatuClientErrorPublic(error),
+			};
+		}
 
-function isKnownToolError(error: unknown): error is Error {
-	return (
-		error instanceof FitatuAuthError ||
-		error instanceof DayPlanError ||
-		error instanceof FoodSearchError ||
-		error instanceof FitatuUserError
-	);
-}
+		if (error instanceof ServiceError) {
+			return {
+				source: "service",
+				name: error.name,
+				message: error.message,
+				kind: error.kind,
+				code: error.code,
+			};
+		}
 
-function firstStatusCode(errorResponse: Record<string, unknown>): number | undefined {
-	const single = errorResponse.fitatuApiError;
-	if (isRecord(single) && typeof single.statusCode === "number") {
-		return single.statusCode;
+		return {
+			source: "internal",
+			name: error instanceof Error ? error.name : "UnknownError",
+			message: fallbackMessage,
+		};
 	}
-
-	const many = errorResponse.fitatuApiErrors;
-	if (Array.isArray(many)) {
-		const first = many.find(isRecord);
-		return typeof first?.statusCode === "number" ? first.statusCode : undefined;
-	}
-
-	return undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

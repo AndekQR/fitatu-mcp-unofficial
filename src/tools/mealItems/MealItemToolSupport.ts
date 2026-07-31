@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { CustomMealItemInput } from "../../api/dayPlan/CustomMealItemInput.ts";
+import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
 import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
 import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
 import { ProductMealItemInput } from "../../api/dayPlan/ProductMealItemInput.ts";
 import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { isoCalendarDateSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
+
+export const mealKeySchema = z.enum(FITATU_MEAL_KEYS);
 
 const catalogMealItemInputShape = {
 	measureId: z

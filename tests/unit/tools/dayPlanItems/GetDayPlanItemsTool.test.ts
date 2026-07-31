@@ -24,7 +24,16 @@ describe("GetDayPlanItemsTool", () => {
 							foodType: "PRODUCT",
 							productId: "123",
 							measureId: "measure-1",
-							measureQuantity: 1,
+							measureQuantity: 1.23456,
+							weight: 37.55555,
+							capacity: 0.33333,
+							energy: 24.13,
+							protein: 3.85,
+							fat: 0.96,
+							carbohydrate: 6.15,
+							fiber: 1.23,
+							sugars: 2.35,
+							salt: 0.15,
 							eaten: false,
 						},
 						{
@@ -43,6 +52,17 @@ describe("GetDayPlanItemsTool", () => {
 
 		expect(service.requests).toEqual([{ date: "2026-07-14", withRating: true }]);
 		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
+		expect(registered.config.outputSchema).toMatchObject({
+			properties: {
+				meals: {
+					items: {
+						properties: {
+							mealKey: { enum: ["breakfast", "second_breakfast", "lunch", "snack", "supper"] },
+						},
+					},
+				},
+			},
+		});
 		expect(result.structuredContent).toEqual(expectedContent);
 		expect(parseTextContent(result)).toEqual(expectedContent);
 	});
@@ -123,7 +143,16 @@ function createDayPlan(): DayPlan {
 							foodType: "PRODUCT",
 							productId: 123,
 							measureId: "measure-1",
-							measureQuantity: 1,
+							measureQuantity: 1.23456,
+							weight: 37.55555,
+							capacity: 0.33333,
+							energy: 24.126,
+							protein: 3.8500000000000005,
+							fat: 0.9625000000000001,
+							carbohydrate: 6.1499999999999995,
+							fiber: 1.234,
+							sugars: 2.345,
+							salt: 0.15000000000000002,
 							eaten: false,
 						},
 						{

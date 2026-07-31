@@ -5,6 +5,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
+	mealKeySchema,
 	mealItemInputSchema,
 	mealItemMutationOutputSchema,
 	toMealItemInput,
@@ -33,12 +34,9 @@ export class AddMealItemsTool {
 						date: isoCalendarDateSchema().describe(
 							"Target day in YYYY-MM-DD format where the meal items should be added.",
 						),
-						mealKey: z
-							.string()
-							.min(1)
-							.describe(
-								"Fitatu meal key to add items into. Use mealKey values returned by get_day_plan_items.",
-							),
+						mealKey: mealKeySchema.describe(
+							"Fitatu meal key to add items into. Use mealKey values returned by get_day_plan_items.",
+						),
 						items: z
 							.array(mealItemInputSchema)
 							.min(1)

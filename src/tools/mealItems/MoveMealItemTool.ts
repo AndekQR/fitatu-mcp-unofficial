@@ -5,6 +5,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
+	mealKeySchema,
 	mealItemMutationOutputSchema,
 	toMealItemMutationForMcp,
 } from "./MealItemToolSupport.ts";
@@ -31,12 +32,9 @@ export class MoveMealItemTool {
 						fromDate: isoCalendarDateSchema("fromDate").describe(
 							"Current day containing the item to move, in YYYY-MM-DD format.",
 						),
-						fromMealKey: z
-							.string()
-							.min(1)
-							.describe(
-								"Current meal key containing the item. Use mealKey values returned by get_day_plan_items.",
-							),
+						fromMealKey: mealKeySchema.describe(
+							"Current meal key containing the item. Use mealKey values returned by get_day_plan_items.",
+						),
 						itemId: z
 							.string()
 							.min(1)
@@ -46,9 +44,7 @@ export class MoveMealItemTool {
 							.describe(
 								"Destination day in YYYY-MM-DD format. Omit when moving only to a different meal on the same date.",
 							),
-						toMealKey: z
-							.string()
-							.min(1)
+						toMealKey: mealKeySchema
 							.optional()
 							.describe(
 								"Destination meal key. Omit only when moving to the same meal on a different date. Do not omit both toDate and toMealKey.",

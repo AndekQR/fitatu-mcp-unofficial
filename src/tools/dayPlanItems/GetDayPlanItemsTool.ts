@@ -4,6 +4,7 @@ import { GetDayPlanOptions } from "../../api/dayPlan/GetDayPlanOptions.ts";
 import { DateUtils } from "../../shared/DateUtils.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { DayPlanQueryProvider } from "../../services/dayPlan/DayPlanQueryService.ts";
+import { mealKeySchema } from "../mealItems/MealItemToolSupport.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
 import { isoCalendarDateSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
@@ -47,7 +48,9 @@ const dayPlanOutputSchema = {
 	meals: z
 		.array(
 			z.object({
-				mealKey: z.string().describe("Fitatu meal key used by add, update, remove, and move meal item tools."),
+				mealKey: mealKeySchema.describe(
+					"Canonical Fitatu meal key accepted by add, update, and move meal item tools.",
+				),
 				mealTime: z.string().optional().describe("Meal time configured in Fitatu, when available."),
 				items: z
 					.array(dayPlanItemSchema)
@@ -126,11 +129,23 @@ function toDayPlanItemForMcp(item: DayPlanItem): Omit<DayPlanItem, "productId" |
 	recipeId?: string;
 	measureId?: string;
 } {
-	const { productId, recipeId, measureId, ...otherFields } = item;
+	const { productId, recipeId, measureId, energy, protein, fat, carbohydrate, fiber, sugars, salt, ...otherFields } =
+		item;
 	return {
 		...otherFields,
+		energy: roundNutritionValue(energy),
+		protein: roundNutritionValue(protein),
+		fat: roundNutritionValue(fat),
+		carbohydrate: roundNutritionValue(carbohydrate),
+		fiber: roundNutritionValue(fiber),
+		sugars: roundNutritionValue(sugars),
+		salt: roundNutritionValue(salt),
 		...(productId === null ? {} : { productId: String(productId) }),
 		...(recipeId === null ? {} : { recipeId: String(recipeId) }),
 		...(measureId === null ? {} : { measureId: String(measureId) }),
 	};
+}
+
+function roundNutritionValue(value: number | null): number | null {
+	return value === null ? null : Math.round(value * 100) / 100;
 }

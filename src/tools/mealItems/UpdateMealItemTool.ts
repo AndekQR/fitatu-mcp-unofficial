@@ -5,6 +5,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
+	mealKeySchema,
 	mealItemMutationOutputSchema,
 	toMealItemMutationForMcp,
 } from "./MealItemToolSupport.ts";
@@ -33,12 +34,9 @@ export class UpdateMealItemTool {
 						date: isoCalendarDateSchema().describe(
 							"Day containing the item to update, in YYYY-MM-DD format.",
 						),
-						mealKey: z
-							.string()
-							.min(1)
-							.describe(
-								"Meal key containing the item. Use mealKey values returned by get_day_plan_items.",
-							),
+						mealKey: mealKeySchema.describe(
+							"Meal key containing the item. Use mealKey values returned by get_day_plan_items.",
+						),
 						itemId: z
 							.string()
 							.min(1)

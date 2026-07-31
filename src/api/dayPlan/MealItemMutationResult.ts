@@ -130,4 +130,20 @@ export class MealItemMutationResult {
 			dayRevisions,
 		);
 	}
+
+	public static confirmed(result: MealItemMutationResult): MealItemMutationResult {
+		return new MealItemMutationResult(
+			result.operation,
+			`Meal item ${result.operation} accepted and confirmed in Fitatu.`,
+			result.targetDate,
+			result.mealKey,
+			result.acceptedItems,
+			result.provisionalItemIds,
+			result.updatedItemIds,
+			result.deletedItemIds,
+			result.oldItemId,
+			result.newItemId,
+			result.dayRevisions,
+		);
+	}
 }

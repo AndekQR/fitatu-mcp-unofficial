@@ -157,6 +157,7 @@ describe("RecipeService", () => {
 			createJsonResponse(recipeResponse()),
 			createJsonResponse({ id: 200, name: "Changed" }, { status: 201 }),
 			createJsonResponse(recipeResponse({ id: 200, name: "Changed", servings: 3 })),
+			createJsonResponse({ ...recipeResponse({ id: 100 }), deleted: true, editable: false }),
 		);
 		const service = createService(fetchStub);
 
@@ -213,6 +214,7 @@ describe("RecipeService", () => {
 
 		expect(result).toBeInstanceOf(RecipeServiceDeleteResult);
 		expect(result).toEqual({
+			status: "accepted",
 			recipeId: "100",
 			name: "Original",
 			deleted: true,

@@ -10,6 +10,8 @@ export const SERVICE_ERROR_CODES = {
 	invalidMealItemMeasure: "INVALID_MEAL_ITEM_MEASURE",
 	invalidDateRange: "INVALID_DATE_RANGE",
 	authenticationRequired: "AUTHENTICATION_REQUIRED",
+	mutationConfirmationTimeout: "MUTATION_CONFIRMATION_TIMEOUT",
+	mutationConfirmationReadFailed: "MUTATION_CONFIRMATION_READ_FAILED",
 } as const;
 
 export type ServiceErrorCode = (typeof SERVICE_ERROR_CODES)[keyof typeof SERVICE_ERROR_CODES];

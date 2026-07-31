@@ -8,13 +8,14 @@ import {
 	recipeDetailsOutputSchema,
 	recipeUpdateInputSchema,
 	recipeWarningOutputSchema,
+	recipeMutationStatusSchema,
 	toRecipeDetailsForMcp,
 	toRecipeUpdateInput,
 	toRecipeWarningsForMcp,
 } from "./RecipeToolSupport.ts";
 
 export class UpdateRecipeTool {
-	public readonly name = "update_recipe";
+	public static readonly toolName = "update_recipe";
 	private readonly recipeService: RecipeProvider;
 
 	public constructor(recipeService: RecipeProvider) {
@@ -23,13 +24,14 @@ export class UpdateRecipeTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			UpdateRecipeTool.toolName,
 			{
 				title: "Update Fitatu Recipe",
 				description:
-					"Partially updates an owned active recipe identified by a raw recipeId. The same create limits apply. Pass preparation instructions as steps with one step per array item so Fitatu displays separate step fields. Omitted fields, including steps and mealSchema, are preserved; null clears nullable time fields, and [] clears lists. Raw public mealSchema values returned by get_recipe are not necessarily accepted mutation inputs. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned recipeId. Returns { previousRecipeId, recipeId, identityChanged, details, warnings }; details.measures contains measureId values accepted by add_meal_items.",
+					"Partially updates and confirms an owned active recipe identified by a raw recipeId. The same create limits apply. Pass preparation instructions as steps with one step per array item so Fitatu displays separate step fields. Omitted fields, including steps and mealSchema, are preserved; null clears nullable time fields, and [] clears lists. Raw public mealSchema values returned by get_recipe are not necessarily accepted mutation inputs. Tag categories must be RECIPE_TAG_USERS_TYPE or already present on this recipe. Fitatu may replace the identity; always use the returned recipeId. Returns { status, previousRecipeId, recipeId, identityChanged, details, warnings }; details.measures contains measureId values accepted by add_meal_items.",
 				inputSchema: recipeUpdateInputSchema,
 				outputSchema: {
+					status: recipeMutationStatusSchema,
 					previousRecipeId: recipeDetailsOutputSchema.shape.recipeId.describe(
 						"Recipe id targeted by the update. It may become obsolete when identityChanged is true.",
 					),
@@ -64,6 +66,7 @@ export class UpdateRecipeTool {
 					const result = await this.recipeService.updateRecipe(recipeId, toRecipeUpdateInput(patch));
 					return createTextResult(
 						{
+							status: result.status,
 							previousRecipeId: result.previousRecipeId,
 							recipeId: result.recipeId,
 							identityChanged: result.identityChanged,
@@ -73,7 +76,7 @@ export class UpdateRecipeTool {
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);
 				} catch (error) {
-					return ToolErrorResult.create(this.name, "Unable to update Fitatu recipe.", error);
+					return ToolErrorResult.create(UpdateRecipeTool.toolName, "Unable to update Fitatu recipe.", error);
 				}
 			},
 		);

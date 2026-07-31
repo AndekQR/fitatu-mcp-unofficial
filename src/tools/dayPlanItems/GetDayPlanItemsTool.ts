@@ -59,7 +59,7 @@ const dayPlanOutputSchema = {
 };
 
 export class GetDayPlanItemsTool {
-	public readonly name = "get_day_plan_items";
+	public static readonly toolName = "get_day_plan_items";
 
 	private readonly dayPlanQueryService: DayPlanQueryProvider;
 
@@ -69,7 +69,7 @@ export class GetDayPlanItemsTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			GetDayPlanItemsTool.toolName,
 			{
 				title: "Get Fitatu Day Plan Items",
 				description:
@@ -110,7 +110,11 @@ export class GetDayPlanItemsTool {
 						})),
 					});
 				} catch (error) {
-					return ToolErrorResult.create(this.name, "Unable to fetch Fitatu day plan items.", error);
+					return ToolErrorResult.create(
+						GetDayPlanItemsTool.toolName,
+						"Unable to fetch Fitatu day plan items.",
+						error,
+					);
 				}
 			},
 		);

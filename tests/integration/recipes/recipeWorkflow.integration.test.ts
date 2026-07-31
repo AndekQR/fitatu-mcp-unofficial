@@ -7,18 +7,34 @@ import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuCl
 import type { RecipeDetails } from "../../../src/api/recipes/RecipeDetails.ts";
 import type { RecipeSearchResult } from "../../../src/api/recipes/RecipeSearchResult.ts";
 import { DetailedRecipeSearchItem } from "../../../src/services/recipes/DetailedRecipeSearchItem.ts";
+import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
+import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
+import { RecipeMutationConfirmer } from "../../../src/services/recipes/RecipeMutationConfirmer.ts";
 import { RecipeService } from "../../../src/services/recipes/RecipeService.ts";
-import { CleanupTracker } from "../helpers/cleanupTracker.ts";
+import {
+	CleanupTracker,
+	CleanupTrackingMealItemMutationConfirmer,
+	CleanupTrackingRecipeMutationConfirmer,
+} from "../helpers/cleanupTracker.ts";
 import { findMealItem } from "../helpers/dayPlanAssertions.ts";
 import { selectProductsByMeasure } from "../helpers/productSelection.ts";
 import { getIntegrationTestDate } from "../helpers/testDates.ts";
 
 const recipeClient = new RecipeClient();
-const recipeService = new RecipeService(recipeClient, new FoodSearchClient());
 const foodSearchClient = new FoodSearchClient();
 const dayPlanClient = new DayPlanClient();
 const cleanup = new CleanupTracker(dayPlanClient, recipeClient);
-const READ_AFTER_WRITE_ATTEMPTS = 60;
+const recipeService = new RecipeService(
+	recipeClient,
+	foodSearchClient,
+	new CleanupTrackingRecipeMutationConfirmer(new RecipeMutationConfirmer(recipeClient), cleanup),
+);
+const mealItemMutationService = new MealItemMutationService(
+	dayPlanClient,
+	foodSearchClient,
+	recipeClient,
+	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
+);
 
 describe.sequential("Fitatu recipe integration workflow", () => {
 	afterEach(async () => {
@@ -58,6 +74,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 			preparationTimeMinutes: null,
 			mealSchema: ["breakfast"],
 		});
+		expect(created.status).toBe("accepted");
 		cleanup.trackRecipe(created.recipeId);
 
 		expect(created.details).toMatchObject({
@@ -137,7 +154,8 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 		expect(Array.isArray(list.items)).toBe(true);
 		expect(list.items.every((item) => item.source === "mine")).toBe(true);
 
-		const addResult = await dayPlanClient.addMealItems({
+		await cleanup.prepareMealAddition(date, "supper", 1);
+		const addResult = await mealItemMutationService.addMealItems({
 			date,
 			mealKey: "supper",
 			items: [
@@ -167,7 +185,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 			],
 		});
 
-		const recipeMealItem = await waitForRecipeMealItem(date, "supper", created.recipeId);
+		const recipeMealItem = await getRecipeMealItem(date, "supper", created.recipeId);
 		const mealItemId = requireItemId(recipeMealItem.itemId);
 		cleanup.untrack(date, "supper", provisionalMealItemId);
 		cleanup.track(date, "supper", mealItemId);
@@ -175,11 +193,11 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 		expect(String(recipeMealItem.recipeId)).toBe(created.recipeId);
 		expect(recipeMealItem.productId).toBeNull();
 
-		await dayPlanClient.removeMealItems({
+		await mealItemMutationService.removeMealItems({
 			date,
 			itemIds: [mealItemId],
 		});
-		await waitForMealItemAbsent(date, "supper", mealItemId);
+		expect(findMealItem(await dayPlanClient.getDayPlan({ date }), "supper", mealItemId)).toBeNull();
 		cleanup.untrack(date, "supper", mealItemId);
 
 		const secondIngredient = [products.gramProduct, products.packageProduct].find(
@@ -209,6 +227,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 				},
 			],
 		});
+		expect(updated.status).toBe("accepted");
 		cleanup.trackRecipe(updated.recipeId);
 
 		expect(updated.previousRecipeId).toBe(created.recipeId);
@@ -225,6 +244,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 		}
 
 		await expect(recipeService.deleteRecipe(updated.recipeId, updatedName)).resolves.toEqual({
+			status: "accepted",
 			recipeId: updated.recipeId,
 			name: updatedName,
 			deleted: true,
@@ -278,30 +298,14 @@ async function expectRecipeUnavailableOrDeleted(recipeId: string): Promise<void>
 	}
 }
 
-async function waitForRecipeMealItem(date: string, mealKey: string, recipeId: string): Promise<DayPlanItem> {
-	for (let attempt = 0; attempt < READ_AFTER_WRITE_ATTEMPTS; attempt += 1) {
-		const item = (await dayPlanClient.getDayPlan({ date })).meals
-			.find((meal) => meal.mealKey === mealKey)
-			?.items.find((candidate) => String(candidate.recipeId) === recipeId);
-		if (item) {
-			return item;
-		}
-		await wait(1_000);
+async function getRecipeMealItem(date: string, mealKey: string, recipeId: string): Promise<DayPlanItem> {
+	const item = (await dayPlanClient.getDayPlan({ date })).meals
+		.find((meal) => meal.mealKey === mealKey)
+		?.items.find((candidate) => String(candidate.recipeId) === recipeId);
+	if (!item) {
+		throw new Error(`Recipe ${recipeId} was not visible in ${mealKey} on ${date} after confirmation`);
 	}
-
-	throw new Error(`Recipe ${recipeId} did not appear in ${mealKey} on ${date}`);
-}
-
-async function waitForMealItemAbsent(date: string, mealKey: string, itemId: string): Promise<void> {
-	for (let attempt = 0; attempt < READ_AFTER_WRITE_ATTEMPTS; attempt += 1) {
-		const item = findMealItem(await dayPlanClient.getDayPlan({ date }), mealKey, itemId);
-		if (!item) {
-			return;
-		}
-		await wait(1_000);
-	}
-
-	throw new Error(`Recipe meal item ${itemId} remained in ${mealKey} on ${date}`);
+	return item;
 }
 
 function requireItemId(value: string | null | undefined): string {

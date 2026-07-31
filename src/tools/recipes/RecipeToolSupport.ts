@@ -11,6 +11,10 @@ export const recipeIdInputSchema = rawRecipeIdSchema.describe(
 	"Raw Fitatu recipe id returned by a recipe-aware MCP tool.",
 );
 
+export const recipeMutationStatusSchema = z
+	.literal("accepted")
+	.describe("Fitatu accepted the write and the service confirmed its observable effect.");
+
 export const recipeIngredientInputSchema = z
 	.object({
 		productId: z

@@ -8,12 +8,16 @@ import type { RemoveMealItemsOptions } from "../../../../src/api/dayPlan/RemoveM
 import type { UpdateMealItemOptions } from "../../../../src/api/dayPlan/UpdateMealItemOptions.ts";
 import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
 import {
+	type MealItemMutationConfirmationProvider,
 	type MealItemMutationProvider,
 	MealItemMutationService,
 } from "../../../../src/services/dayPlan/MealItemMutationService.ts";
 import { ServiceError } from "../../../../src/services/ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../../../../src/services/ServiceErrorCode.ts";
+import { MutationConfirmationContext } from "../../../../src/services/MutationConfirmationContext.ts";
+import { MutationConfirmationError } from "../../../../src/services/MutationConfirmationError.ts";
 import { AddMealItemsTool } from "../../../../src/tools/addMealItems/AddMealItemsTool.ts";
+import { GetDayPlanItemsTool } from "../../../../src/tools/dayPlanItems/GetDayPlanItemsTool.ts";
 import { MoveMealItemTool } from "../../../../src/tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "../../../../src/tools/mealItems/RemoveMealItemsTool.ts";
 import { UpdateMealItemTool } from "../../../../src/tools/mealItems/UpdateMealItemTool.ts";
@@ -577,6 +581,7 @@ describe("meal item mutation tools", () => {
 			} as unknown as DayPlanClient,
 			{ getAvailableMeasureIds: async () => new Set(["39"]) },
 			{ getRecipe: async () => recipeDetails({ servings: 8 }) },
+			alwaysConfirmingMealItemMutations(),
 		);
 
 		await service.addMealItems({
@@ -648,6 +653,7 @@ describe("meal item mutation tools", () => {
 					return recipeDetails();
 				},
 			},
+			alwaysConfirmingMealItemMutations(),
 		);
 		const item = {
 			foodType: "CUSTOM_ITEM" as const,
@@ -664,7 +670,7 @@ describe("meal item mutation tools", () => {
 				mealKey: "supper",
 				items: [item],
 			}),
-		).resolves.toBe(successCases[0].result);
+		).resolves.toMatchObject({ status: "accepted", operation: "add" });
 		expect(calls).toEqual([{ date: "2026-07-14", mealKey: "supper", items: [item] }]);
 		expect(measureLookupCalled).toBe(false);
 		expect(recipeLookupCalled).toBe(false);
@@ -716,6 +722,48 @@ describe("meal item mutation tools", () => {
 		if (!isServiceErrorCase) {
 			expect(getTextContent(result)).not.toContain(`secret ${testCase.name} response`);
 		}
+	});
+
+	it.each([
+		{
+			name: "timeout",
+			error: MutationConfirmationError.timeout(
+				new MutationConfirmationContext(AddMealItemsTool.toolName, GetDayPlanItemsTool.toolName),
+			),
+			code: SERVICE_ERROR_CODES.mutationConfirmationTimeout,
+			messagePattern: /accepted.*could not be confirmed.*do not retry automatically/i,
+		},
+		{
+			name: "terminal read failure",
+			error: MutationConfirmationError.readFailed(
+				new MutationConfirmationContext(AddMealItemsTool.toolName, GetDayPlanItemsTool.toolName),
+			),
+			code: SERVICE_ERROR_CODES.mutationConfirmationReadFailed,
+			messagePattern: /accepted.*confirmation read failed.*do not retry automatically/i,
+		},
+	])("maps an unconfirmed mutation $name to a safe public service error", async (testCase) => {
+		const service = new FakeMealItemMutationService(successCases[0].result, testCase.error);
+		const registered = await registerToolForTest(new AddMealItemsTool(service));
+
+		const result = await registered.invoke({
+			date: "2026-07-14",
+			mealKey: "breakfast",
+			items: [{ productId: "101", measureId: "2" }],
+		});
+
+		expect(result.isError).toBe(true);
+		expect(parseTextContent(result)).toEqual({
+			status: "error",
+			toolName: "add_meal_items",
+			error: {
+				source: "service",
+				name: "MutationConfirmationError",
+				message: expect.stringMatching(testCase.messagePattern),
+				kind: "unconfirmed",
+				code: testCase.code,
+			},
+		});
+		expect(result.structuredContent).toBeUndefined();
 	});
 });
 
@@ -822,5 +870,17 @@ function createMutationResult(options: {
 		newItemId: options.newItemId ?? null,
 		itemIdChanged: Boolean(options.oldItemId && options.newItemId && options.oldItemId !== options.newItemId),
 		dayRevisions: DayRevisions.fromRecord({ [options.targetDate]: `revision-${options.targetDate}` }),
+	};
+}
+
+function alwaysConfirmingMealItemMutations(): MealItemMutationConfirmationProvider {
+	return {
+		confirmAdded: async () => undefined,
+		confirmUpdated: async () => undefined,
+		confirmRemoved: async () => undefined,
+		getMoveSource: async () => {
+			throw new Error("Move source is not used by this test");
+		},
+		confirmMoved: async () => undefined,
 	};
 }

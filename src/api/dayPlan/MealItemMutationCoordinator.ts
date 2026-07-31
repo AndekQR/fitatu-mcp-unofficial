@@ -2,7 +2,6 @@ import { DateUtils } from "../../shared/DateUtils.ts";
 import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { ValidationError } from "../../shared/ValidationError.ts";
-import { BoundedPoller } from "../../shared/BoundedPoller.ts";
 import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
 import type { AddMealItemsOptions } from "./AddMealItemsOptions.ts";
@@ -21,7 +20,6 @@ import type { UpdateMealItemOptions } from "./UpdateMealItemOptions.ts";
 
 export class MealItemMutationCoordinator {
 	private readonly dayPlanSyncProvider: DayPlanSyncProvider;
-	private readonly removalConfirmationPoller = new BoundedPoller();
 
 	public constructor(dayPlanSyncProvider: DayPlanSyncProvider) {
 		this.dayPlanSyncProvider = dayPlanSyncProvider;
@@ -163,7 +161,6 @@ export class MealItemMutationCoordinator {
 		}
 
 		const dayRevisions = await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
-		await this.waitForRemovedItems(userId, date, itemIds);
 
 		const acceptedItems = targets.map((target, index) =>
 			target.toOperationSummary(index, getRequiredItemId(target.item)),
@@ -235,26 +232,6 @@ export class MealItemMutationCoordinator {
 			destinationItems.length - 1,
 		).toOperationSummary(0, newItemId);
 		return MealItemMutationResult.acceptedMove(fromDate, fromMealKey, itemId, acceptedItem, dayRevisions);
-	}
-
-	private async waitForRemovedItems(userId: string, date: string, itemIds: ReadonlySet<string>): Promise<void> {
-		await this.removalConfirmationPoller.pollUntil(
-			async () => {
-				const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, date);
-				const activeItems = new DayPlanDietPlan(
-					dayPayload.dietPlan,
-					FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems,
-				).findActiveItems(itemIds);
-				return activeItems.length === 0;
-			},
-			() =>
-				FitatuClientError.invalidResponse({
-					operation: FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems,
-					message: "Fitatu accepted the removal but it could not be confirmed within 60 seconds",
-					method: "GET",
-					endpointTemplate: "/diet-and-activity-plan/:userId/day/:date",
-				}),
-		);
 	}
 }
 

@@ -45,6 +45,7 @@ export class DaysClient extends FitatuApiClientBase {
 			failureMessage: "Fitatu day synchronization request failed",
 			invalidResponseMessage: "Fitatu day synchronization response was invalid",
 			headers: { "content-type": "application/json;charset=UTF-8" },
+			query: { synchronous: true },
 			body: JSON.stringify(body),
 			decoder: (data) => decodeSyncResponse(data, allowEmptyLegacyResponse),
 		});

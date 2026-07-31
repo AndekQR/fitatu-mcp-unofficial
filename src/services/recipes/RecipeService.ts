@@ -1,7 +1,6 @@
 import { RecipeClient } from "../../api/recipes/RecipeClient.ts";
 import { FitatuClientError } from "../../api/fitatuApiClientBase/FitatuClientError.ts";
 import type { FoodTypeName } from "../../api/dayPlan/FoodType.ts";
-import { RecipeCreateResult } from "../../api/recipes/RecipeCreateResult.ts";
 import type { RecipeDetails } from "../../api/recipes/RecipeDetails.ts";
 import { RecipeIngredientInput } from "../../api/recipes/RecipeIngredientInput.ts";
 import type { RecipeSearchItem } from "../../api/recipes/RecipeSearchItem.ts";
@@ -22,6 +21,7 @@ import { RecipeServiceCreateResult } from "./RecipeServiceCreateResult.ts";
 import { RecipeServiceDeleteResult } from "./RecipeServiceDeleteResult.ts";
 import { RecipeServiceDetails } from "./RecipeServiceDetails.ts";
 import { RecipeServiceReplaceResult } from "./RecipeServiceReplaceResult.ts";
+import { RecipeMutationConfirmer } from "./RecipeMutationConfirmer.ts";
 
 const USER_TAG_CATEGORY = "RECIPE_TAG_USERS_TYPE";
 
@@ -38,16 +38,29 @@ export interface RecipeProvider {
 	deleteRecipe(recipeId: string | number, expectedName: string): Promise<RecipeServiceDeleteResult>;
 }
 
+export interface RecipeMutationConfirmationProvider {
+	confirmCreated(recipeId: string, expected: RecipeWriteInput): Promise<RecipeDetails>;
+	confirmReplaced(
+		previousRecipeId: string,
+		recipeId: string,
+		expected: RecipeReplacementInput,
+	): Promise<RecipeDetails>;
+	confirmDeleted(recipeId: string): Promise<void>;
+}
+
 export class RecipeService implements RecipeProvider {
 	private readonly recipeClient: RecipeClient;
 	private readonly foodMeasureProvider: FoodMeasureProvider;
+	private readonly confirmer: RecipeMutationConfirmationProvider;
 
 	public constructor(
 		recipeClient: RecipeClient,
 		foodMeasureProvider: Pick<FoodSearchClient, "getAvailableMeasureIds" | "getAvailableMeasures">,
+		confirmer: RecipeMutationConfirmationProvider = new RecipeMutationConfirmer(recipeClient),
 	) {
 		this.recipeClient = recipeClient;
 		this.foodMeasureProvider = foodMeasureProvider;
+		this.confirmer = confirmer;
 	}
 
 	public async createRecipe(input: RecipeWriteInput): Promise<RecipeServiceCreateResult> {
@@ -55,10 +68,8 @@ export class RecipeService implements RecipeProvider {
 		this.assertTagCategories(input.tags, new Set([USER_TAG_CATEGORY]));
 		await this.validateIngredients(input.ingredients);
 		const result = await this.recipeClient.createRecipe(input);
-		return new RecipeServiceCreateResult(
-			new RecipeCreateResult(result.recipeId, await this.withAvailableMeasures(result.details)),
-			[],
-		);
+		const confirmed = await this.confirmer.confirmCreated(result.recipeId, input);
+		return new RecipeServiceCreateResult(result, await this.withAvailableMeasures(confirmed), []);
 	}
 
 	public async getRecipe(recipeId: string | number): Promise<RecipeServiceDetails> {
@@ -139,7 +150,8 @@ export class RecipeService implements RecipeProvider {
 			current.categories,
 		);
 		const result = await this.recipeClient.replaceRecipe(current.recipeId, replacement);
-		return new RecipeServiceReplaceResult(result, await this.withAvailableMeasures(result.details), []);
+		const confirmed = await this.confirmer.confirmReplaced(result.previousRecipeId, result.recipeId, replacement);
+		return new RecipeServiceReplaceResult(result, await this.withAvailableMeasures(confirmed), []);
 	}
 
 	public async deleteRecipe(recipeId: string | number, expectedName: string): Promise<RecipeServiceDeleteResult> {
@@ -154,6 +166,7 @@ export class RecipeService implements RecipeProvider {
 		}
 
 		const deleted = await this.recipeClient.deleteRecipe(current.recipeId);
+		await this.confirmer.confirmDeleted(deleted.recipeId);
 		return new RecipeServiceDeleteResult(deleted, current.name);
 	}
 

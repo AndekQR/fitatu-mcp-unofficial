@@ -11,6 +11,9 @@ import { MealItemMutationService } from "./dayPlan/MealItemMutationService.ts";
 import { FoodSearchService } from "./foodSearch/FoodSearchService.ts";
 import { RecipeService } from "./recipes/RecipeService.ts";
 import { getFitatuMobileClientProfile } from "../config.ts";
+import { BoundedPoller } from "../shared/BoundedPoller.ts";
+import { MealItemMutationConfirmer } from "./dayPlan/MealItemMutationConfirmer.ts";
+import { RecipeMutationConfirmer } from "./recipes/RecipeMutationConfirmer.ts";
 
 /**
  * Process-wide composition root. MCP tools receive services from this class
@@ -36,8 +39,17 @@ export class ApplicationServices {
 		this.currentUserService = new CurrentUserService(userClient);
 		this.dayPlanQueryService = new DayPlanQueryService(dayPlanClient);
 		this.dietSummaryService = new DietSummaryService(summaryClient, userClient);
-		this.mealItemMutationService = new MealItemMutationService(dayPlanClient, foodSearchClient, recipeClient);
+		this.mealItemMutationService = new MealItemMutationService(
+			dayPlanClient,
+			foodSearchClient,
+			recipeClient,
+			new MealItemMutationConfirmer(dayPlanClient, new BoundedPoller()),
+		);
 		this.foodSearchService = new FoodSearchService(foodSearchClient);
-		this.recipeService = new RecipeService(recipeClient, foodSearchClient);
+		this.recipeService = new RecipeService(
+			recipeClient,
+			foodSearchClient,
+			new RecipeMutationConfirmer(recipeClient, new BoundedPoller()),
+		);
 	}
 }

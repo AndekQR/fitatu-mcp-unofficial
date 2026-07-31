@@ -13,7 +13,7 @@ import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 const idSchema = z.union([z.string().min(1), z.number().finite()]);
 
 export class UpdateMealItemTool {
-	public readonly name = "update_meal_item";
+	public static readonly toolName = "update_meal_item";
 
 	private readonly mealItemMutationService: Pick<MealItemMutationProvider, "updateMealItem">;
 
@@ -23,11 +23,11 @@ export class UpdateMealItemTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			UpdateMealItemTool.toolName,
 			{
 				title: "Update Fitatu Meal Item",
 				description:
-					"Updates one existing Fitatu meal item quantity, measure, or eaten flag for a YYYY-MM-DD date. Fitatu applies this mutation asynchronously; an immediate get_day_plan_items call may still return the previous day plan state.",
+					"Updates and confirms one existing Fitatu meal item quantity, measure, or eaten flag for a YYYY-MM-DD date. A successful accepted result means every requested field was observed in the persisted day plan.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(
@@ -72,7 +72,11 @@ export class UpdateMealItemTool {
 					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
-					return createSafeMealItemErrorResult(this.name, "Unable to update Fitatu meal item.", error);
+					return createSafeMealItemErrorResult(
+						UpdateMealItemTool.toolName,
+						"Unable to update Fitatu meal item.",
+						error,
+					);
 				}
 			},
 		);

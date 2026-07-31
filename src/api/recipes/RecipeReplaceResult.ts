@@ -1,13 +1,17 @@
 import { RecipeCreateResult } from "./RecipeCreateResult.ts";
-import type { RecipeDetails } from "./RecipeDetails.ts";
 
-export class RecipeReplaceResult<TDetails extends RecipeDetails = RecipeDetails> extends RecipeCreateResult<TDetails> {
+export class RecipeReplaceResult {
+	public readonly created: RecipeCreateResult;
 	public readonly previousRecipeId: string;
 	public readonly identityChanged: boolean;
 
-	public constructor(created: RecipeCreateResult<TDetails>, previousRecipeId: string, identityChanged: boolean) {
-		super(created.recipeId, created.details);
+	public constructor(created: RecipeCreateResult, previousRecipeId: string, identityChanged: boolean) {
+		this.created = created;
 		this.previousRecipeId = previousRecipeId;
 		this.identityChanged = identityChanged;
+	}
+
+	public get recipeId(): string {
+		return this.created.recipeId;
 	}
 }

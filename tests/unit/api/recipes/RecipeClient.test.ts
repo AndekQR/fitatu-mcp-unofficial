@@ -150,7 +150,6 @@ describe("RecipeClient", () => {
 				},
 				{ status: 201 },
 			),
-			createJsonResponse(recipeResponse({ id: 159081309, name: "Test dish" })),
 		);
 		const client = createClient(fetchStub);
 
@@ -187,13 +186,12 @@ describe("RecipeClient", () => {
 			categories: null,
 		});
 		expect(result.recipeId).toBe("159081309");
-		expect(result.details.nutritionPerServing.energyKcal).toBe(100);
+		expect(fetchStub.calls).toHaveLength(1);
 	});
 
 	it("replaces a recipe and reports the changed identity returned by Fitatu", async () => {
 		const fetchStub = createFetchStub(
 			createJsonResponse({ id: 159083724, name: "Test dish 2 edit" }, { status: 201 }),
-			createJsonResponse(recipeResponse({ id: 159083724, name: "Test dish 2 edit" })),
 		);
 		const client = createClient(fetchStub);
 
@@ -217,23 +215,20 @@ describe("RecipeClient", () => {
 			recipeId: "159083724",
 			identityChanged: true,
 		});
+		expect(fetchStub.calls).toHaveLength(1);
 	});
 
 	it("deletes a recipe and accepts Fitatu's empty-array response", async () => {
-		const fetchStub = createFetchStub(
-			createJsonResponse([]),
-			createJsonResponse({ message: "missing" }, { status: 404 }),
-		);
+		const fetchStub = createFetchStub(createJsonResponse([]));
 		const client = createClient(fetchStub);
 
 		const result = await client.deleteRecipe("159081309");
 
 		expect(result).toBeInstanceOf(RecipeDeleteResult);
-		expect(result).toEqual({ recipeId: "159081309", deleted: true });
+		expect(result).toEqual({ recipeId: "159081309" });
 		expect(fetchStub.calls[0]?.input).toBe("https://fitatu.test/api/recipes/159081309");
 		expect(fetchStub.calls[0]?.init?.method).toBe("DELETE");
-		expect(fetchStub.calls[1]?.input).toBe("https://fitatu.test/api/recipes-and-user-action/159081309/test-user");
-		expect(fetchStub.calls[1]?.init?.method).toBe("GET");
+		expect(fetchStub.calls).toHaveLength(1);
 	});
 
 	it("searches the user's catalog and keeps only recipes", async () => {
@@ -360,18 +355,14 @@ describe("RecipeClient", () => {
 		expect(fetchStub.calls).toHaveLength(2);
 	});
 
-	it("retries canonical read when a newly created recipe is briefly unavailable", async () => {
-		const fetchStub = createFetchStub(
-			createJsonResponse({ id: 159081309, name: "Test dish" }, { status: 201 }),
-			createJsonResponse({ message: "not ready" }, { status: 404 }),
-			createJsonResponse(recipeResponse({ id: 159081309, name: "Test dish" })),
-		);
+	it("does not perform a canonical read after a newly created recipe is accepted", async () => {
+		const fetchStub = createFetchStub(createJsonResponse({ id: 159081309, name: "Test dish" }, { status: 201 }));
 		const client = createClient(fetchStub);
 
 		const result = await client.createRecipe(validWriteInput());
 
 		expect(result.recipeId).toBe("159081309");
-		expect(fetchStub.calls).toHaveLength(3);
+		expect(fetchStub.calls).toHaveLength(1);
 	});
 
 	it("applies one total limit and deduplicates ids when searching all catalogs", async () => {

@@ -11,7 +11,7 @@ import {
 import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
 export class RemoveMealItemsTool {
-	public readonly name = "remove_meal_items";
+	public static readonly toolName = "remove_meal_items";
 
 	private readonly mealItemMutationService: Pick<MealItemMutationProvider, "removeMealItems">;
 
@@ -21,11 +21,11 @@ export class RemoveMealItemsTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			RemoveMealItemsTool.toolName,
 			{
 				title: "Remove Fitatu Meal Items",
 				description:
-					"Atomically removes exact Fitatu day-plan entries of any food type. Copy itemId UUID values from get_day_plan_items; do not pass productId or recipeId. mealKey is unnecessary because each itemId identifies one concrete entry. If any requested active item is missing, nothing is synchronized. This operation is destructive and must be verified with get_day_plan_items.",
+					"Atomically removes and confirms exact Fitatu day-plan entries of any food type. Copy itemId UUID values from get_day_plan_items; do not pass productId or recipeId. mealKey is unnecessary because each itemId identifies one concrete entry. If any requested active item is missing, nothing is synchronized. A successful accepted result means every selected item is absent from the persisted active day plan.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe("Day containing the exact meal items to remove."),
@@ -56,7 +56,11 @@ export class RemoveMealItemsTool {
 					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
-					return createSafeMealItemErrorResult(this.name, "Unable to remove Fitatu meal items.", error);
+					return createSafeMealItemErrorResult(
+						RemoveMealItemsTool.toolName,
+						"Unable to remove Fitatu meal items.",
+						error,
+					);
 				}
 			},
 		);

@@ -13,7 +13,7 @@ import {
 import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
 export class AddMealItemsTool {
-	public readonly name = "add_meal_items";
+	public static readonly toolName = "add_meal_items";
 
 	private readonly mealItemMutationService: Pick<MealItemMutationProvider, "addMealItems">;
 
@@ -23,11 +23,11 @@ export class AddMealItemsTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			AddMealItemsTool.toolName,
 			{
 				title: "Add Fitatu Meal Items",
 				description:
-					"Validates and submits products, recipes, or fallback one-off custom items to a Fitatu meal. Prefer a catalog product or recipe: search with search_food or search_recipes first, then provide productId and measureId for a product or raw recipeId and measureId for a recipe. Custom items are not preferred; use name and nutrition values only when no suitable catalog match exists. The id field selects the variant. Deleted recipes and mismatched measures are rejected before synchronization. provisionalItemIds are not proof of persistence: wait and verify with get_day_plan_items.",
+					"Validates, submits, and confirms products, recipes, or fallback one-off custom items in a Fitatu meal. Prefer a catalog product or recipe: search with search_food or search_recipes first, then provide productId and measureId for a product or raw recipeId and measureId for a recipe. Custom items are not preferred; use name and nutrition values only when no suitable catalog match exists. The id field selects the variant. Deleted recipes and mismatched measures are rejected before synchronization. A successful accepted result means every submitted item was observed in the persisted day plan by its exact itemId.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(
@@ -63,7 +63,11 @@ export class AddMealItemsTool {
 					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
-					return createSafeMealItemErrorResult(this.name, "Unable to add Fitatu meal items.", error);
+					return createSafeMealItemErrorResult(
+						AddMealItemsTool.toolName,
+						"Unable to add Fitatu meal items.",
+						error,
+					);
 				}
 			},
 		);

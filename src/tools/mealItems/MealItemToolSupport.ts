@@ -95,7 +95,7 @@ const mealItemMutationOutputObjectSchema = z.object({
 	status: z
 		.literal("accepted")
 		.describe(
-			"Mutation request status. Accepted confirms that Fitatu accepted the synchronization request, not that each requested change is present in the persisted day plan.",
+			"Fitatu accepted the synchronization request and the service confirmed every requested change in the persisted day plan.",
 		),
 	operation: z.enum(["add", "update", "remove", "move"]).describe("Meal item mutation operation that was requested."),
 	message: z.string().describe("Human-readable summary of the mutation result."),
@@ -124,7 +124,7 @@ const mealItemMutationOutputObjectSchema = z.object({
 		.array(z.string())
 		.optional()
 		.describe(
-			"Client-generated item ids submitted for creation. They remain provisional until get_day_plan_items confirms persistence.",
+			"Client-generated item ids submitted for creation and confirmed by the service in the persisted day plan.",
 		),
 	updatedItemIds: z
 		.array(z.string())

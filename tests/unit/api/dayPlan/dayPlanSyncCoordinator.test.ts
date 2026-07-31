@@ -67,7 +67,7 @@ describe("DayPlanSyncCoordinator synchronization", () => {
 		expect(dayRevisions.toRecord()).toEqual({ [FITATU_DAY_DATE_FIXTURE]: "revision-1" });
 		expect(fetchStub.calls).toHaveLength(1);
 		expect(fetchStub.calls[0]).toMatchObject({
-			input: "https://fitatu.test/api/diet-plan/user%2F1/days",
+			input: "https://fitatu.test/api/diet-plan/user%2F1/days?synchronous=true",
 			init: {
 				method: "POST",
 				body: JSON.stringify({ [FITATU_DAY_DATE_FIXTURE]: payload }),
@@ -147,8 +147,8 @@ describe("DayPlanSyncCoordinator synchronization", () => {
 		expect(dayRevisions).toBeInstanceOf(DayRevisions);
 		expect(dayRevisions.toRecord()).toEqual({});
 		expect(fetchStub.calls.map(({ input }) => input)).toEqual([
-			"https://fitatu.test/api/diet-plan/user-1/days",
-			"https://fitatu.test/api/v2/diet-plan/user-1/days",
+			"https://fitatu.test/api/diet-plan/user-1/days?synchronous=true",
+			"https://fitatu.test/api/v2/diet-plan/user-1/days?synchronous=true",
 		]);
 	});
 

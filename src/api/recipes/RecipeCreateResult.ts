@@ -1,11 +1,7 @@
-import type { RecipeDetails } from "./RecipeDetails.ts";
-
-export class RecipeCreateResult<TDetails extends RecipeDetails = RecipeDetails> {
+export class RecipeCreateResult {
 	public readonly recipeId: string;
-	public readonly details: TDetails;
 
-	public constructor(recipeId: string, details: TDetails) {
+	public constructor(recipeId: string) {
 		this.recipeId = recipeId;
-		this.details = details;
 	}
 }

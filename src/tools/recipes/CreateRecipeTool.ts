@@ -8,6 +8,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import {
 	RECIPE_EMPTY_ARRAY_KEYS,
 	recipeDetailsOutputSchema,
+	recipeMutationStatusSchema,
 	recipeWarningOutputSchema,
 	recipeWriteInputSchema,
 	toRecipeDescription,
@@ -16,7 +17,7 @@ import {
 } from "./RecipeToolSupport.ts";
 
 export class CreateRecipeTool {
-	public readonly name = "create_recipe";
+	public static readonly toolName = "create_recipe";
 	private readonly recipeService: RecipeProvider;
 
 	public constructor(recipeService: RecipeProvider) {
@@ -25,13 +26,14 @@ export class CreateRecipeTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			CreateRecipeTool.toolName,
 			{
 				title: "Create Fitatu Recipe",
 				description:
-					"Creates a Fitatu recipe from validated products selected with search_food. A non-empty name, at least one ingredient, and a positive whole number of servings are required. Pass preparation instructions as steps with one step per array item so Fitatu displays separate step fields. Ingredient quantities must be positive finite numbers. For custom tags use RECIPE_TAG_USERS_TYPE. Recipes are private unless shared=true. Returns { recipeId, details, warnings }; details.measures contains measureId values accepted by add_meal_items, recipeId is canonical, and repeating the same request creates another recipe.",
+					"Creates and confirms a Fitatu recipe from validated products selected with search_food. A non-empty name, at least one ingredient, and a positive whole number of servings are required. Pass preparation instructions as steps with one step per array item so Fitatu displays separate step fields. Ingredient quantities must be positive finite numbers. For custom tags use RECIPE_TAG_USERS_TYPE. Recipes are private unless shared=true. Returns { status, recipeId, details, warnings }; details.measures contains measureId values accepted by add_meal_items, recipeId is canonical, and repeating the same request creates another recipe.",
 				inputSchema: recipeWriteInputSchema,
 				outputSchema: {
+					status: recipeMutationStatusSchema,
 					recipeId: recipeDetailsOutputSchema.shape.recipeId.describe(
 						"Canonical id for subsequent operations. This is always identical to details.recipeId.",
 					),
@@ -74,6 +76,7 @@ export class CreateRecipeTool {
 					);
 					return createTextResult(
 						{
+							status: result.status,
 							recipeId: result.recipeId,
 							details: toRecipeDetailsForMcp(result.details),
 							warnings: toRecipeWarningsForMcp(result.warnings),
@@ -81,7 +84,7 @@ export class CreateRecipeTool {
 						{ keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS },
 					);
 				} catch (error) {
-					return ToolErrorResult.create(this.name, "Unable to create Fitatu recipe.", error);
+					return ToolErrorResult.create(CreateRecipeTool.toolName, "Unable to create Fitatu recipe.", error);
 				}
 			},
 		);

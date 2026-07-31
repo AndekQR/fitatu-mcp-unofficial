@@ -19,6 +19,9 @@ import { RecipeServiceDeleteResult } from "../../../../src/services/recipes/Reci
 import { RecipeServiceDetails } from "../../../../src/services/recipes/RecipeServiceDetails.ts";
 import { RecipeServiceReplaceResult } from "../../../../src/services/recipes/RecipeServiceReplaceResult.ts";
 import type { RecipeWarning } from "../../../../src/services/recipes/RecipeWarning.ts";
+import { MutationConfirmationContext } from "../../../../src/services/MutationConfirmationContext.ts";
+import { MutationConfirmationError } from "../../../../src/services/MutationConfirmationError.ts";
+import { SERVICE_ERROR_CODES } from "../../../../src/services/ServiceErrorCode.ts";
 import { CreateRecipeTool } from "../../../../src/tools/recipes/CreateRecipeTool.ts";
 import { DeleteRecipeTool } from "../../../../src/tools/recipes/DeleteRecipeTool.ts";
 import { GetRecipeTool } from "../../../../src/tools/recipes/GetRecipeTool.ts";
@@ -27,6 +30,59 @@ import { UpdateRecipeTool } from "../../../../src/tools/recipes/UpdateRecipeTool
 import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
 
 describe("Recipe MCP tools", () => {
+	it("retains canonical API receipts when enriching recipe mutation results", () => {
+		const created = new RecipeCreateResult("100");
+		const createResult = new RecipeServiceCreateResult(created, details(), []);
+		const replaced = new RecipeReplaceResult(new RecipeCreateResult("200"), "100", true);
+		const replaceResult = new RecipeServiceReplaceResult(replaced, details({ recipeId: "200" }), []);
+
+		expect(createResult.created).toBe(created);
+		expect(createResult.recipeId).toBe("100");
+		expect(replaceResult.replaced).toBe(replaced);
+		expect(replaceResult.recipeId).toBe("200");
+	});
+
+	it.each([
+		{
+			name: "timeout",
+			error: MutationConfirmationError.timeout(
+				new MutationConfirmationContext(CreateRecipeTool.toolName, GetRecipeTool.toolName),
+			),
+			code: SERVICE_ERROR_CODES.mutationConfirmationTimeout,
+			messagePattern: /accepted.*could not be confirmed.*do not retry automatically/i,
+		},
+		{
+			name: "terminal read failure",
+			error: MutationConfirmationError.readFailed(
+				new MutationConfirmationContext(CreateRecipeTool.toolName, GetRecipeTool.toolName),
+			),
+			code: SERVICE_ERROR_CODES.mutationConfirmationReadFailed,
+			messagePattern: /accepted.*confirmation read failed.*do not retry automatically/i,
+		},
+	])("maps a recipe $name to a safe public unconfirmed error", async (testCase) => {
+		const registered = await registerToolForTest(new CreateRecipeTool(new RecordingRecipeService(testCase.error)));
+
+		const result = await registered.invoke({
+			name: "Test recipe",
+			ingredients: [{ productId: "10", measureId: "2", measureQuantity: 1 }],
+			servings: 2,
+		});
+
+		expect(result.isError).toBe(true);
+		expect(parseTextContent(result)).toEqual({
+			status: "error",
+			toolName: "create_recipe",
+			error: {
+				source: "service",
+				name: "MutationConfirmationError",
+				message: expect.stringMatching(testCase.messagePattern),
+				kind: "unconfirmed",
+				code: testCase.code,
+			},
+		});
+		expect(result.structuredContent).toBeUndefined();
+	});
+
 	it("create_recipe applies safe defaults and returns canonical recipe details", async () => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new CreateRecipeTool(service));
@@ -44,10 +100,10 @@ describe("Recipe MCP tools", () => {
 			destructiveHint: false,
 			idempotentHint: false,
 		});
-		expect(registered.config.description).toContain("Returns { recipeId, details, warnings }");
+		expect(registered.config.description).toContain("Returns { status, recipeId, details, warnings }");
 		expect(registered.config.outputSchema).toMatchObject({ type: "object" });
 		expect(registered.config.outputSchema?.required).toEqual(
-			expect.arrayContaining(["recipeId", "details", "warnings"]),
+			expect.arrayContaining(["status", "recipeId", "details", "warnings"]),
 		);
 		expect(JSON.stringify(registered.config.inputSchema)).toContain(
 			"Fitatu may normalize custom tag text to lowercase",
@@ -332,10 +388,17 @@ describe("Recipe MCP tools", () => {
 
 		expect(registered.config.annotations).toMatchObject({ destructiveHint: true, idempotentHint: false });
 		expect(registered.config.description).toContain(
-			"Returns { previousRecipeId, recipeId, identityChanged, details, warnings }",
+			"Returns { status, previousRecipeId, recipeId, identityChanged, details, warnings }",
 		);
 		expect(registered.config.outputSchema?.required).toEqual(
-			expect.arrayContaining(["previousRecipeId", "recipeId", "identityChanged", "details", "warnings"]),
+			expect.arrayContaining([
+				"status",
+				"previousRecipeId",
+				"recipeId",
+				"identityChanged",
+				"details",
+				"warnings",
+			]),
 		);
 		expect(service.updateInputs).toEqual([
 			{
@@ -368,17 +431,19 @@ describe("Recipe MCP tools", () => {
 		const result = await registered.invoke({ recipeId: "100", expectedName: "Test recipe" });
 
 		expect(registered.config.annotations).toMatchObject({ destructiveHint: true, idempotentHint: false });
-		expect(registered.config.description).toContain("Returns { recipeId, name, deleted }");
+		expect(registered.config.description).toContain("Returns { status, recipeId, name, deleted }");
 		expect(registered.config.outputSchema?.required).toEqual(
-			expect.arrayContaining(["recipeId", "name", "deleted"]),
+			expect.arrayContaining(["status", "recipeId", "name", "deleted"]),
 		);
 		expect(service.deleteInputs).toEqual([{ recipeId: "100", expectedName: "Test recipe" }]);
 		expect(parseTextContent(result)).toEqual({
+			status: "accepted",
 			recipeId: "100",
 			name: "Test recipe",
 			deleted: true,
 		});
 		expect(result.structuredContent).toEqual({
+			status: "accepted",
 			recipeId: "100",
 			name: "Test recipe",
 			deleted: true,
@@ -583,7 +648,7 @@ class RecordingRecipeService implements RecipeProvider {
 	public async createRecipe(input: RecipeWriteInput): Promise<RecipeServiceCreateResult> {
 		this.throwWhenConfigured();
 		this.createInputs.push(input);
-		return new RecipeServiceCreateResult(new RecipeCreateResult("100", details()), [...this.writeWarnings]);
+		return new RecipeServiceCreateResult(new RecipeCreateResult("100"), details(), [...this.writeWarnings]);
 	}
 
 	public async getRecipe(recipeId: string | number): Promise<RecipeServiceDetails> {
@@ -614,11 +679,7 @@ class RecordingRecipeService implements RecipeProvider {
 		this.throwWhenConfigured();
 		this.updateInputs.push({ recipeId, input });
 		return new RecipeServiceReplaceResult(
-			new RecipeReplaceResult(
-				new RecipeCreateResult("200", details({ recipeId: "200", name: "Changed", servings: 3 })),
-				String(recipeId),
-				true,
-			),
+			new RecipeReplaceResult(new RecipeCreateResult("200"), String(recipeId), true),
 			details({ recipeId: "200", name: "Changed", servings: 3 }),
 			[...this.writeWarnings],
 		);

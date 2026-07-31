@@ -11,7 +11,7 @@ import {
 import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
 export class MoveMealItemTool {
-	public readonly name = "move_meal_item";
+	public static readonly toolName = "move_meal_item";
 
 	private readonly mealItemMutationService: Pick<MealItemMutationProvider, "moveMealItem">;
 
@@ -21,11 +21,11 @@ export class MoveMealItemTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			MoveMealItemTool.toolName,
 			{
 				title: "Move Fitatu Meal Item",
 				description:
-					"Moves one existing Fitatu meal item to another meal or date. Provide at least one destination field: toDate, toMealKey, or both. Fitatu may create a new item id during the move and applies this mutation asynchronously; an immediate get_day_plan_items call may still return the previous day plan state.",
+					"Moves and confirms one existing Fitatu meal item in another meal or date. Provide at least one destination field: toDate, toMealKey, or both. Fitatu creates a new item id during the move. A successful accepted result means the old item is absent and the new item with preserved observable values is present at the destination.",
 				inputSchema: z
 					.object({
 						fromDate: isoCalendarDateSchema("fromDate").describe(
@@ -71,7 +71,11 @@ export class MoveMealItemTool {
 					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {
-					return createSafeMealItemErrorResult(this.name, "Unable to move Fitatu meal item.", error);
+					return createSafeMealItemErrorResult(
+						MoveMealItemTool.toolName,
+						"Unable to move Fitatu meal item.",
+						error,
+					);
 				}
 			},
 		);

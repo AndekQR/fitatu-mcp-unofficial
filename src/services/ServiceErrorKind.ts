@@ -1,1 +1,1 @@
-export type ServiceErrorKind = "invalidInput" | "conflict" | "authenticationRequired" | "forbidden";
+export type ServiceErrorKind = "invalidInput" | "conflict" | "authenticationRequired" | "forbidden" | "unconfirmed";

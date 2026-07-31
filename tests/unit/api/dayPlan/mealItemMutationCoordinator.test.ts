@@ -1,13 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DayRevisions } from "../../../../src/api/dayPlan/DayRevisions.ts";
 import { MealItemMutationCoordinator } from "../../../../src/api/dayPlan/MealItemMutationCoordinator.ts";
 import type { MealItemInput } from "../../../../src/api/dayPlan/MealItemInput.ts";
 import type { DayPlanSyncProvider } from "../../../../src/api/dayPlan/DayPlanSyncProvider.ts";
 import type { DaySyncPayload } from "../../../../src/api/dayPlan/DaySyncPayload.ts";
-
-afterEach(() => {
-	vi.useRealTimers();
-});
 
 describe("MealItemMutationCoordinator single-day mutations", () => {
 	it("adds a product item and synchronizes the changed day", async () => {
@@ -182,7 +178,6 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 
 describe("MealItemMutationCoordinator.removeMealItems", () => {
 	it("removes exact product and recipe items across meals in a single day sync", async () => {
-		vi.useFakeTimers();
 		const payload = createPayload({
 			breakfast: [
 				createProductItem({ itemId: "breakfast-1", productId: 101 }),
@@ -196,18 +191,15 @@ describe("MealItemMutationCoordinator.removeMealItems", () => {
 		const syncService = new RecordingDayPlanSyncCoordinator(payload, 60);
 		const service = new MealItemMutationCoordinator(syncService);
 
-		const resultPromise = service.removeMealItems({
+		const result = await service.removeMealItems({
 			userId: "user-1",
 			date: "2026-07-01",
 			itemIds: ["breakfast-1", "lunch-1", "recipe-1"],
 		});
-		const resultExpectation = expect(resultPromise).resolves.toMatchObject({
+		expect(result).toMatchObject({
 			operation: "remove",
 			operationCount: 3,
 		});
-		await vi.advanceTimersByTimeAsync(30_001);
-		await resultExpectation;
-		const result = await resultPromise;
 
 		expect(result.operation).toBe("remove");
 		expect(result.mealKey).toBeNull();
@@ -220,7 +212,7 @@ describe("MealItemMutationCoordinator.removeMealItems", () => {
 		]);
 		expect(syncService.syncCalls).toHaveLength(1);
 		expect(syncService.syncCalls[0]).toMatchObject({ userId: "user-1", date: "2026-07-01" });
-		expect(syncService.getPayloadCalls).toHaveLength(62);
+		expect(syncService.getPayloadCalls).toHaveLength(1);
 		expect(syncService.item("breakfast", "breakfast-1")?.deletedAt).toBeTruthy();
 		expect(syncService.item("lunch", "lunch-1")?.deletedAt).toBeTruthy();
 		expect(syncService.item("breakfast", "breakfast-2")?.deletedAt).toBe("2026-07-01 10:00:00");

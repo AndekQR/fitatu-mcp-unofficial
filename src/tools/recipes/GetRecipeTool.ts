@@ -11,7 +11,7 @@ import {
 import { z } from "zod";
 
 export class GetRecipeTool {
-	public readonly name = "get_recipe";
+	public static readonly toolName = "get_recipe";
 	private readonly recipeService: RecipeProvider;
 
 	public constructor(recipeService: RecipeProvider) {
@@ -20,7 +20,7 @@ export class GetRecipeTool {
 
 	public register(server: McpServer): void {
 		server.registerTool(
-			this.name,
+			GetRecipeTool.toolName,
 			{
 				title: "Get Fitatu Recipe",
 				description:
@@ -42,7 +42,7 @@ export class GetRecipeTool {
 						keepEmptyArrayKeys: RECIPE_EMPTY_ARRAY_KEYS,
 					});
 				} catch (error) {
-					return ToolErrorResult.create(this.name, "Unable to get Fitatu recipe.", error);
+					return ToolErrorResult.create(GetRecipeTool.toolName, "Unable to get Fitatu recipe.", error);
 				}
 			},
 		);

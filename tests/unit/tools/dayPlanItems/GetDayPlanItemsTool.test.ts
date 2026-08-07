@@ -57,7 +57,7 @@ describe("GetDayPlanItemsTool", () => {
 				meals: {
 					items: {
 						properties: {
-							mealKey: { enum: ["breakfast", "second_breakfast", "lunch", "snack", "supper"] },
+							mealKey: { type: "string" },
 						},
 					},
 				},

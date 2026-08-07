@@ -93,6 +93,66 @@ const successCases = [
 		destructiveHint: false,
 	},
 	{
+		name: "add_meal_items",
+		createTool: (service: TestedMealItemMutationProvider) => new AddMealItemsTool(service),
+		input: {
+			date: "2026-07-14",
+			mealKey: "dinner",
+			items: [
+				{
+					productId: "food-1",
+					measureId: "measure-1",
+					measureQuantity: 1,
+					eaten: false,
+				},
+			],
+		},
+		expectedCall: {
+			operation: "add",
+			options: {
+				date: "2026-07-14",
+				mealKey: "dinner",
+				items: [
+					{
+						productId: "food-1",
+						foodType: "PRODUCT",
+						measureId: "measure-1",
+						measureQuantity: 1,
+						eaten: false,
+					},
+				],
+			},
+		},
+		result: createMutationResult({
+			operation: "add",
+			message: "Accepted 1 item for dinner",
+			targetDate: "2026-07-14",
+			mealKey: "dinner",
+			itemId: "new-item-2",
+			provisionalItemIds: ["new-item-2"],
+		}),
+		expectedStructuredContent: {
+			status: "accepted",
+			operation: "add",
+			message: "Accepted 1 item for dinner",
+			targetDate: "2026-07-14",
+			mealKey: "dinner",
+			operationCount: 1,
+			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
+			acceptedItems: [
+				{
+					index: 0,
+					itemId: "new-item-2",
+					productId: "food-1",
+					mealKey: "dinner",
+				},
+			],
+			provisionalItemIds: ["new-item-2"],
+			itemIdChanged: false,
+		},
+		destructiveHint: false,
+	},
+	{
 		name: "update_meal_item",
 		createTool: (service: TestedMealItemMutationProvider) => new UpdateMealItemTool(service),
 		input: {
@@ -354,7 +414,7 @@ const invalidInputCases = [
 		createTool: (service: TestedMealItemMutationProvider) => new AddMealItemsTool(service),
 		input: {
 			date: "2026-07-14",
-			mealKey: "nonexistent_meal",
+			mealKey: "   ",
 			items: [{ productId: "100", measureId: "39" }],
 		},
 	},
@@ -366,7 +426,7 @@ const invalidInputCases = [
 	{
 		name: "update_meal_item",
 		createTool: (service: TestedMealItemMutationProvider) => new UpdateMealItemTool(service),
-		input: { date: "2026-07-14", mealKey: "nonexistent_meal", itemId: "item-1", eaten: true },
+		input: { date: "2026-07-14", mealKey: "", itemId: "item-1", eaten: true },
 	},
 	{
 		name: "remove_meal_items",
@@ -383,7 +443,7 @@ const invalidInputCases = [
 		createTool: (service: TestedMealItemMutationProvider) => new MoveMealItemTool(service),
 		input: {
 			fromDate: "2026-07-14",
-			fromMealKey: "nonexistent_meal",
+			fromMealKey: "   ",
 			itemId: "item-1",
 			toMealKey: "lunch",
 		},
@@ -395,7 +455,7 @@ const invalidInputCases = [
 			fromDate: "2026-07-14",
 			fromMealKey: "breakfast",
 			itemId: "item-1",
-			toMealKey: "nonexistent_meal",
+			toMealKey: "",
 		},
 	},
 ] as const;
@@ -410,19 +470,19 @@ const errorCases = [
 	{
 		name: "update_meal_item",
 		createTool: (service: TestedMealItemMutationProvider) => new UpdateMealItemTool(service),
-		input: successCases[1].input,
+		input: successCases[2].input,
 		fallbackMessage: "Unable to update Fitatu meal item.",
 	},
 	{
 		name: "remove_meal_items",
 		createTool: (service: TestedMealItemMutationProvider) => new RemoveMealItemsTool(service),
-		input: successCases[2].input,
+		input: successCases[3].input,
 		fallbackMessage: "Unable to remove Fitatu meal items.",
 	},
 	{
 		name: "move_meal_item",
 		createTool: (service: TestedMealItemMutationProvider) => new MoveMealItemTool(service),
-		input: successCases[3].input,
+		input: successCases[4].input,
 		fallbackMessage: "Unable to move Fitatu meal item.",
 	},
 ] as const;
@@ -433,11 +493,15 @@ describe("meal item mutation tools", () => {
 		{ field: "mealKey", tool: new UpdateMealItemTool(new FakeMealItemMutationService(successCases[0].result)) },
 		{ field: "fromMealKey", tool: new MoveMealItemTool(new FakeMealItemMutationService(successCases[0].result)) },
 		{ field: "toMealKey", tool: new MoveMealItemTool(new FakeMealItemMutationService(successCases[0].result)) },
-	])("publishes canonical meal keys for $field", async ({ field, tool }) => {
+	])("publishes free-form string meal keys for $field", async ({ field, tool }) => {
 		const registered = await registerToolForTest(tool);
-		const properties = registered.config.inputSchema.properties as Record<string, { enum?: readonly string[] }>;
+		const properties = registered.config.inputSchema.properties as Record<
+			string,
+			{ type?: string; enum?: readonly string[] }
+		>;
 
-		expect(properties[field]?.enum).toEqual(["breakfast", "second_breakfast", "lunch", "snack", "supper"]);
+		expect(properties[field]?.type).toBe("string");
+		expect(properties[field]?.enum).toBeUndefined();
 	});
 
 	it.each(successCases)("$name delegates validated input and returns accepted content", async (testCase) => {

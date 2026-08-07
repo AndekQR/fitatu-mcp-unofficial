@@ -29,6 +29,36 @@ describe("getConfig", () => {
 		expect(getFitatuPassword()).toBe("test-password");
 	});
 
+	it("defaults to the http transport", async () => {
+		const { getConfig } = await loadConfigWithEnv({
+			FITATU_EMAIL: "test@example.com",
+			FITATU_PASSWORD: "test-password",
+			MCP_TRANSPORT: undefined,
+		});
+
+		expect(getConfig().MCP_TRANSPORT).toBe("http");
+	});
+
+	it("accepts the stdio transport", async () => {
+		const { getConfig } = await loadConfigWithEnv({
+			FITATU_EMAIL: "test@example.com",
+			FITATU_PASSWORD: "test-password",
+			MCP_TRANSPORT: "stdio",
+		});
+
+		expect(getConfig().MCP_TRANSPORT).toBe("stdio");
+	});
+
+	it("rejects an unknown transport", async () => {
+		const { getConfig } = await loadConfigWithEnv({
+			FITATU_EMAIL: "test@example.com",
+			FITATU_PASSWORD: "test-password",
+			MCP_TRANSPORT: "carrier-pigeon",
+		});
+
+		expect(() => getConfig()).toThrow();
+	});
+
 	it("provides the current Fitatu mobile client profile by default", async () => {
 		const { getFitatuMobileClientProfile } = await loadConfigWithEnv({
 			FITATU_EMAIL: "test@example.com",

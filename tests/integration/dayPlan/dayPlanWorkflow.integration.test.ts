@@ -4,6 +4,7 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
 import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
+import { ApplicationServices } from "../../../src/services/ApplicationServices.ts";
 import type { DayPlan } from "../../../src/api/dayPlan/DayPlan.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
 import { CleanupTracker, CleanupTrackingMealItemMutationConfirmer } from "../helpers/cleanupTracker.ts";
@@ -14,6 +15,7 @@ import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 const dayPlanClient = new DayPlanClient();
 const foodSearchClient = new FoodSearchClient();
 const cleanup = new CleanupTracker(dayPlanClient);
+const dietSummaryService = new ApplicationServices().dietSummaryService;
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
 	foodSearchClient,
@@ -203,7 +205,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 		});
 	});
 
-	it("creates, reads, and removes a custom item by its day-plan itemId", async () => {
+	it("creates, updates in place, reads, and removes a custom item by its day-plan itemId", async () => {
 		const date = getIntegrationTestDate();
 		const dayPlan = await dayPlanClient.getDayPlan({ date });
 		const [mealKey] = selectTwoMealKeys(dayPlan);
@@ -257,6 +259,47 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			carbohydrate: 42,
 			eaten: true,
 		});
+
+		const updatedName = `${name} corrected`;
+		const updates = [
+			{ options: { energyKcal: 333 }, expected: { energy: 333 } },
+			{ options: { proteinG: 13 }, expected: { protein: 13 } },
+			{ options: { fatG: 10 }, expected: { fat: 10 } },
+			{ options: { carbohydrateG: 44 }, expected: { carbohydrate: 44 } },
+			{ options: { name: updatedName }, expected: { name: updatedName } },
+		] as const;
+		const expectedState: Record<string, string | number> = {
+			name,
+			energy: 321,
+			protein: 12,
+			fat: 9,
+			carbohydrate: 42,
+		};
+
+		for (const update of updates) {
+			const updateResult = await mealItemMutationService.updateMealItem({
+				date,
+				mealKey,
+				itemId,
+				...update.options,
+			});
+			Object.assign(expectedState, update.expected);
+			expect(updateResult).toMatchObject({
+				operation: "update",
+				updatedItemIds: [itemId],
+				itemIdChanged: false,
+			});
+			const updatedItem = await getItemMatching({
+				date,
+				mealKey,
+				itemId,
+				matches: (candidate) => matchesExpectedCustomState(candidate, expectedState),
+			});
+			expect(updatedItem).toMatchObject({ itemId, foodType: "CUSTOM_ITEM", ...expectedState });
+			if (!("name" in update.options)) {
+				await expectDietSummary(date, expectedState);
+			}
+		}
 
 		const removeResult = await mealItemMutationService.removeMealItem({
 			date,
@@ -328,4 +371,31 @@ function requireItemId(value: string | null): string {
 	}
 
 	return value;
+}
+
+function matchesExpectedCustomState(item: DayPlanItem, expected: Record<string, string | number>): boolean {
+	return Object.entries(expected).every(([field, value]) => item[field as keyof DayPlanItem] === value);
+}
+
+async function expectDietSummary(date: string, expected: Record<string, string | number>): Promise<void> {
+	let lastObserved: Record<string, number | null> = {};
+	for (let attempt = 0; attempt < 30; attempt += 1) {
+		const summary = await dietSummaryService.getDietSummary({ fromDate: date, toDate: date });
+		lastObserved = {
+			energy: summary.energy.loggedTotal,
+			protein: summary.allNutrients.find(({ key }) => key === "protein")?.current ?? null,
+			fat: summary.allNutrients.find(({ key }) => key === "fat")?.current ?? null,
+			carbohydrate: summary.allNutrients.find(({ key }) => key === "carbohydrate")?.current ?? null,
+		};
+		if (
+			lastObserved.energy === expected.energy &&
+			lastObserved.protein === expected.protein &&
+			lastObserved.fat === expected.fat &&
+			lastObserved.carbohydrate === expected.carbohydrate
+		) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 1_000));
+	}
+	throw new Error(`Diet summary did not reflect the custom-item update: ${JSON.stringify(lastObserved)}`);
 }

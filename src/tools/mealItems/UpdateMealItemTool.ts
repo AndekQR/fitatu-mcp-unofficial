@@ -28,7 +28,7 @@ export class UpdateMealItemTool {
 			{
 				title: "Update Fitatu Meal Item",
 				description:
-					"Updates and confirms one existing Fitatu meal item quantity, measure, or eaten flag for a YYYY-MM-DD date. A successful accepted result means every requested field was observed in the persisted day plan.",
+					"Updates and confirms one existing Fitatu meal item quantity, measure, or eaten flag. For CUSTOM_ITEM entries, it can also update the name, calories, protein, fat, or carbohydrates in place without changing the item id. A successful accepted result means every requested field was observed in the persisted day plan.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(
@@ -52,8 +52,45 @@ export class UpdateMealItemTool {
 								"New measure id for the item. Use measureId values returned by search_food when changing measures.",
 							),
 						eaten: z.boolean().optional().describe("Whether Fitatu should mark the item as eaten."),
+						name: z
+							.string()
+							.trim()
+							.min(1)
+							.optional()
+							.describe("New non-empty name. Accepted only for an existing CUSTOM_ITEM."),
+						energyKcal: z
+							.number()
+							.finite()
+							.nonnegative()
+							.optional()
+							.describe("New non-negative calorie total. Accepted only for an existing CUSTOM_ITEM."),
+						proteinG: z
+							.number()
+							.finite()
+							.nonnegative()
+							.optional()
+							.describe("New non-negative protein total in grams. Accepted only for a CUSTOM_ITEM."),
+						fatG: z
+							.number()
+							.finite()
+							.nonnegative()
+							.optional()
+							.describe("New non-negative fat total in grams. Accepted only for a CUSTOM_ITEM."),
+						carbohydrateG: z
+							.number()
+							.finite()
+							.nonnegative()
+							.optional()
+							.describe("New non-negative carbohydrate total in grams. Accepted only for a CUSTOM_ITEM."),
 					})
-					.strict(),
+					.strict()
+					.refine(
+						({ measureQuantity, measureId, eaten, name, energyKcal, proteinG, fatG, carbohydrateG }) =>
+							[measureQuantity, measureId, eaten, name, energyKcal, proteinG, fatG, carbohydrateG].some(
+								(value) => value !== undefined,
+							),
+						{ message: "Provide at least one update field" },
+					),
 				outputSchema: mealItemMutationOutputSchema,
 				annotations: {
 					title: "Update Fitatu Meal Item",
@@ -63,10 +100,35 @@ export class UpdateMealItemTool {
 					openWorldHint: true,
 				},
 			},
-			async ({ date, mealKey, itemId, measureQuantity, measureId, eaten }) => {
+			async ({
+				date,
+				mealKey,
+				itemId,
+				measureQuantity,
+				measureId,
+				eaten,
+				name,
+				energyKcal,
+				proteinG,
+				fatG,
+				carbohydrateG,
+			}) => {
 				try {
 					const result = await this.mealItemMutationService.updateMealItem(
-						new UpdateMealItemOptions(date, mealKey, itemId, measureQuantity, measureId, eaten),
+						new UpdateMealItemOptions(
+							date,
+							mealKey,
+							itemId,
+							measureQuantity,
+							measureId,
+							eaten,
+							undefined,
+							name,
+							energyKcal,
+							proteinG,
+							fatG,
+							carbohydrateG,
+						),
 					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {

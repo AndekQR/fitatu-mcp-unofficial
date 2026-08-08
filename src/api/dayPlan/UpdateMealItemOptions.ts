@@ -6,6 +6,11 @@ export class UpdateMealItemOptions {
 	public readonly measureId?: string | number;
 	public readonly eaten?: boolean;
 	public readonly userId?: string;
+	public readonly name?: string;
+	public readonly energyKcal?: number;
+	public readonly proteinG?: number;
+	public readonly fatG?: number;
+	public readonly carbohydrateG?: number;
 
 	public constructor(
 		date: string,
@@ -15,6 +20,11 @@ export class UpdateMealItemOptions {
 		measureId?: string | number,
 		eaten?: boolean,
 		userId?: string,
+		name?: string,
+		energyKcal?: number,
+		proteinG?: number,
+		fatG?: number,
+		carbohydrateG?: number,
 	) {
 		this.date = date;
 		this.mealKey = mealKey;
@@ -23,6 +33,11 @@ export class UpdateMealItemOptions {
 		this.measureId = measureId;
 		this.eaten = eaten;
 		this.userId = userId;
+		this.name = name?.trim();
+		this.energyKcal = energyKcal;
+		this.proteinG = proteinG;
+		this.fatG = fatG;
+		this.carbohydrateG = carbohydrateG;
 	}
 
 	public static from(options: UpdateMealItemOptions): UpdateMealItemOptions {
@@ -34,6 +49,11 @@ export class UpdateMealItemOptions {
 			options.measureId,
 			options.eaten,
 			options.userId,
+			options.name,
+			options.energyKcal,
+			options.proteinG,
+			options.fatG,
+			options.carbohydrateG,
 		);
 	}
 }

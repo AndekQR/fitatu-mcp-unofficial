@@ -96,10 +96,19 @@ export class DayItemPayload {
 			planDayDietItemId: itemId,
 			foodType: "CUSTOM_ITEM",
 			name: StringUtils.parseNonEmptyString(item.name, "name is required for CUSTOM_ITEM"),
-			energy: parseNonNegativeNutrition(item.energyKcal, "energyKcal"),
-			protein: parseNonNegativeNutrition(item.proteinG ?? 0, "proteinG"),
-			fat: parseNonNegativeNutrition(item.fatG ?? 0, "fatG"),
-			carbohydrate: parseNonNegativeNutrition(item.carbohydrateG ?? 0, "carbohydrateG"),
+			energy: NumberUtils.parseNonNegativeFiniteNumber(
+				item.energyKcal,
+				"energyKcal must be a non-negative finite number",
+			),
+			protein: NumberUtils.parseNonNegativeFiniteNumber(
+				item.proteinG ?? 0,
+				"proteinG must be a non-negative finite number",
+			),
+			fat: NumberUtils.parseNonNegativeFiniteNumber(item.fatG ?? 0, "fatG must be a non-negative finite number"),
+			carbohydrate: NumberUtils.parseNonNegativeFiniteNumber(
+				item.carbohydrateG ?? 0,
+				"carbohydrateG must be a non-negative finite number",
+			),
 			measureId: CUSTOM_ITEM_MEASURE_ID,
 			measureQuantity: CUSTOM_ITEM_MEASURE_QUANTITY,
 			measureWeight: CUSTOM_ITEM_MEASURE_WEIGHT_GRAMS,
@@ -115,12 +124,4 @@ export class DayItemPayload {
 			new MealItemOperationSummary(index, itemId, null, null, "CUSTOM_ITEM", mealKey),
 		);
 	}
-}
-
-function parseNonNegativeNutrition(value: unknown, field: string): number {
-	const parsed = NumberUtils.parseFiniteNumber(value, `${field} must be a non-negative finite number`);
-	if (parsed < 0) {
-		throw new ValidationError(`${field} must be a non-negative finite number`);
-	}
-	return parsed;
 }

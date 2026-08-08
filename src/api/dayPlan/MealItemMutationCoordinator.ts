@@ -61,13 +61,18 @@ export class MealItemMutationCoordinator {
 
 	public async updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem);
-		const { date, mealKey, itemId, measureQuantity, measureId } = normalizeMutationInput(
+		const { date, mealKey, itemId, measureQuantity, measureId, name, nutrition } = normalizeMutationInput(
 			FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem,
 			() => {
 				if (
 					options.measureQuantity === undefined &&
 					options.measureId === undefined &&
-					options.eaten === undefined
+					options.eaten === undefined &&
+					options.name === undefined &&
+					options.energyKcal === undefined &&
+					options.proteinG === undefined &&
+					options.fatG === undefined &&
+					options.carbohydrateG === undefined
 				) {
 					throw invalidMutation(
 						"Provide at least one update field",
@@ -89,6 +94,40 @@ export class MealItemMutationCoordinator {
 						options.measureId === undefined
 							? undefined
 							: StringUtils.parseStringOrSafeInteger(options.measureId, "measureId is required"),
+					name:
+						options.name === undefined
+							? undefined
+							: StringUtils.parseNonEmptyString(options.name, "name must not be empty"),
+					nutrition: {
+						energy:
+							options.energyKcal === undefined
+								? undefined
+								: NumberUtils.parseNonNegativeFiniteNumber(
+										options.energyKcal,
+										"energyKcal must be a non-negative finite number",
+									),
+						protein:
+							options.proteinG === undefined
+								? undefined
+								: NumberUtils.parseNonNegativeFiniteNumber(
+										options.proteinG,
+										"proteinG must be a non-negative finite number",
+									),
+						fat:
+							options.fatG === undefined
+								? undefined
+								: NumberUtils.parseNonNegativeFiniteNumber(
+										options.fatG,
+										"fatG must be a non-negative finite number",
+									),
+						carbohydrate:
+							options.carbohydrateG === undefined
+								? undefined
+								: NumberUtils.parseNonNegativeFiniteNumber(
+										options.carbohydrateG,
+										"carbohydrateG must be a non-negative finite number",
+									),
+					},
 				};
 			},
 		);
@@ -102,6 +141,15 @@ export class MealItemMutationCoordinator {
 		if (!target) {
 			throw invalidMutation("Meal item not found", FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem);
 		}
+		const hasCustomItemUpdate = name !== undefined || Object.values(nutrition).some((value) => value !== undefined);
+		const targetFoodType =
+			typeof target.item.foodType === "string" ? target.item.foodType.trim().toUpperCase() : "";
+		if (hasCustomItemUpdate && targetFoodType !== "CUSTOM_ITEM") {
+			throw invalidMutation(
+				"Custom name and nutrition fields can only be updated for CUSTOM_ITEM",
+				FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem,
+			);
+		}
 
 		if (measureQuantity !== undefined) {
 			target.item.measureQuantity = measureQuantity;
@@ -111,6 +159,14 @@ export class MealItemMutationCoordinator {
 		}
 		if (options.eaten !== undefined) {
 			target.item.eaten = options.eaten;
+		}
+		if (name !== undefined) {
+			target.item.name = name;
+		}
+		for (const [field, value] of Object.entries(nutrition)) {
+			if (value !== undefined) {
+				target.item[field] = value;
+			}
 		}
 		target.item.updatedAt = nowTimestamp();
 

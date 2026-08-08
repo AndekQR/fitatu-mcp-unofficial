@@ -69,7 +69,15 @@ export class MealItemMutationConfirmer {
 					MutationConfirmationValues.sameNumber(actual.measureQuantity, options.measureQuantity)) &&
 				(options.measureId === undefined ||
 					MutationConfirmationValues.sameIdentifier(actual.measureId, options.measureId)) &&
-				(options.eaten === undefined || actual.eaten === options.eaten)
+				(options.eaten === undefined || actual.eaten === options.eaten) &&
+				(options.name === undefined || actual.name === options.name.trim()) &&
+				(options.energyKcal === undefined ||
+					MutationConfirmationValues.sameNumber(actual.energy, options.energyKcal)) &&
+				(options.proteinG === undefined ||
+					MutationConfirmationValues.sameNumber(actual.protein, options.proteinG)) &&
+				(options.fatG === undefined || MutationConfirmationValues.sameNumber(actual.fat, options.fatG)) &&
+				(options.carbohydrateG === undefined ||
+					MutationConfirmationValues.sameNumber(actual.carbohydrate, options.carbohydrateG))
 			);
 		});
 	}

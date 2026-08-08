@@ -137,6 +137,52 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 		});
 	});
 
+	it("updates only requested custom-item fields while preserving its identity and remaining row", async () => {
+		const customItem = createCustomItem({ itemId: "custom-1" });
+		const syncService = new RecordingDayPlanSyncCoordinator(createPayload({ supper: [customItem] }));
+		const service = new MealItemMutationCoordinator(syncService);
+
+		const result = await service.updateMealItem({
+			userId: "user-1",
+			date: "2026-07-01",
+			mealKey: "supper",
+			itemId: "custom-1",
+			name: " Corrected snack ",
+			energyKcal: 0,
+			proteinG: 13,
+		});
+
+		expect(result).toMatchObject({ updatedItemIds: ["custom-1"], itemIdChanged: false });
+		expect(syncService.item("supper", "custom-1")).toMatchObject({
+			...customItem,
+			name: "Corrected snack",
+			energy: 0,
+			protein: 13,
+			fat: 9,
+			carbohydrate: 42,
+			updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2} /),
+		});
+	});
+
+	it.each([
+		{ foodType: "PRODUCT", item: createProductItem({ itemId: "item-1", productId: 101 }) },
+		{ foodType: "RECIPE", item: createRecipeItem({ itemId: "item-1", recipeId: 501 }) },
+	])("rejects custom nutrition updates for a $foodType item before synchronizing", async ({ item }) => {
+		const syncService = new RecordingDayPlanSyncCoordinator(createPayload({ breakfast: [item] }));
+		const service = new MealItemMutationCoordinator(syncService);
+
+		await expect(
+			service.updateMealItem({
+				userId: "user-1",
+				date: "2026-07-01",
+				mealKey: "breakfast",
+				itemId: "item-1",
+				energyKcal: 250,
+			}),
+		).rejects.toThrow("Custom name and nutrition fields can only be updated for CUSTOM_ITEM");
+		expect(syncService.syncCalls).toHaveLength(0);
+	});
+
 	it("removes a recipe by adding only the current Fitatu deletedAt marker", async () => {
 		const syncService = new RecordingDayPlanSyncCoordinator(
 			createPayload({ breakfast: [createRecipeItem({ itemId: "recipe-1", recipeId: 501 })] }),
@@ -444,6 +490,25 @@ function createRecipeItem(options: { readonly itemId: string; readonly recipeId:
 		recipeId: options.recipeId,
 		measureId: 1,
 		measureQuantity: 1,
+		deletedAt: null,
+	};
+}
+
+function createCustomItem(options: { readonly itemId: string }): Record<string, unknown> {
+	return {
+		planDayDietItemId: options.itemId,
+		foodType: "CUSTOM_ITEM",
+		name: "Own snack",
+		energy: 321,
+		protein: 12,
+		fat: 9,
+		carbohydrate: 42,
+		measureId: 1,
+		measureQuantity: 100,
+		measureWeight: 100,
+		measureCapacity: 0,
+		source: "API",
+		eaten: true,
 		deletedAt: null,
 	};
 }

@@ -80,4 +80,16 @@ export class NumberUtils {
 
 		return parsed;
 	}
+
+	public static parseNonNegativeFiniteNumber(
+		value: unknown,
+		errorMessage = "Value must be a non-negative finite number",
+	): number {
+		const parsed = NumberUtils.parseFiniteNumber(value, errorMessage);
+		if (parsed < 0) {
+			throw new ValidationError(errorMessage);
+		}
+
+		return parsed;
+	}
 }

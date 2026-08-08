@@ -111,6 +111,11 @@ const successCases = [
 				measureQuantity: 1.5,
 				measureId: undefined,
 				eaten: true,
+				name: undefined,
+				energyKcal: undefined,
+				proteinG: undefined,
+				fatG: undefined,
+				carbohydrateG: undefined,
 			},
 		},
 		result: createMutationResult({
@@ -369,6 +374,21 @@ const invalidInputCases = [
 		input: { date: "2026-07-14", mealKey: "nonexistent_meal", itemId: "item-1", eaten: true },
 	},
 	{
+		name: "update_meal_item",
+		createTool: (service: TestedMealItemMutationProvider) => new UpdateMealItemTool(service),
+		input: { date: "2026-07-14", mealKey: "breakfast", itemId: "item-1" },
+	},
+	{
+		name: "update_meal_item",
+		createTool: (service: TestedMealItemMutationProvider) => new UpdateMealItemTool(service),
+		input: { date: "2026-07-14", mealKey: "breakfast", itemId: "item-1", name: "   " },
+	},
+	{
+		name: "update_meal_item",
+		createTool: (service: TestedMealItemMutationProvider) => new UpdateMealItemTool(service),
+		input: { date: "2026-07-14", mealKey: "breakfast", itemId: "item-1", energyKcal: -1 },
+	},
+	{
 		name: "remove_meal_items",
 		createTool: (service: TestedMealItemMutationProvider) => new RemoveMealItemsTool(service),
 		input: { date: "2026-07-14", itemIds: [] },
@@ -591,6 +611,42 @@ describe("meal item mutation tools", () => {
 		expect(JSON.stringify(result.structuredContent)).not.toContain('"productId"');
 		expect(JSON.stringify(result.structuredContent)).not.toContain('"recipeId"');
 		expect(JSON.stringify(result.structuredContent)).not.toContain('"foodType"');
+	});
+
+	it("delegates trimmed custom-item name and zero nutrition updates", async () => {
+		const service = new FakeMealItemMutationService(successCases[1].result);
+		const registered = await registerToolForTest(new UpdateMealItemTool(service));
+
+		await registered.invoke({
+			date: "2026-07-14",
+			mealKey: "supper",
+			itemId: "custom-item-1",
+			name: "  Corrected snack  ",
+			energyKcal: 0,
+			proteinG: 0,
+			fatG: 0,
+			carbohydrateG: 0,
+		});
+
+		expect(service.calls).toEqual([
+			{
+				operation: "update",
+				options: {
+					date: "2026-07-14",
+					mealKey: "supper",
+					itemId: "custom-item-1",
+					measureQuantity: undefined,
+					measureId: undefined,
+					eaten: undefined,
+					userId: undefined,
+					name: "Corrected snack",
+					energyKcal: 0,
+					proteinG: 0,
+					fatG: 0,
+					carbohydrateG: 0,
+				},
+			},
+		]);
 	});
 
 	it("rejects a deleted recipe before delegating the day-plan write", async () => {

@@ -94,6 +94,11 @@ export class DayPlanClient extends FitatuApiClientBase {
 				normalizedOptions.measureId,
 				normalizedOptions.eaten,
 				userId,
+				normalizedOptions.name,
+				normalizedOptions.energyKcal,
+				normalizedOptions.proteinG,
+				normalizedOptions.fatG,
+				normalizedOptions.carbohydrateG,
 			),
 		);
 	}

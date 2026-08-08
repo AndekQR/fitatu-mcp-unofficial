@@ -54,6 +54,37 @@ http://localhost:3000/mcp
 
 ## MCP Client Setup
 
+The server supports two transports, selected with `MCP_TRANSPORT`:
+
+- `http` (default) — Streamable HTTP; the server runs as a long-lived process and can be shared by several clients or exposed through a tunnel.
+- `stdio` — the MCP client spawns the server itself and talks to it over stdin/stdout. No background process, no port, no `mcp-remote` hop.
+
+### stdio
+
+Useful when you only use the server locally from a single client and do not want to keep a process running:
+
+```json
+{
+	"mcpServers": {
+		"fitatu": {
+			"command": "node",
+			"args": ["/absolute/path/to/fitatu-mcp-unofficial/dist/index.js"],
+			"env": {
+				"MCP_TRANSPORT": "stdio",
+				"FITATU_EMAIL": "your-fitatu-email@example.com",
+				"FITATU_PASSWORD": "your-fitatu-password"
+			}
+		}
+	}
+}
+```
+
+Run `npm run build` first so `dist/index.js` exists. Credentials can also come from `.env` — start the server with `node --env-file=.env dist/index.js` instead.
+
+In stdio mode all logs go to stderr, because stdout is reserved for the JSON-RPC stream.
+
+### HTTP
+
 If your MCP client supports remote Streamable HTTP servers, use this endpoint directly:
 
 ```text
@@ -90,7 +121,7 @@ http://localhost:3000/mcp
 ## Available Tools
 
 | Tool                 | Purpose                                                                             | Mutates Fitatu data |
-|----------------------|-------------------------------------------------------------------------------------|---------------------|
+| -------------------- | ----------------------------------------------------------------------------------- | ------------------- |
 | `get_current_user`   | Returns a safe subset of the authenticated Fitatu user profile.                     | No                  |
 | `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date.                               | No                  |
 | `get_diet_summary`   | Returns an agent-friendly nutrition and energy summary for an inclusive date range. | No                  |
@@ -109,18 +140,19 @@ http://localhost:3000/mcp
 
 Runtime configuration is read from environment variables and validated at startup.
 
-| Variable              | Required | Default                | Sensitive | Description                                      |
-|-----------------------|----------|------------------------|-----------|--------------------------------------------------|
-| `FITATU_EMAIL`        | Yes      | none                   | Yes       | Fitatu account email address.                    |
-| `FITATU_PASSWORD`     | Yes      | none                   | Yes       | Fitatu account password.                         |
-| `FITATU_USER_AGENT`   | No       | `Dart/3.10 (dart:io)`  | No        | Fitatu mobile runtime user agent.                 |
-| `FITATU_APP_VERSION`  | No       | `4.14.4`               | No        | Fitatu mobile application version.                |
-| `FITATU_API_APK_UUID` | No       | `BE4B.251210.005`      | No        | Fitatu mobile build identifier sent to the API.   |
-| `PORT`                | No       | `3000`                 | No        | HTTP server port.                                 |
-| `NODE_ENV`            | No       | `development`          | No        | `development`, `production`, or `test`.           |
-| `SERVER_NAME`         | No       | `fitatu-mcp`            | No        | MCP server name.                                  |
-| `SERVER_VERSION`      | No       | `2.0.0`                | No        | MCP server version.                               |
-| `LOG_LEVEL`           | No       | `info`                 | No        | `error`, `warn`, `info`, or `debug`.              |
+| Variable              | Required | Default               | Sensitive | Description                                     |
+| --------------------- | -------- | --------------------- | --------- | ----------------------------------------------- |
+| `FITATU_EMAIL`        | Yes      | none                  | Yes       | Fitatu account email address.                   |
+| `FITATU_PASSWORD`     | Yes      | none                  | Yes       | Fitatu account password.                        |
+| `FITATU_USER_AGENT`   | No       | `Dart/3.10 (dart:io)` | No        | Fitatu mobile runtime user agent.               |
+| `FITATU_APP_VERSION`  | No       | `4.14.4`              | No        | Fitatu mobile application version.              |
+| `FITATU_API_APK_UUID` | No       | `BE4B.251210.005`     | No        | Fitatu mobile build identifier sent to the API. |
+| `MCP_TRANSPORT`       | No       | `http`                | No        | `http` (Streamable HTTP) or `stdio`.            |
+| `PORT`                | No       | `3000`                | No        | HTTP server port. Unused with `stdio`.          |
+| `NODE_ENV`            | No       | `development`         | No        | `development`, `production`, or `test`.         |
+| `SERVER_NAME`         | No       | `fitatu-mcp`          | No        | MCP server name.                                |
+| `SERVER_VERSION`      | No       | `2.0.0`               | No        | MCP server version.                             |
+| `LOG_LEVEL`           | No       | `info`                | No        | `error`, `warn`, `info`, or `debug`.            |
 
 Do not commit `.env`. The repository keeps `.env.example` as documentation only.
 The mobile client profile defaults match Fitatu 4.14.4 traffic captured on 2026-07-30. Override these values when a newer Fitatu release changes its request

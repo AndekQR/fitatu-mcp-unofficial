@@ -3,19 +3,26 @@ import { getLoggerConfig } from "./config.ts";
 
 const config = getLoggerConfig();
 
-export const logger = pino({
-	level: config.LOG_LEVEL,
+// With the stdio transport, stdout carries the JSON-RPC stream and must not be
+// polluted by anything else. Log to stderr instead, which MCP clients ignore.
+const destination = process.env.MCP_TRANSPORT === "stdio" ? pino.destination(2) : undefined;
 
-	// Base fields for all log entries
-	base: {
-		service: config.SERVER_NAME,
-		version: config.SERVER_VERSION,
-		environment: config.NODE_ENV,
-	},
+export const logger = pino(
+	{
+		level: config.LOG_LEVEL,
 
-	// OpenTelemetry trace correlation
-	// When OTel is present, pino will automatically include traceId and spanId
-	formatters: {
-		level: (label) => ({ level: label }),
+		// Base fields for all log entries
+		base: {
+			service: config.SERVER_NAME,
+			version: config.SERVER_VERSION,
+			environment: config.NODE_ENV,
+		},
+
+		// OpenTelemetry trace correlation
+		// When OTel is present, pino will automatically include traceId and spanId
+		formatters: {
+			level: (label) => ({ level: label }),
+		},
 	},
-});
+	destination,
+);

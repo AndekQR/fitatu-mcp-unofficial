@@ -2,15 +2,14 @@ import { ObjectUtils } from "../../shared/ObjectUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { DayPlanItem } from "./DayPlanItem.ts";
-import { isFitatuMealKey, type FitatuMealKey } from "./DayPlanValidators.ts";
 
 export class DayPlanMeal {
-	public readonly mealKey: FitatuMealKey;
+	public readonly mealKey: string;
 	public readonly mealName: string | null;
 	public readonly mealTime: string | null;
 	public readonly items: readonly DayPlanItem[];
 
-	private constructor(mealKey: FitatuMealKey, data: Record<string, unknown>) {
+	private constructor(mealKey: string, data: Record<string, unknown>) {
 		this.mealKey = mealKey;
 		this.mealName = StringUtils.stringOrNull(data.mealName);
 		this.mealTime = StringUtils.stringOrNull(data.mealTime);
@@ -21,8 +20,8 @@ export class DayPlanMeal {
 		if (!ObjectUtils.isRecord(data)) {
 			return null;
 		}
-		if (!isFitatuMealKey(mealKey)) {
-			throw new FitatuResponseDecodeError("DayPlan response contained an unknown meal key");
+		if (!mealKey.trim()) {
+			throw new FitatuResponseDecodeError("DayPlan response contained an empty meal key");
 		}
 
 		return new DayPlanMeal(mealKey, data);

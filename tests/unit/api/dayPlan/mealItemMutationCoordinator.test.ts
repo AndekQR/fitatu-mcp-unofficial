@@ -30,7 +30,22 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 		});
 	});
 
-	it("rejects an unknown meal key before reading or synchronizing the day plan", async () => {
+	it("adds an item to a custom meal key after normalizing it", async () => {
+		const syncService = new RecordingDayPlanSyncCoordinator(createPayload({ dinner: [] }));
+		const service = new MealItemMutationCoordinator(syncService);
+
+		const result = await service.addMealItems({
+			userId: "user-1",
+			date: "2026-07-01",
+			mealKey: "Dinner",
+			items: [{ productId: "101", foodType: "PRODUCT", measureId: "1" }],
+		});
+
+		expect(result).toMatchObject({ operation: "add", operationCount: 1, mealKey: "dinner" });
+		expect(mealItems(syncService.currentPayload, "dinner")[0]).toMatchObject({ productId: 101 });
+	});
+
+	it("rejects a blank meal key before reading or synchronizing the day plan", async () => {
 		const syncService = new RecordingDayPlanSyncCoordinator(createPayload({ breakfast: [] }));
 		const service = new MealItemMutationCoordinator(syncService);
 
@@ -38,12 +53,11 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 			service.addMealItems({
 				userId: "user-1",
 				date: "2026-07-01",
-				mealKey: "nonexistent_meal",
+				mealKey: "   ",
 				items: [{ productId: "101", foodType: "PRODUCT", measureId: "1" }],
 			}),
 		).rejects.toMatchObject({
-			message:
-				'Unknown mealKey "nonexistent_meal". Allowed values: breakfast, second_breakfast, lunch, snack, supper',
+			message: "mealKey is required",
 			failure: { kind: "invalidRequest" },
 		});
 		expect(syncService.getPayloadCalls).toHaveLength(0);

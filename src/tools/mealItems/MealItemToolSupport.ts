@@ -8,7 +8,9 @@ import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { isoCalendarDateSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
-export const mealKeySchema = z.enum(FITATU_MEAL_KEYS);
+export const MEAL_KEY_HINT = `Typical keys are ${FITATU_MEAL_KEYS.join(", ")}, but accounts with renamed or additional meals may use other keys such as dinner.`;
+
+export const mealKeySchema = z.string().trim().min(1, "mealKey must be a non-empty string");
 
 const catalogMealItemInputShape = {
 	measureId: z

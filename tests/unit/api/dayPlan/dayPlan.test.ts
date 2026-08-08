@@ -20,6 +20,23 @@ describe("DayPlan.fromApiResponse", () => {
 		expect(plan.meals[0]?.items[0]).toMatchObject({ itemId: "item-1", name: "Apple", productId: 101, energy: 52 });
 	});
 
+	it("accepts custom meal keys configured on the account", () => {
+		const plan = DayPlan.fromApiResponse({
+			date: "2026-07-12",
+			userId: "user-1",
+			data: {
+				dietPlan: {
+					breakfast: { items: [] },
+					dinner: { items: [{ planDayDietItemId: "item-1", name: "Soup", productId: 101, energy: 52 }] },
+					my_custom_meal: { items: [] },
+				},
+			},
+		});
+
+		expect(plan.meals.map((meal) => meal.mealKey)).toEqual(["breakfast", "dinner", "my_custom_meal"]);
+		expect(plan.meals[1]?.items[0]).toMatchObject({ itemId: "item-1", name: "Soup" });
+	});
+
 	it("rejects malformed day-plan response shapes", () => {
 		expect(() => DayPlan.fromApiResponse({ date: "2026-07-12", userId: "user-1", data: {} })).toThrow(
 			"DayPlan response did not contain dietPlan",
@@ -28,8 +45,8 @@ describe("DayPlan.fromApiResponse", () => {
 			DayPlan.fromApiResponse({
 				date: "2026-07-12",
 				userId: "user-1",
-				data: { dietPlan: { unknown_meal: { items: [] } } },
+				data: { dietPlan: { " ": { items: [] } } },
 			}),
-		).toThrow("DayPlan response contained an unknown meal key");
+		).toThrow("DayPlan response contained an empty meal key");
 	});
 });

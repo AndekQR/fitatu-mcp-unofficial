@@ -20,7 +20,7 @@ export class DeleteRecipeTool {
 			{
 				title: "Delete Fitatu Recipe",
 				description:
-					"Soft-deletes and confirms deletion of an owned active recipe definition identified by a raw recipeId after exact-name confirmation. It disappears from recipe searches, but existing day-plan entries remain historical snapshots and must be removed separately with remove_meal_items itemIds. Returns { status, recipeId, name, deleted }.",
+					"Soft-deletes and confirms deletion of an owned active recipe definition identified by a raw recipeId after exact-name confirmation. It disappears from recipe searches, but existing day-plan entries remain historical snapshots and must be removed separately with remove_meal_items mealKey and itemId targets. Returns { status, recipeId, name, deleted }.",
 				inputSchema: z
 					.object({
 						recipeId: recipeIdInputSchema,

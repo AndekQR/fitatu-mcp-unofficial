@@ -59,7 +59,7 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 
 		const removeResult = await mealItemMutationService.removeMealItems({
 			date,
-			itemIds: persistedItemIds,
+			items: persistedItemIds.map((itemId) => ({ mealKey: MEAL_KEY, itemId })),
 		});
 
 		expect(removeResult.status).toBe("accepted");
@@ -98,7 +98,7 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 
 		const removeResult = await mealItemMutationService.removeMealItems({
 			date,
-			itemIds: [catalogItemId],
+			items: [{ mealKey: REPLACEMENT_MEAL_KEY, itemId: catalogItemId }],
 		});
 		expect(removeResult).toMatchObject({
 			status: "accepted",

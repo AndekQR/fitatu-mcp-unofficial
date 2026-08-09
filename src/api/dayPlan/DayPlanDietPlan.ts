@@ -4,6 +4,7 @@ import type { FitatuClientOperation } from "../fitatuApiClientBase/FitatuClientO
 import { FitatuResponseDecodeError } from "../fitatuApiClientBase/FitatuResponseDecodeError.ts";
 import { asRecord } from "./DayPlanApiResponse.ts";
 import { FoundDietItem } from "./FoundDietItem.ts";
+import type { MealItemRemovalTarget } from "./MealItemRemovalTarget.ts";
 
 export class DayPlanDietPlan {
 	private readonly dietPlan: Record<string, unknown>;
@@ -62,26 +63,12 @@ export class DayPlanDietPlan {
 		return null;
 	}
 
-	public findActiveItems(itemIds: ReadonlySet<string>): readonly FoundDietItem[] {
-		const found: FoundDietItem[] = [];
-
-		for (const key of Object.keys(this.dietPlan)) {
-			const meal = this.dietPlan[key];
-			if (!ObjectUtils.isRecord(meal)) {
-				continue;
-			}
-
-			const items = this.getMealItems(key);
-			items.forEach((item, index) => {
-				const itemId = typeof item.planDayDietItemId === "string" ? item.planDayDietItemId : "";
-				const deletedAt = typeof item.deletedAt === "string" ? item.deletedAt.trim() : "";
-				if (!deletedAt && itemIds.has(itemId)) {
-					found.push(new FoundDietItem(key, item, items, index));
-				}
-			});
-		}
-
-		return found;
+	public findActiveItems(targets: readonly MealItemRemovalTarget[]): readonly FoundDietItem[] {
+		return targets.flatMap((target) => {
+			const found = this.findItemInMeal(target.mealKey, target.itemId);
+			const deletedAt = typeof found?.item.deletedAt === "string" ? found.item.deletedAt.trim() : "";
+			return found && !deletedAt ? [found] : [];
+		});
 	}
 
 	private findItemInMeal(mealKey: string, itemId: string): FoundDietItem | null {

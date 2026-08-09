@@ -28,10 +28,10 @@ export class DateUtils {
 
 		const date = value.trim();
 		const year = Number(date.slice(0, 4));
-		if (options.minimumYear !== undefined && year < options.minimumYear) {
+		const minimumYear = options.minimumYear ?? 1;
+		if (year < minimumYear) {
 			throw new ValidationError(
-				options.minimumYearErrorMessage ??
-					`${fieldName} year must be greater than or equal to ${options.minimumYear}`,
+				options.minimumYearErrorMessage ?? `${fieldName} year must be greater than or equal to ${minimumYear}`,
 			);
 		}
 

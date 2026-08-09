@@ -126,7 +126,7 @@ export class DayPlanClient extends FitatuApiClientBase {
 			FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems,
 		);
 		return this.mealItemMutationCoordinator.removeMealItems(
-			new RemoveMealItemsOptions(normalizedOptions.date, normalizedOptions.itemIds, userId),
+			new RemoveMealItemsOptions(normalizedOptions.date, normalizedOptions.items, userId),
 		);
 	}
 

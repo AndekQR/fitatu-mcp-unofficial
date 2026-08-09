@@ -76,7 +76,7 @@ export class GetDayPlanItemsTool {
 			{
 				title: "Get Fitatu Day Plan Items",
 				description:
-					"Fetches Fitatu meals and concrete day-plan entries. Copy itemId UUID values to update_meal_item, move_meal_item, or remove_meal_items; productId and raw recipeId identify food definitions, not removable entries. Defaults to today's local date.",
+					"Fetches Fitatu meals and concrete day-plan entries. Copy the exact mealKey with itemId to update_meal_item, move_meal_item, or remove_meal_items; productId and raw recipeId identify food definitions, not removable entries. Defaults to today's local date.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema()

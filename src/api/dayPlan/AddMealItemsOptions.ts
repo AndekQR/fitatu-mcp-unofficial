@@ -8,7 +8,7 @@ export class AddMealItemsOptions {
 
 	public constructor(date: string, mealKey: string, items: readonly MealItemInput[], userId?: string) {
 		this.date = date;
-		this.mealKey = mealKey;
+		this.mealKey = mealKey.trim();
 		this.items = items;
 		this.userId = userId;
 	}

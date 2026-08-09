@@ -21,18 +21,20 @@ export class IntegrationTestDayFinalizer {
 
 		for (let attempt = 0; attempt < MAX_CLEAR_ATTEMPTS; attempt += 1) {
 			const dayPlan = await this.dayPlanClient.getDayPlan({ date });
-			const items = dayPlan.meals.flatMap((meal) => meal.items);
+			const items = dayPlan.meals.flatMap((meal) => meal.items.map((item) => ({ mealKey: meal.mealKey, item })));
 			if (items.length === 0) {
 				return;
 			}
 
-			const itemIds = items.flatMap((item) => (item.itemId === null ? [] : [item.itemId]));
-			if (itemIds.length !== items.length) {
+			const targets = items.flatMap(({ mealKey, item }) =>
+				item.itemId === null ? [] : [{ mealKey, itemId: item.itemId }],
+			);
+			if (targets.length !== items.length) {
 				throw new Error(`Cannot clear integration test day ${date}: an active meal item has no itemId`);
 			}
 
 			try {
-				await this.dayPlanClient.removeMealItems({ date, itemIds });
+				await this.dayPlanClient.removeMealItems({ date, items: targets });
 				lastError = undefined;
 			} catch (error) {
 				lastError = error;

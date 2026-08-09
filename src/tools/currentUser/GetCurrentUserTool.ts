@@ -47,7 +47,7 @@ export class GetCurrentUserTool {
 			{
 				title: "Get Current Fitatu User",
 				description: "Fetches the currently authenticated Fitatu user profile.",
-				inputSchema: {},
+				inputSchema: z.object({}).strict(),
 				outputSchema: currentUserOutputSchema,
 				annotations: {
 					title: "Get Current Fitatu User",

@@ -27,7 +27,7 @@ export class MoveMealItemTool {
 			{
 				title: "Move Fitatu Meal Item",
 				description:
-					"Moves and confirms one existing Fitatu meal item in another meal or date. Provide at least one destination field: toDate, toMealKey, or both. Fitatu creates a new item id during the move. A successful accepted result means the old item is absent and the new item with preserved observable values is present at the destination.",
+					"Moves and confirms one existing Fitatu meal item selected by its exact source date, mealKey, and itemId. Provide a destination date, mealKey, or both that differs from the source. Fitatu creates a new item id during a valid move. A successful accepted result means the old item is absent and the new item with preserved observable values is present at the destination.",
 				inputSchema: z
 					.object({
 						fromDate: isoCalendarDateSchema("fromDate").describe(
@@ -51,7 +51,15 @@ export class MoveMealItemTool {
 								"Destination meal key. Omit only when moving to the same meal on a different date. Do not omit both toDate and toMealKey.",
 							),
 					})
-					.strict(),
+					.strict()
+					.refine(({ toDate, toMealKey }) => toDate !== undefined || toMealKey !== undefined, {
+						message: "Provide at least one move destination field",
+					})
+					.refine(
+						({ fromDate, fromMealKey, toDate, toMealKey }) =>
+							(toDate ?? fromDate) !== fromDate || (toMealKey ?? fromMealKey) !== fromMealKey,
+						{ message: "Move destination must differ from its source" },
+					),
 				outputSchema: mealItemMutationOutputSchema,
 				annotations: {
 					title: "Move Fitatu Meal Item",

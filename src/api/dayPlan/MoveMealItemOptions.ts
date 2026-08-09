@@ -15,10 +15,10 @@ export class MoveMealItemOptions {
 		userId?: string,
 	) {
 		this.fromDate = fromDate;
-		this.fromMealKey = fromMealKey;
-		this.itemId = itemId;
+		this.fromMealKey = fromMealKey.trim();
+		this.itemId = itemId.trim();
 		this.toDate = toDate;
-		this.toMealKey = toMealKey;
+		this.toMealKey = toMealKey?.trim();
 		this.userId = userId;
 	}
 

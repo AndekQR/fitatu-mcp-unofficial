@@ -83,7 +83,7 @@ export class MealItemMutationConfirmer {
 	}
 
 	public async confirmRemoved(options: RemoveMealItemsOptions): Promise<void> {
-		const selectedIds = new Set(options.itemIds);
+		const selectedIds = new Set(options.items.map(({ itemId }) => itemId));
 		await this.confirmation.confirm(REMOVE_CONFIRMATION, async () => {
 			const dayPlan = await this.dayPlanProvider.getDayPlan({
 				date: options.date,

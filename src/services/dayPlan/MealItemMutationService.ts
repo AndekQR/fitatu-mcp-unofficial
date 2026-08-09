@@ -3,14 +3,15 @@ import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
 import type { FoodTypeName } from "../../api/dayPlan/FoodType.ts";
 import { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
 import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
-import type { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
-import type { RemoveMealItemOptions } from "../../api/dayPlan/RemoveMealItemOptions.ts";
+import { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
+import { RemoveMealItemOptions } from "../../api/dayPlan/RemoveMealItemOptions.ts";
 import { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
-import type { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
+import { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
 import type { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
 import type { RecipeClient } from "../../api/recipes/RecipeClient.ts";
 import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
+import { MealItemRemovalTarget } from "../../api/dayPlan/MealItemRemovalTarget.ts";
 import { ServiceError } from "../ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../ServiceErrorCode.ts";
 import { MealItemMutationConfirmer } from "./MealItemMutationConfirmer.ts";
@@ -66,27 +67,39 @@ export class MealItemMutationService implements MealItemMutationProvider {
 	}
 
 	public async updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
-		const result = await this.dayPlanClient.updateMealItem(options);
-		await this.confirmer.confirmUpdated(options);
+		const preparedOptions = UpdateMealItemOptions.from(options);
+		await this.validateMealItemMeasureUpdate(preparedOptions);
+		const result = await this.dayPlanClient.updateMealItem(preparedOptions);
+		await this.confirmer.confirmUpdated(preparedOptions);
 		return MealItemMutationResult.confirmed(result);
 	}
 
 	public async removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
-		const result = await this.dayPlanClient.removeMealItem(options);
-		await this.confirmer.confirmRemoved(new RemoveMealItemsOptions(options.date, [options.itemId], options.userId));
+		const preparedOptions = RemoveMealItemOptions.from(options);
+		const result = await this.dayPlanClient.removeMealItem(preparedOptions);
+		await this.confirmer.confirmRemoved(
+			new RemoveMealItemsOptions(
+				preparedOptions.date,
+				[new MealItemRemovalTarget(preparedOptions.mealKey, preparedOptions.itemId)],
+				preparedOptions.userId,
+			),
+		);
 		return MealItemMutationResult.confirmed(result);
 	}
 
 	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
-		const result = await this.dayPlanClient.removeMealItems(options);
-		await this.confirmer.confirmRemoved(options);
+		const preparedOptions = RemoveMealItemsOptions.from(options);
+		const result = await this.dayPlanClient.removeMealItems(preparedOptions);
+		await this.confirmer.confirmRemoved(preparedOptions);
 		return MealItemMutationResult.confirmed(result);
 	}
 
 	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {
-		const source = await this.confirmer.getMoveSource(options);
-		const result = await this.dayPlanClient.moveMealItem(options);
-		await this.confirmer.confirmMoved(options, result, source);
+		const preparedOptions = MoveMealItemOptions.from(options);
+		this.validateMoveDestination(preparedOptions);
+		const source = await this.confirmer.getMoveSource(preparedOptions);
+		const result = await this.dayPlanClient.moveMealItem(preparedOptions);
+		await this.confirmer.confirmMoved(preparedOptions, result, source);
 		return MealItemMutationResult.confirmed(result);
 	}
 
@@ -147,5 +160,83 @@ export class MealItemMutationService implements MealItemMutationProvider {
 			}
 		}
 		return preparedItems;
+	}
+
+	private async validateMealItemMeasureUpdate(options: UpdateMealItemOptions): Promise<void> {
+		if (options.measureId === undefined && options.measureQuantity === undefined) {
+			return;
+		}
+
+		const dayPlan = await this.dayPlanClient.getDayPlan({ date: options.date, userId: options.userId });
+		const mealKey = options.mealKey.trim();
+		const item = dayPlan.meals
+			.find((meal) => meal.mealKey === mealKey)
+			?.items.find((candidate) => candidate.itemId === options.itemId);
+		if (!item) {
+			throw new ServiceError(
+				"Meal item was not found in the requested meal context.",
+				"conflict",
+				SERVICE_ERROR_CODES.mealItemContextMismatch,
+			);
+		}
+
+		const foodType = item.foodType?.trim().toUpperCase();
+		if (foodType === "CUSTOM_ITEM") {
+			throw new ServiceError(
+				"CUSTOM_ITEM measureId and measureQuantity cannot be updated.",
+				"invalidInput",
+				SERVICE_ERROR_CODES.customMealItemMeasureImmutable,
+			);
+		}
+		if (options.measureId === undefined) {
+			return;
+		}
+
+		if (foodType !== "PRODUCT" && foodType !== "RECIPE") {
+			throw new ServiceError(
+				"Meal item food definition was not available for measure validation.",
+				"conflict",
+				SERVICE_ERROR_CODES.mealItemContextMismatch,
+			);
+		}
+		const definitionId = foodType === "RECIPE" ? item.recipeId : item.productId;
+		if (definitionId === null) {
+			throw new ServiceError(
+				"Meal item food definition was not available for measure validation.",
+				"conflict",
+				SERVICE_ERROR_CODES.mealItemContextMismatch,
+			);
+		}
+
+		const measureIds = await this.foodMeasureProvider.getAvailableMeasureIds(definitionId, foodType);
+		if (!measureIds.has(String(options.measureId))) {
+			throw new ServiceError(
+				"Measure does not belong to the selected food.",
+				"invalidInput",
+				SERVICE_ERROR_CODES.invalidMealItemMeasure,
+			);
+		}
+	}
+
+	private validateMoveDestination(options: MoveMealItemOptions): void {
+		if (options.toDate === undefined && options.toMealKey === undefined) {
+			throw new ServiceError(
+				"Provide at least one move destination field.",
+				"invalidInput",
+				SERVICE_ERROR_CODES.mealItemMoveDestinationRequired,
+			);
+		}
+
+		const fromDate = options.fromDate.trim();
+		const toDate = (options.toDate ?? options.fromDate).trim();
+		const fromMealKey = options.fromMealKey.trim();
+		const toMealKey = (options.toMealKey ?? options.fromMealKey).trim();
+		if (fromDate === toDate && fromMealKey === toMealKey) {
+			throw new ServiceError(
+				"Move destination must differ from its source.",
+				"conflict",
+				SERVICE_ERROR_CODES.mealItemMoveDestinationUnchanged,
+			);
+		}
 	}
 }

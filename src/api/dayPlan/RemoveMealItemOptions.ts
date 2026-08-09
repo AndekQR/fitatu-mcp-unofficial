@@ -6,8 +6,8 @@ export class RemoveMealItemOptions {
 
 	public constructor(date: string, mealKey: string, itemId: string, userId?: string) {
 		this.date = date;
-		this.mealKey = mealKey;
-		this.itemId = itemId;
+		this.mealKey = mealKey.trim();
+		this.itemId = itemId.trim();
 		this.userId = userId;
 	}
 

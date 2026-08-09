@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
+import { MealItemRemovalTarget } from "../../api/dayPlan/MealItemRemovalTarget.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
@@ -25,18 +26,30 @@ export class RemoveMealItemsTool {
 			{
 				title: "Remove Fitatu Meal Items",
 				description:
-					"Atomically removes and confirms exact Fitatu day-plan entries of any food type. Copy itemId UUID values from get_day_plan_items; do not pass productId or recipeId. mealKey is unnecessary because each itemId identifies one concrete entry. If any requested active item is missing, nothing is synchronized. A successful accepted result means every selected item is absent from the persisted active day plan.",
+					"Atomically removes and confirms exact Fitatu day-plan entries of any food type. Copy each mealKey and itemId pair from get_day_plan_items; do not pass productId or recipeId. If any requested active item is missing from its declared meal context, nothing is synchronized. A successful accepted result means every selected item is absent from the persisted active day plan.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe("Day containing the exact meal items to remove."),
-						itemIds: z
-							.array(z.string().uuid())
+						items: z
+							.array(
+								z
+									.object({
+										mealKey: z.string().trim().min(1),
+										itemId: z.string().uuid(),
+									})
+									.strict(),
+							)
 							.min(1)
-							.refine((itemIds) => new Set(itemIds).size === itemIds.length, {
-								message: "itemIds must contain unique UUID values",
-							})
+							.refine(
+								(items) =>
+									new Set(items.map((item) => `${item.mealKey}\u0000${item.itemId}`)).size ===
+									items.length,
+								{
+									message: "items must contain unique mealKey and itemId pairs",
+								},
+							)
 							.describe(
-								"Unique itemId UUID values copied from get_day_plan_items. Each identifies one exact PRODUCT, RECIPE, or CUSTOM_ITEM entry; productId and recipeId are not accepted.",
+								"Unique mealKey and itemId pairs copied from get_day_plan_items. Each identifies one exact PRODUCT, RECIPE, or CUSTOM_ITEM entry; productId and recipeId are not accepted.",
 							),
 					})
 					.strict(),
@@ -49,10 +62,13 @@ export class RemoveMealItemsTool {
 					openWorldHint: true,
 				},
 			},
-			async ({ date, itemIds }) => {
+			async ({ date, items }) => {
 				try {
 					const result = await this.mealItemMutationService.removeMealItems(
-						new RemoveMealItemsOptions(date, itemIds),
+						new RemoveMealItemsOptions(
+							date,
+							items.map((item) => new MealItemRemovalTarget(item.mealKey, item.itemId)),
+						),
 					);
 					return createTextResult(toMealItemMutationForMcp(result));
 				} catch (error) {

@@ -11,10 +11,7 @@ export const FITATU_MEAL_KEYS = ["breakfast", "second_breakfast", "lunch", "snac
 
 export function normalizeMealKey(value: string, operation: FitatuClientOperation): string {
 	try {
-		return StringUtils.parseNonEmptyString(value, "mealKey is required")
-			.toLowerCase()
-			.replaceAll("-", "_")
-			.replaceAll(" ", "_");
+		return StringUtils.parseNonEmptyString(value, "mealKey is required");
 	} catch (error) {
 		if (!(error instanceof ValidationError)) {
 			throw error;

@@ -195,7 +195,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 
 		await mealItemMutationService.removeMealItems({
 			date,
-			itemIds: [mealItemId],
+			items: [{ mealKey: "supper", itemId: mealItemId }],
 		});
 		expect(findMealItem(await dayPlanClient.getDayPlan({ date }), "supper", mealItemId)).toBeNull();
 		cleanup.untrack(date, "supper", mealItemId);

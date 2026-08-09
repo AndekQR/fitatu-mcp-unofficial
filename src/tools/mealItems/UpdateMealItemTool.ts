@@ -29,7 +29,7 @@ export class UpdateMealItemTool {
 			{
 				title: "Update Fitatu Meal Item",
 				description:
-					"Updates and confirms one existing Fitatu meal item quantity, measure, or eaten flag. For CUSTOM_ITEM entries, it can also update the name, calories, protein, fat, or carbohydrates in place without changing the item id. A successful accepted result means every requested field was observed in the persisted day plan.",
+					"Updates and confirms one existing Fitatu meal item selected by its exact date, mealKey, and itemId. PRODUCT and RECIPE quantity or measure changes require a measure belonging to that food definition. For CUSTOM_ITEM entries, only the name, calories, protein, fat, carbohydrates, or eaten flag can be updated; their technical measure fields are immutable. A successful accepted result means every requested field was observed in the persisted day plan.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(

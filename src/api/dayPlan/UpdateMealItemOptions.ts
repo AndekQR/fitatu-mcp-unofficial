@@ -27,8 +27,8 @@ export class UpdateMealItemOptions {
 		carbohydrateG?: number,
 	) {
 		this.date = date;
-		this.mealKey = mealKey;
-		this.itemId = itemId;
+		this.mealKey = mealKey.trim();
+		this.itemId = itemId.trim();
 		this.measureQuantity = measureQuantity;
 		this.measureId = measureId;
 		this.eaten = eaten;

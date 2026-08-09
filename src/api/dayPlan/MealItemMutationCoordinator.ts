@@ -11,6 +11,7 @@ import { createPlanDayDietItemId } from "./DayPlanItemIdFactory.ts";
 import { nowTimestamp } from "./DayPlanTimestamps.ts";
 import { normalizeMealKey } from "./DayPlanValidators.ts";
 import { FoundDietItem } from "./FoundDietItem.ts";
+import { MealItemRemovalTarget } from "./MealItemRemovalTarget.ts";
 import { MealItemMutationResult } from "./MealItemMutationResult.ts";
 import type { MoveMealItemOptions } from "./MoveMealItemOptions.ts";
 import type { RemoveMealItemOptions } from "./RemoveMealItemOptions.ts";
@@ -136,7 +137,7 @@ export class MealItemMutationCoordinator {
 		const target = new DayPlanDietPlan(dayPayload.dietPlan, FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem).findItem(
 			mealKey,
 			itemId,
-			true,
+			false,
 		);
 		if (!target) {
 			throw invalidMutation("Meal item not found", FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem);
@@ -177,11 +178,12 @@ export class MealItemMutationCoordinator {
 
 	public async removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
-		const itemId = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem, () => {
-			normalizeMealKey(options.mealKey, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
-			return StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
+		const target = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem, () => {
+			const mealKey = normalizeMealKey(options.mealKey, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
+			const itemId = StringUtils.parseNonEmptyString(options.itemId, "itemId is required");
+			return new MealItemRemovalTarget(mealKey, itemId);
 		});
-		const result = await this.removeMealItems(new RemoveMealItemsOptions(options.date, [itemId], userId));
+		const result = await this.removeMealItems(new RemoveMealItemsOptions(options.date, [target], userId));
 		return MealItemMutationResult.acceptedRemove(
 			result.targetDate,
 			result.acceptedItems,
@@ -192,21 +194,19 @@ export class MealItemMutationCoordinator {
 
 	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems);
-		const { date, itemIds } = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems, () => ({
+		const { date, items } = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems, () => ({
 			date: DateUtils.validateIsoDate(options.date),
-			itemIds: normalizeItemIds(options.itemIds),
+			items: normalizeRemovalTargets(options.items),
 		}));
 		const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, date);
 		const targets = new DayPlanDietPlan(
 			dayPayload.dietPlan,
 			FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems,
-		).findActiveItems(itemIds);
+		).findActiveItems(items);
 
-		const foundIds = new Set(targets.map(({ item }) => getRequiredItemId(item)));
-		const missingIds = [...itemIds].filter((itemId) => !foundIds.has(itemId));
-		if (missingIds.length > 0) {
+		if (targets.length !== items.length) {
 			throw invalidMutation(
-				`Active meal items were not found: ${missingIds.join(", ")}`,
+				"Active meal items were not found in every requested meal context",
 				FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems,
 			);
 		}
@@ -229,20 +229,32 @@ export class MealItemMutationCoordinator {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanMoveItem);
 		const { fromDate, toDate, fromMealKey, toMealKey, itemId } = normalizeMutationInput(
 			FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
-			() => ({
-				fromDate: DateUtils.validateIsoDate(options.fromDate),
-				toDate: DateUtils.validateIsoDate(options.toDate ?? options.fromDate),
-				fromMealKey: normalizeMealKey(options.fromMealKey, FITATU_CLIENT_OPERATIONS.dayPlanMoveItem),
-				toMealKey: normalizeMealKey(
+			() => {
+				const fromDate = DateUtils.validateIsoDate(options.fromDate);
+				const toDate = DateUtils.validateIsoDate(options.toDate ?? options.fromDate);
+				const fromMealKey = normalizeMealKey(options.fromMealKey, FITATU_CLIENT_OPERATIONS.dayPlanMoveItem);
+				const toMealKey = normalizeMealKey(
 					options.toMealKey ?? options.fromMealKey,
 					FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
-				),
-				itemId: StringUtils.parseNonEmptyString(options.itemId, "itemId is required"),
-			}),
+				);
+				if (fromDate === toDate && fromMealKey === toMealKey) {
+					throw invalidMutation(
+						"Move destination must differ from its source",
+						FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
+					);
+				}
+				return {
+					fromDate,
+					toDate,
+					fromMealKey,
+					toMealKey,
+					itemId: StringUtils.parseNonEmptyString(options.itemId, "itemId is required"),
+				};
+			},
 		);
 		const sourcePayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, fromDate);
 		const sourceDietPlan = new DayPlanDietPlan(sourcePayload.dietPlan, FITATU_CLIENT_OPERATIONS.dayPlanMoveItem);
-		const source = sourceDietPlan.findItem(fromMealKey, itemId, true);
+		const source = sourceDietPlan.findItem(fromMealKey, itemId, false);
 
 		if (!source) {
 			throw invalidMutation("Meal item not found", FITATU_CLIENT_OPERATIONS.dayPlanMoveItem);
@@ -291,16 +303,22 @@ export class MealItemMutationCoordinator {
 	}
 }
 
-function normalizeItemIds(itemIds: readonly string[]): ReadonlySet<string> {
-	if (itemIds.length === 0) {
-		throw invalidMutation("itemIds must not be empty", FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems);
+function normalizeRemovalTargets(items: readonly MealItemRemovalTarget[]): readonly MealItemRemovalTarget[] {
+	if (items.length === 0) {
+		throw invalidMutation("items must not be empty", FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems);
 	}
-	const normalized = itemIds.map((itemId) => StringUtils.parseNonEmptyString(itemId, "itemId is required"));
-	const unique = new Set(normalized);
+	const normalized = items.map(
+		(item) =>
+			new MealItemRemovalTarget(
+				normalizeMealKey(item.mealKey, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems),
+				StringUtils.parseNonEmptyString(item.itemId, "itemId is required"),
+			),
+	);
+	const unique = new Set(normalized.map((item) => `${item.mealKey}\u0000${item.itemId}`));
 	if (unique.size !== normalized.length) {
-		throw invalidMutation("itemIds must not contain duplicates", FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems);
+		throw invalidMutation("items must not contain duplicate targets", FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems);
 	}
-	return unique;
+	return normalized;
 }
 
 function getRequiredItemId(item: Record<string, unknown>): string {

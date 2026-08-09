@@ -35,6 +35,18 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 		const [sourceMealKey, targetMealKey] = selectTwoMealKeys(initialPlan);
 		await searchMultipleQueries({ foodSearchClient, date });
 		const products = await selectProductsByMeasure({ foodSearchClient, date });
+		const measureProduct = [products.fallbackProduct, products.gramProduct, products.packageProduct].find(
+			(product) => product.availableMeasures.some((measure) => measure.measureId !== product.measure.measureId),
+		);
+		if (!measureProduct) {
+			throw new Error("Expected a product with at least two measures for the measure update workflow");
+		}
+		const alternateMeasure = measureProduct.availableMeasures.find(
+			(measure) => measure.measureId !== measureProduct.measure.measureId,
+		);
+		if (!alternateMeasure) {
+			throw new Error("Expected an alternate measure for the measure update workflow");
+		}
 
 		await cleanup.prepareMealAddition(date, sourceMealKey, 3);
 		const addResult = await mealItemMutationService.addMealItems({
@@ -49,9 +61,9 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 					eaten: false,
 				},
 				{
-					productId: products.gramProduct.productId,
+					productId: measureProduct.productId,
 					foodType: "PRODUCT",
-					measureId: products.gramProduct.measure.measureId,
+					measureId: measureProduct.measure.measureId,
 					measureQuantity: 100,
 					eaten: false,
 				},
@@ -105,7 +117,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			date,
 			mealKey: sourceMealKey,
 			itemId: measureItemId,
-			measureId: products.packageProduct.measure.measureId,
+			measureId: alternateMeasure.measureId,
 		});
 		expect(measureUpdate.updatedItemIds).toEqual([measureItemId]);
 		expect(
@@ -114,10 +126,10 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 					date,
 					mealKey: sourceMealKey,
 					itemId: measureItemId,
-					matches: (item) => String(item.measureId) === products.packageProduct.measure.measureId,
+					matches: (item) => String(item.measureId) === alternateMeasure.measureId,
 				})
 			).measureId,
-		).toBe(Number(products.packageProduct.measure.measureId));
+		).toBe(Number(alternateMeasure.measureId));
 
 		const combinedUpdate = await mealItemMutationService.updateMealItem({
 			date,
@@ -187,7 +199,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			mealKey: targetMealKey,
 			itemId: requireItemId(crossDayMove.newItemId),
 		});
-		expect(crossDayMovedItem.measureId).toBe(Number(products.packageProduct.measure.measureId));
+		expect(crossDayMovedItem.measureId).toBe(Number(alternateMeasure.measureId));
 
 		const removeResult = await mealItemMutationService.removeMealItem({
 			date,

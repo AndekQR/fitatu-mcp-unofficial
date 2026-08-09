@@ -3,7 +3,8 @@ import type { AddMealItemsOptions } from "../../../../src/api/dayPlan/AddMealIte
 import { DayRevisions } from "../../../../src/api/dayPlan/DayRevisions.ts";
 import type { MealItemMutationResult } from "../../../../src/api/dayPlan/MealItemMutationResult.ts";
 import type { DayPlanClient } from "../../../../src/api/dayPlan/DayPlanClient.ts";
-import type { MoveMealItemOptions } from "../../../../src/api/dayPlan/MoveMealItemOptions.ts";
+import { DayPlan } from "../../../../src/api/dayPlan/DayPlan.ts";
+import { MoveMealItemOptions } from "../../../../src/api/dayPlan/MoveMealItemOptions.ts";
 import type { RemoveMealItemsOptions } from "../../../../src/api/dayPlan/RemoveMealItemsOptions.ts";
 import type { UpdateMealItemOptions } from "../../../../src/api/dayPlan/UpdateMealItemOptions.ts";
 import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
@@ -210,10 +211,22 @@ const successCases = [
 	{
 		name: "remove_meal_items",
 		createTool: (service: TestedMealItemMutationProvider) => new RemoveMealItemsTool(service),
-		input: { date: "2026-07-14", itemIds: [REMOVE_ITEM_ID_1, REMOVE_ITEM_ID_2] },
+		input: {
+			date: "2026-07-14",
+			items: [
+				{ mealKey: "breakfast", itemId: REMOVE_ITEM_ID_1 },
+				{ mealKey: "lunch", itemId: REMOVE_ITEM_ID_2 },
+			],
+		},
 		expectedCall: {
 			operation: "remove",
-			options: { date: "2026-07-14", itemIds: [REMOVE_ITEM_ID_1, REMOVE_ITEM_ID_2] },
+			options: {
+				date: "2026-07-14",
+				items: [
+					{ mealKey: "breakfast", itemId: REMOVE_ITEM_ID_1 },
+					{ mealKey: "lunch", itemId: REMOVE_ITEM_ID_2 },
+				],
+			},
 		},
 		result: createMutationResult({
 			operation: "remove",
@@ -451,7 +464,7 @@ const invalidInputCases = [
 	{
 		name: "remove_meal_items",
 		createTool: (service: TestedMealItemMutationProvider) => new RemoveMealItemsTool(service),
-		input: { date: "2026-07-14", itemIds: [] },
+		input: { date: "2026-07-14", items: [] },
 	},
 	{
 		name: "move_meal_item",
@@ -796,6 +809,127 @@ describe("meal item mutation tools", () => {
 		expect(calls).toEqual([]);
 	});
 
+	it("rejects a mismatched update measure before delegating the day-plan write", async () => {
+		const calls: UpdateMealItemOptions[] = [];
+		const lookups: { readonly definitionId: string | number; readonly foodType: string }[] = [];
+		const service = new MealItemMutationService(
+			{
+				getDayPlan: async () =>
+					dayPlanWithItem("breakfast", {
+						planDayDietItemId: "item-1",
+						foodType: "PRODUCT",
+						productId: 100,
+						measureId: 1,
+					}),
+				updateMealItem: async (options: UpdateMealItemOptions) => {
+					calls.push(options);
+					return successCases[2].result;
+				},
+			} as unknown as DayPlanClient,
+			{
+				getAvailableMeasureIds: async (definitionId, foodType) => {
+					lookups.push({ definitionId, foodType });
+					return new Set(["1"]);
+				},
+			},
+			{ getRecipe: async () => recipeDetails() },
+			alwaysConfirmingMealItemMutations(),
+		);
+
+		await expect(
+			service.updateMealItem({
+				date: "2026-07-14",
+				mealKey: "breakfast",
+				itemId: "item-1",
+				measureId: "999",
+			}),
+		).rejects.toThrow("Measure does not belong to the selected food.");
+		expect(lookups).toEqual([{ definitionId: 100, foodType: "PRODUCT" }]);
+		expect(calls).toEqual([]);
+	});
+
+	it.each([
+		{ name: "measureId", update: { measureId: "1" } },
+		{ name: "measureQuantity", update: { measureQuantity: 2 } },
+	])("rejects a $name update for a CUSTOM_ITEM before delegating the day-plan write", async ({ update }) => {
+		const calls: UpdateMealItemOptions[] = [];
+		let measureLookupCalled = false;
+		const service = new MealItemMutationService(
+			{
+				getDayPlan: async () =>
+					dayPlanWithItem("supper", {
+						planDayDietItemId: "custom-1",
+						foodType: "CUSTOM_ITEM",
+						measureId: 1,
+						measureQuantity: 100,
+					}),
+				updateMealItem: async (options: UpdateMealItemOptions) => {
+					calls.push(options);
+					return successCases[2].result;
+				},
+			} as unknown as DayPlanClient,
+			{
+				getAvailableMeasureIds: async () => {
+					measureLookupCalled = true;
+					return new Set(["1"]);
+				},
+			},
+			{ getRecipe: async () => recipeDetails() },
+			alwaysConfirmingMealItemMutations(),
+		);
+
+		await expect(
+			service.updateMealItem({
+				date: "2026-07-14",
+				mealKey: "supper",
+				itemId: "custom-1",
+				...update,
+			}),
+		).rejects.toMatchObject({
+			code: SERVICE_ERROR_CODES.customMealItemMeasureImmutable,
+		});
+		expect(measureLookupCalled).toBe(false);
+		expect(calls).toEqual([]);
+	});
+
+	it.each([
+		{
+			name: "missing destination",
+			options: new MoveMealItemOptions("2026-07-14", "breakfast", "item-1"),
+			expectedCode: SERVICE_ERROR_CODES.mealItemMoveDestinationRequired,
+		},
+		{
+			name: "unchanged destination",
+			options: new MoveMealItemOptions("2026-07-14", "breakfast", "item-1", "2026-07-14", "breakfast"),
+			expectedCode: SERVICE_ERROR_CODES.mealItemMoveDestinationUnchanged,
+		},
+	])("rejects a move with $name before reading its source", async ({ options, expectedCode }) => {
+		let sourceRead = false;
+		let moveDelegated = false;
+		const confirmation: MealItemMutationConfirmationProvider = {
+			...alwaysConfirmingMealItemMutations(),
+			getMoveSource: async () => {
+				sourceRead = true;
+				throw new Error("Move source must not be read");
+			},
+		};
+		const service = new MealItemMutationService(
+			{
+				moveMealItem: async () => {
+					moveDelegated = true;
+					return successCases[4].result;
+				},
+			} as unknown as DayPlanClient,
+			{ getAvailableMeasureIds: async () => new Set() },
+			{ getRecipe: async () => recipeDetails() },
+			confirmation,
+		);
+
+		await expect(service.moveMealItem(options)).rejects.toMatchObject({ code: expectedCode });
+		expect(sourceRead).toBe(false);
+		expect(moveDelegated).toBe(false);
+	});
+
 	it("does not perform catalog lookups for a custom item", async () => {
 		const calls: AddMealItemsOptions[] = [];
 		let measureLookupCalled = false;
@@ -998,6 +1132,21 @@ function recipeDetails(overrides: Partial<RecipeDetails> = {}): RecipeDetails {
 		categories: null,
 		...overrides,
 	};
+}
+
+function dayPlanWithItem(mealKey: string, item: Record<string, unknown>): DayPlan {
+	return DayPlan.fromApiResponse({
+		date: "2026-07-14",
+		userId: "user-1",
+		data: {
+			dietPlan: {
+				[mealKey]: {
+					mealName: mealKey,
+					items: [item],
+				},
+			},
+		},
+	});
 }
 
 function createMutationResult(options: {

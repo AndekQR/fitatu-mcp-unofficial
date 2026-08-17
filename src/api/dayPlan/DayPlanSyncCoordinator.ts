@@ -54,7 +54,6 @@ export class DayPlanSyncCoordinator extends DayPlanSyncProvider {
 
 		return new DaySyncPayload({
 			planDayRevisions: Array.isArray(data.planDayRevisions) ? data.planDayRevisions : [],
-			activities: Array.isArray(data.activityPlan) ? data.activityPlan : [],
 			dietPlan: data.dietPlan,
 			toilet: Array.isArray(data.toilet) ? data.toilet : Array.isArray(data.toiletItems) ? data.toiletItems : [],
 			water: ObjectUtils.isRecord(data.water) ? data.water : { waterConsumption: 0 },

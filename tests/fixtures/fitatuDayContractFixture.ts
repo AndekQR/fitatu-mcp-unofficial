@@ -12,8 +12,6 @@ export const FITATU_DAY_RESPONSE_FIXTURE = {
 
 export const FITATU_DAY_SYNC_PAYLOAD_FIXTURE = {
 	planDayRevisions: [{ revision: "existing-revision" }],
-	// activities are deliberately NOT echoed back (upstream 500s on days
-	// that carry them; a missing key means "leave untouched")
 	activities: undefined,
 	dietPlan: { breakfast: { items: [] } },
 	toilet: [{ type: "OTHER" }],

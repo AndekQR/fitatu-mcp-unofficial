@@ -1,6 +1,6 @@
 export class DaySyncPayload {
 	public readonly planDayRevisions: unknown[];
-	public readonly activities: unknown[];
+	public readonly activities?: undefined;
 	public readonly dietPlan: Record<string, unknown>;
 	public readonly toilet: unknown[];
 	public readonly water: Record<string, unknown>;
@@ -9,7 +9,6 @@ export class DaySyncPayload {
 
 	public constructor(options: {
 		readonly planDayRevisions: unknown[];
-		readonly activities: unknown[];
 		readonly dietPlan: Record<string, unknown>;
 		readonly toilet: unknown[];
 		readonly water: Record<string, unknown>;
@@ -17,7 +16,6 @@ export class DaySyncPayload {
 		readonly tagsIds: unknown[];
 	}) {
 		this.planDayRevisions = options.planDayRevisions;
-		this.activities = options.activities;
 		this.dietPlan = options.dietPlan;
 		this.toilet = options.toilet;
 		this.water = options.water;

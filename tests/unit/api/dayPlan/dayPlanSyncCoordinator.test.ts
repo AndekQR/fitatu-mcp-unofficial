@@ -35,7 +35,7 @@ describe("DayPlanSyncCoordinator.getDaySyncPayload", () => {
 
 		expect(payload).toEqual({
 			planDayRevisions: [],
-			activities: [],
+			activities: undefined,
 			dietPlan: { breakfast: { items: [] } },
 			toilet: [{ type: "LEGACY" }],
 			water: { waterConsumption: 0 },

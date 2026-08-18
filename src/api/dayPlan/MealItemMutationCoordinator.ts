@@ -18,6 +18,11 @@ import type { RemoveMealItemOptions } from "./RemoveMealItemOptions.ts";
 import { RemoveMealItemsOptions } from "./RemoveMealItemsOptions.ts";
 import type { DayPlanSyncProvider } from "./DayPlanSyncProvider.ts";
 import type { UpdateMealItemOptions } from "./UpdateMealItemOptions.ts";
+import type { ReplaceMealItemOptions } from "./ReplaceMealItemOptions.ts";
+import type { MealItemInput } from "./MealItemInput.ts";
+import { ProductMealItemInput } from "./ProductMealItemInput.ts";
+import { RecipeMealItemInput } from "./RecipeMealItemInput.ts";
+import { CustomMealItemInput } from "./CustomMealItemInput.ts";
 
 export class MealItemMutationCoordinator {
 	private readonly dayPlanSyncProvider: DayPlanSyncProvider;
@@ -192,6 +197,43 @@ export class MealItemMutationCoordinator {
 		);
 	}
 
+	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult> {
+		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem);
+		const { date, mealKey, itemId } = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem, () => ({
+			date: DateUtils.validateIsoDate(options.date),
+			mealKey: normalizeMealKey(options.mealKey, FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem),
+			itemId: StringUtils.parseNonEmptyString(options.itemId, "itemId is required"),
+		}));
+		const dayPayload = await this.dayPlanSyncProvider.getDaySyncPayload(userId, date);
+		const source = new DayPlanDietPlan(
+			dayPayload.dietPlan,
+			FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem,
+		).findActiveItems([new MealItemRemovalTarget(mealKey, itemId)])[0];
+		if (!source) {
+			throw invalidMutation(
+				"Active meal item was not found in the requested meal context",
+				FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem,
+			);
+		}
+
+		assertDifferentCatalogDefinition(source.item, options.replacement);
+		const replacementEaten = options.replacement.eaten ?? source.item.eaten === true;
+		const replacementInput = withResolvedEaten(options.replacement, replacementEaten);
+		const replacement = DayItemPayload.from(replacementInput, mealKey, 0);
+		const oldItemId = getRequiredItemId(source.item);
+		source.items.splice(source.index, 1, source.createDeletedMarker(), replacement.payload);
+
+		const dayRevisions = await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
+		return MealItemMutationResult.acceptedReplace(
+			date,
+			mealKey,
+			oldItemId,
+			replacement.summary,
+			dayRevisions,
+			replacementEaten,
+		);
+	}
+
 	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems);
 		const { date, items } = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems, () => ({
@@ -342,7 +384,8 @@ function requireUserId(
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems
-		| typeof FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanMoveItem
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem,
 ): string {
 	const normalizedUserId = StringUtils.stringOrNull(userId);
 	if (normalizedUserId === null) {
@@ -358,7 +401,8 @@ function invalidMutation(
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems
-		| typeof FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanMoveItem
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem,
 ): FitatuClientError {
 	return FitatuClientError.invalidRequest({ operation, message });
 }
@@ -369,7 +413,8 @@ function normalizeMutationInput<T>(
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem
 		| typeof FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems
-		| typeof FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanMoveItem
+		| typeof FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem,
 	normalize: () => T,
 ): T {
 	try {
@@ -383,4 +428,39 @@ function normalizeMutationInput<T>(
 		}
 		throw invalidMutation(error.message, operation);
 	}
+}
+
+function assertDifferentCatalogDefinition(source: Record<string, unknown>, replacement: MealItemInput): void {
+	const sourceFoodType = typeof source.foodType === "string" ? source.foodType.trim().toUpperCase() : "";
+	const sameProduct =
+		sourceFoodType === "PRODUCT" &&
+		replacement.foodType === "PRODUCT" &&
+		String(source.productId ?? "") === String(replacement.productId);
+	const sameRecipe =
+		sourceFoodType === "RECIPE" &&
+		replacement.foodType === "RECIPE" &&
+		String(source.recipeId ?? "") === String(replacement.recipeId);
+	if (sameProduct || sameRecipe) {
+		throw invalidMutation(
+			"Replacement selects the same catalog definition; use update_meal_item for measure or quantity changes",
+			FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem,
+		);
+	}
+}
+
+function withResolvedEaten(item: MealItemInput, inheritedEaten: boolean): MealItemInput {
+	const eaten = item.eaten ?? inheritedEaten;
+	if (item.foodType === "PRODUCT") {
+		return new ProductMealItemInput(item.productId, item.measureId, item.measureQuantity, eaten);
+	}
+	if (item.foodType === "RECIPE") {
+		return new RecipeMealItemInput(
+			item.recipeId,
+			item.measureId,
+			item.measureQuantity,
+			eaten,
+			item.ingredientsServing,
+		);
+	}
+	return new CustomMealItemInput(item.name, item.energyKcal, item.proteinG, item.fatG, item.carbohydrateG, eaten);
 }

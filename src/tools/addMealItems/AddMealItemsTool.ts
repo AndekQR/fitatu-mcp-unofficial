@@ -46,7 +46,7 @@ export class AddMealItemsTool {
 							),
 					})
 					.strict(),
-				outputSchema: mealItemMutationOutputSchema,
+				outputSchema: mealItemMutationOutputSchema("add"),
 				annotations: {
 					title: "Add Fitatu Meal Items",
 					readOnlyHint: false,

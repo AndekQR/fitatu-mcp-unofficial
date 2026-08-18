@@ -10,7 +10,7 @@ import {
 	mealItemMutationOutputSchema,
 	toMealItemMutationForMcp,
 } from "./MealItemToolSupport.ts";
-import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
+import { isoCalendarDateSchema, nonEmptyStringSchema } from "../shared/ToolSchemas.ts";
 
 export class MoveMealItemTool {
 	public static readonly toolName = "move_meal_item";
@@ -36,10 +36,9 @@ export class MoveMealItemTool {
 						fromMealKey: mealKeySchema.describe(
 							`Current meal key containing the item. Use mealKey values returned by get_day_plan_items. ${MEAL_KEY_HINT}`,
 						),
-						itemId: z
-							.string()
-							.min(1)
-							.describe("Meal item id to move. Use itemId returned by get_day_plan_items."),
+						itemId: nonEmptyStringSchema("itemId").describe(
+							"Meal item id to move. Use itemId returned by get_day_plan_items.",
+						),
 						toDate: isoCalendarDateSchema("toDate")
 							.optional()
 							.describe(
@@ -59,8 +58,11 @@ export class MoveMealItemTool {
 						({ fromDate, fromMealKey, toDate, toMealKey }) =>
 							(toDate ?? fromDate) !== fromDate || (toMealKey ?? fromMealKey) !== fromMealKey,
 						{ message: "Move destination must differ from its source" },
+					)
+					.describe(
+						"Meal item move with at least one destination field and a destination different from the source.",
 					),
-				outputSchema: mealItemMutationOutputSchema,
+				outputSchema: mealItemMutationOutputSchema("move"),
 				annotations: {
 					title: "Move Fitatu Meal Item",
 					readOnlyHint: false,

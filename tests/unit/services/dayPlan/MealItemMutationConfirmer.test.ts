@@ -15,6 +15,8 @@ import { MealItemMutationConfirmer } from "../../../../src/services/dayPlan/Meal
 import { SERVICE_ERROR_CODES } from "../../../../src/services/ServiceErrorCode.ts";
 import { AddMealItemsTool } from "../../../../src/tools/addMealItems/AddMealItemsTool.ts";
 import { GetDayPlanItemsTool } from "../../../../src/tools/dayPlanItems/GetDayPlanItemsTool.ts";
+import { ProductMealItemInput } from "../../../../src/api/dayPlan/ProductMealItemInput.ts";
+import { ReplaceMealItemOptions } from "../../../../src/api/dayPlan/ReplaceMealItemOptions.ts";
 
 describe("MealItemMutationConfirmer", () => {
 	it("confirms a batch only after every submitted item is visible by its exact itemId and values", async () => {
@@ -226,6 +228,54 @@ describe("MealItemMutationConfirmer", () => {
 			]),
 		);
 
+		expect(reads).toBe(2);
+	});
+
+	it("confirms replacement when the old item is absent and the new item matches regardless of order", async () => {
+		const plans = [
+			dayPlan({
+				dinner: [
+					{ planDayDietItemId: "before", foodType: "PRODUCT", productId: 100, measureId: 1 },
+					{ planDayDietItemId: "old-item", foodType: "PRODUCT", productId: 101, measureId: 1 },
+					{ planDayDietItemId: "after", foodType: "PRODUCT", productId: 102, measureId: 1 },
+				],
+			}),
+			dayPlan({
+				dinner: [
+					{
+						planDayDietItemId: "new-item",
+						foodType: "PRODUCT",
+						productId: 202,
+						measureId: 2,
+						measureQuantity: 0.5,
+						eaten: true,
+					},
+					{ planDayDietItemId: "before", foodType: "PRODUCT", productId: 100, measureId: 1 },
+					{ planDayDietItemId: "after", foodType: "PRODUCT", productId: 102, measureId: 1 },
+				],
+			}),
+		];
+		let reads = 0;
+		const confirmer = new MealItemMutationConfirmer(
+			{ getDayPlan: async () => plans[Math.min(reads++, plans.length - 1)]! },
+			new BoundedPoller({ intervalMs: 1, timeoutMs: 50 }),
+		);
+		const options = new ReplaceMealItemOptions(
+			"2026-07-30",
+			"dinner",
+			"old-item",
+			new ProductMealItemInput("202", "2", 0.5),
+		);
+		const result = MealItemMutationResult.acceptedReplace(
+			"2026-07-30",
+			"dinner",
+			"old-item",
+			new MealItemOperationSummary(0, "new-item", "202", null, "PRODUCT", "dinner"),
+			DayRevisions.empty(),
+			true,
+		);
+
+		await expect(confirmer.confirmReplaced(options, result)).resolves.toBeUndefined();
 		expect(reads).toBe(2);
 	});
 

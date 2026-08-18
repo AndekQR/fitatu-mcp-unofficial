@@ -9,7 +9,7 @@ import {
 	mealItemMutationOutputSchema,
 	toMealItemMutationForMcp,
 } from "./MealItemToolSupport.ts";
-import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
+import { isoCalendarDateSchema, nonEmptyStringSchema } from "../shared/ToolSchemas.ts";
 
 export class RemoveMealItemsTool {
 	public static readonly toolName = "remove_meal_items";
@@ -35,7 +35,7 @@ export class RemoveMealItemsTool {
 								z
 									.object({
 										mealKey: z.string().trim().min(1),
-										itemId: z.string().uuid(),
+										itemId: nonEmptyStringSchema("itemId"),
 									})
 									.strict(),
 							)
@@ -53,7 +53,7 @@ export class RemoveMealItemsTool {
 							),
 					})
 					.strict(),
-				outputSchema: mealItemMutationOutputSchema,
+				outputSchema: mealItemMutationOutputSchema("remove"),
 				annotations: {
 					title: "Remove Fitatu Meal Items",
 					readOnlyHint: false,

@@ -7,11 +7,13 @@ import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationR
 import type { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
 import type { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
 import type { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
+import type { ReplaceMealItemOptions } from "../../api/dayPlan/ReplaceMealItemOptions.ts";
 import { BoundedPoller } from "../../shared/BoundedPoller.ts";
 import { AddMealItemsTool } from "../../tools/addMealItems/AddMealItemsTool.ts";
 import { GetDayPlanItemsTool } from "../../tools/dayPlanItems/GetDayPlanItemsTool.ts";
 import { MoveMealItemTool } from "../../tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "../../tools/mealItems/RemoveMealItemsTool.ts";
+import { ReplaceMealItemTool } from "../../tools/mealItems/ReplaceMealItemTool.ts";
 import { UpdateMealItemTool } from "../../tools/mealItems/UpdateMealItemTool.ts";
 import { MutationConfirmationContext } from "../MutationConfirmationContext.ts";
 import { MutationConfirmationSupport } from "../MutationConfirmationSupport.ts";
@@ -21,6 +23,10 @@ const ADD_CONFIRMATION = new MutationConfirmationContext(AddMealItemsTool.toolNa
 const UPDATE_CONFIRMATION = new MutationConfirmationContext(UpdateMealItemTool.toolName, GetDayPlanItemsTool.toolName);
 const REMOVE_CONFIRMATION = new MutationConfirmationContext(RemoveMealItemsTool.toolName, GetDayPlanItemsTool.toolName);
 const MOVE_CONFIRMATION = new MutationConfirmationContext(MoveMealItemTool.toolName, GetDayPlanItemsTool.toolName);
+const REPLACE_CONFIRMATION = new MutationConfirmationContext(
+	ReplaceMealItemTool.toolName,
+	GetDayPlanItemsTool.toolName,
+);
 
 interface DayPlanProvider {
 	getDayPlan(options: GetDayPlanOptions): Promise<DayPlan>;
@@ -49,8 +55,32 @@ export class MealItemMutationConfirmer {
 			return result.acceptedItems.every((acceptedItem) => {
 				const expected = options.items[acceptedItem.index];
 				const actual = meal.items.find(({ itemId }) => itemId === acceptedItem.itemId);
-				return expected !== undefined && actual !== undefined && matchesAddedItem(actual, expected);
+				return expected !== undefined && actual !== undefined && matchesMealItem(actual, expected, false);
 			});
+		});
+	}
+
+	public async confirmReplaced(options: ReplaceMealItemOptions, result: MealItemMutationResult): Promise<void> {
+		const newItemId = result.newItemId;
+		if (newItemId === null) {
+			throw new Error("Replacement meal item id was not available");
+		}
+
+		await this.confirmation.confirm(REPLACE_CONFIRMATION, async () => {
+			const dayPlan = await this.dayPlanProvider.getDayPlan({
+				date: options.date,
+				userId: options.userId,
+			});
+			const oldItemIsAbsent = dayPlan.meals.every((meal) =>
+				meal.items.every(({ itemId }) => itemId !== options.itemId),
+			);
+			const meal = dayPlan.meals.find(({ mealKey }) => mealKey === options.mealKey);
+			const replacement = meal?.items.find(({ itemId }) => itemId === newItemId);
+			return (
+				oldItemIsAbsent &&
+				replacement !== undefined &&
+				matchesMealItem(replacement, options.replacement, result.replacementEaten)
+			);
 		});
 	}
 
@@ -139,8 +169,13 @@ function findItem(dayPlan: DayPlan, mealKey: string, itemId: string): DayPlanIte
 	return dayPlan.meals.find((meal) => meal.mealKey === mealKey)?.items.find((item) => item.itemId === itemId);
 }
 
-function matchesAddedItem(actual: DayPlanItem, expected: MealItemInput): boolean {
-	if (actual.foodType !== expected.foodType || actual.eaten !== (expected.eaten ?? false)) {
+function matchesMealItem(
+	actual: DayPlanItem,
+	expected: MealItemInput,
+	omittedEatenValue: boolean | undefined,
+): boolean {
+	const expectedEaten = expected.eaten ?? omittedEatenValue;
+	if (actual.foodType !== expected.foodType || (expectedEaten !== undefined && actual.eaten !== expectedEaten)) {
 		return false;
 	}
 

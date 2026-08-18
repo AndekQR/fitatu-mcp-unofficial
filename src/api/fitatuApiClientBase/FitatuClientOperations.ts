@@ -15,6 +15,7 @@ export const FITATU_CLIENT_OPERATIONS = {
 	dayPlanRemoveItem: "dayPlan.items.remove",
 	dayPlanRemoveItems: "dayPlan.items.removeMany",
 	dayPlanMoveItem: "dayPlan.items.move",
+	dayPlanReplaceItem: "dayPlan.items.replace",
 	dayPlanSync: "dayPlan.sync",
 	dietSummaryGet: "dietSummary.get",
 	dietEnergySummaryGet: "dietSummary.energy.get",

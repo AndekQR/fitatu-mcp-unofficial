@@ -10,7 +10,11 @@ import type { DayPlan } from "../../../src/api/dayPlan/DayPlan.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
 import { CleanupTracker, CleanupTrackingMealItemMutationConfirmer } from "../helpers/cleanupTracker.ts";
 import { expectMealItem, expectNoMealItem } from "../helpers/dayPlanAssertions.ts";
-import { searchMultipleQueries, selectProductsByMeasure } from "../helpers/productSelection.ts";
+import {
+	searchMultipleQueries,
+	selectProductDifferentFrom,
+	selectProductsByMeasure,
+} from "../helpers/productSelection.ts";
 import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 
 const dayPlanClient = new DayPlanClient();
@@ -35,8 +39,8 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 		const nextDate = addDays(date, 1);
 		const initialPlan = await dayPlanClient.getDayPlan({ date, withRating: true });
 		const [sourceMealKey, targetMealKey] = selectTwoMealKeys(initialPlan);
-		await searchMultipleQueries({ foodSearchService, date });
-		const products = await selectProductsByMeasure({ foodSearchService, date });
+		await searchMultipleQueries({ foodSearchService: foodSearchService, date });
+		const products = await selectProductsByMeasure({ foodSearchService: foodSearchService, date });
 		const measureProduct = [products.fallbackProduct, products.gramProduct, products.packageProduct].find(
 			(product) => product.availableMeasures.some((measure) => measure.measureId !== product.measure.measureId),
 		);
@@ -149,7 +153,38 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 		});
 		expect(afterCombinedUpdate.measureQuantity).toBe(1.5);
 		expect(afterCombinedUpdate.eaten).toBe(true);
-
+		const replacementProduct = await selectProductDifferentFrom({
+			foodSearchService: foodSearchService,
+			date,
+			excludedProductId: products.packageProduct.productId,
+		});
+		const replaceResult = await mealItemMutationService.replaceMealItem({
+			date,
+			mealKey: sourceMealKey,
+			itemId: combinedItemId,
+			replacement: {
+				foodType: "PRODUCT",
+				productId: replacementProduct.productId,
+				measureId: replacementProduct.measure.measureId,
+				measureQuantity: 0.5,
+			},
+		});
+		expect(replaceResult).toMatchObject({
+			operation: "replace",
+			oldItemId: combinedItemId,
+			deletedItemIds: [combinedItemId],
+			itemIdChanged: true,
+		});
+		const replacementItemId = requireItemId(replaceResult.newItemId);
+		await expectMissingItem({ date, mealKey: sourceMealKey, itemId: combinedItemId });
+		const replacementItem = await getItem({
+			date,
+			mealKey: sourceMealKey,
+			itemId: replacementItemId,
+		});
+		expect(String(replacementItem.productId)).toBe(replacementProduct.productId);
+		expect(replacementItem.measureQuantity).toBe(0.5);
+		expect(replacementItem.eaten).toBe(true);
 		const sameDayMove = await mealItemMutationService.moveMealItem({
 			fromDate: date,
 			fromMealKey: sourceMealKey,
@@ -206,16 +241,16 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 		const removeResult = await mealItemMutationService.removeMealItem({
 			date,
 			mealKey: sourceMealKey,
-			itemId: combinedItemId,
+			itemId: replacementItemId,
 		});
 		expect(removeResult.operation).toBe("remove");
-		expect(removeResult.deletedItemIds).toEqual([combinedItemId]);
-		cleanup.untrack(date, sourceMealKey, combinedItemId);
+		expect(removeResult.deletedItemIds).toEqual([replacementItemId]);
+		cleanup.untrack(date, sourceMealKey, replacementItemId);
 
 		await expectMissingItem({
 			date,
 			mealKey: sourceMealKey,
-			itemId: combinedItemId,
+			itemId: replacementItemId,
 		});
 	});
 

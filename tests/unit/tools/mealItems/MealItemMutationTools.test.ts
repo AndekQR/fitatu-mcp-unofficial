@@ -5,7 +5,10 @@ import type { MealItemMutationResult } from "../../../../src/api/dayPlan/MealIte
 import type { DayPlanClient } from "../../../../src/api/dayPlan/DayPlanClient.ts";
 import { DayPlan } from "../../../../src/api/dayPlan/DayPlan.ts";
 import { MoveMealItemOptions } from "../../../../src/api/dayPlan/MoveMealItemOptions.ts";
+import { ProductMealItemInput } from "../../../../src/api/dayPlan/ProductMealItemInput.ts";
+import { RecipeMealItemInput } from "../../../../src/api/dayPlan/RecipeMealItemInput.ts";
 import type { RemoveMealItemsOptions } from "../../../../src/api/dayPlan/RemoveMealItemsOptions.ts";
+import { ReplaceMealItemOptions } from "../../../../src/api/dayPlan/ReplaceMealItemOptions.ts";
 import type { UpdateMealItemOptions } from "../../../../src/api/dayPlan/UpdateMealItemOptions.ts";
 import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
 import {
@@ -21,16 +24,17 @@ import { AddMealItemsTool } from "../../../../src/tools/addMealItems/AddMealItem
 import { GetDayPlanItemsTool } from "../../../../src/tools/dayPlanItems/GetDayPlanItemsTool.ts";
 import { MoveMealItemTool } from "../../../../src/tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "../../../../src/tools/mealItems/RemoveMealItemsTool.ts";
+import { ReplaceMealItemTool } from "../../../../src/tools/mealItems/ReplaceMealItemTool.ts";
 import { UpdateMealItemTool } from "../../../../src/tools/mealItems/UpdateMealItemTool.ts";
 import { getTextContent, parseTextContent, registerToolForTest } from "../../support/mcpToolTestDouble.ts";
 
 type TestedMealItemMutationProvider = Pick<
 	MealItemMutationProvider,
-	"addMealItems" | "updateMealItem" | "removeMealItems" | "moveMealItem"
+	"addMealItems" | "updateMealItem" | "removeMealItems" | "moveMealItem" | "replaceMealItem"
 >;
 
-const REMOVE_ITEM_ID_1 = "11111111-1111-4111-8111-111111111111";
-const REMOVE_ITEM_ID_2 = "22222222-2222-4222-8222-222222222222";
+const REMOVE_ITEM_ID_1 = "item-1";
+const REMOVE_ITEM_ID_2 = "item-2";
 
 const successCases = [
 	{
@@ -308,9 +312,82 @@ const successCases = [
 		},
 		destructiveHint: false,
 	},
+	{
+		name: "replace_meal_item",
+		createTool: (service: TestedMealItemMutationProvider) => new ReplaceMealItemTool(service),
+		input: {
+			date: "2026-07-14",
+			mealKey: "breakfast",
+			itemId: "old-item-1",
+			replacement: {
+				productId: "food-2",
+				measureId: "measure-2",
+				measureQuantity: 0.5,
+			},
+		},
+		expectedCall: {
+			operation: "replace",
+			options: {
+				date: "2026-07-14",
+				mealKey: "breakfast",
+				itemId: "old-item-1",
+				replacement: {
+					foodType: "PRODUCT",
+					productId: "food-2",
+					measureId: "measure-2",
+					measureQuantity: 0.5,
+					eaten: undefined,
+				},
+			},
+		},
+		result: createMutationResult({
+			operation: "replace",
+			message: "Accepted replacement for old-item-1",
+			targetDate: "2026-07-14",
+			mealKey: "breakfast",
+			itemId: "new-item-3",
+			provisionalItemIds: ["new-item-3"],
+			deletedItemIds: ["old-item-1"],
+			oldItemId: "old-item-1",
+			newItemId: "new-item-3",
+		}),
+		expectedStructuredContent: {
+			status: "accepted",
+			operation: "replace",
+			message: "Accepted replacement for old-item-1",
+			targetDate: "2026-07-14",
+			mealKey: "breakfast",
+			operationCount: 1,
+			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
+			acceptedItems: [
+				{
+					index: 0,
+					itemId: "new-item-3",
+					productId: "food-1",
+					mealKey: "breakfast",
+				},
+			],
+			provisionalItemIds: ["new-item-3"],
+			deletedItemIds: ["old-item-1"],
+			oldItemId: "old-item-1",
+			newItemId: "new-item-3",
+			itemIdChanged: true,
+		},
+		destructiveHint: true,
+	},
 ] as const;
 
 const invalidInputCases = [
+	{
+		name: "replace_meal_item",
+		createTool: (service: TestedMealItemMutationProvider) => new ReplaceMealItemTool(service),
+		input: {
+			date: "2026-07-14",
+			mealKey: "breakfast",
+			itemId: "old-item-1",
+			replacement: { productId: "food-2" },
+		},
+	},
 	{
 		name: "add_meal_items",
 		createTool: (service: TestedMealItemMutationProvider) => new AddMealItemsTool(service),
@@ -356,15 +433,6 @@ const invalidInputCases = [
 					ingredientsServing: 1,
 				},
 			],
-		},
-	},
-	{
-		name: "add_meal_items",
-		createTool: (service: TestedMealItemMutationProvider) => new AddMealItemsTool(service),
-		input: {
-			date: "2026-07-14",
-			mealKey: "breakfast",
-			items: [{ recipeId: "recipe:159408954", measureId: "39" }],
 		},
 	},
 	{
@@ -518,12 +586,28 @@ const errorCases = [
 		input: successCases[4].input,
 		fallbackMessage: "Unable to move Fitatu meal item.",
 	},
+	{
+		name: "replace_meal_item",
+		createTool: (service: TestedMealItemMutationProvider) => new ReplaceMealItemTool(service),
+		input: successCases[5].input,
+		fallbackMessage: "Unable to replace Fitatu meal item.",
+	},
 ] as const;
 
 describe("meal item mutation tools", () => {
+	it("documents that replacement order is not part of the contract", async () => {
+		const registered = await registerToolForTest(
+			new ReplaceMealItemTool(new FakeMealItemMutationService(successCases[5].result)),
+		);
+
+		expect(registered.config.description).toContain("same meal");
+		expect(registered.config.description).toContain("item order is not part of the contract");
+	});
+
 	it.each([
 		{ field: "mealKey", tool: new AddMealItemsTool(new FakeMealItemMutationService(successCases[0].result)) },
 		{ field: "mealKey", tool: new UpdateMealItemTool(new FakeMealItemMutationService(successCases[0].result)) },
+		{ field: "mealKey", tool: new ReplaceMealItemTool(new FakeMealItemMutationService(successCases[0].result)) },
 		{ field: "fromMealKey", tool: new MoveMealItemTool(new FakeMealItemMutationService(successCases[0].result)) },
 		{ field: "toMealKey", tool: new MoveMealItemTool(new FakeMealItemMutationService(successCases[0].result)) },
 	])("publishes free-form string meal keys for $field", async ({ field, tool }) => {
@@ -549,13 +633,17 @@ describe("meal item mutation tools", () => {
 			destructiveHint: testCase.destructiveHint,
 			idempotentHint: false,
 		});
+		expect(registered.config.outputSchema).toMatchObject({
+			properties: { operation: { const: testCase.result.operation } },
+		});
 		expect(result.structuredContent).toEqual(testCase.expectedStructuredContent);
 		expect(result.content).toEqual([
 			{ type: "text", text: JSON.stringify(testCase.expectedStructuredContent, null, 2) },
 		]);
 	});
 
-	it("accepts and returns an unprefixed recipeId", async () => {
+	it("accepts and returns any non-empty raw recipeId supported by the client", async () => {
+		const rawRecipeId = "recipe:159408954";
 		const recipeResult: MealItemMutationResult = {
 			...createMutationResult({
 				operation: "add",
@@ -570,7 +658,7 @@ describe("meal item mutation tools", () => {
 					index: 0,
 					itemId: "recipe-item-1",
 					productId: null,
-					recipeId: "159408954",
+					recipeId: rawRecipeId,
 					foodType: "RECIPE",
 					mealKey: "supper",
 				},
@@ -584,7 +672,7 @@ describe("meal item mutation tools", () => {
 			mealKey: "supper",
 			items: [
 				{
-					recipeId: "159408954",
+					recipeId: `  ${rawRecipeId}  `,
 					measureId: "39",
 					measureQuantity: 1.5,
 					eaten: true,
@@ -601,7 +689,7 @@ describe("meal item mutation tools", () => {
 					items: [
 						{
 							foodType: "RECIPE",
-							recipeId: "159408954",
+							recipeId: rawRecipeId,
 							measureId: "39",
 							measureQuantity: 1.5,
 							eaten: true,
@@ -614,7 +702,7 @@ describe("meal item mutation tools", () => {
 			acceptedItems: [
 				{
 					itemId: "recipe-item-1",
-					recipeId: "159408954",
+					recipeId: rawRecipeId,
 				},
 			],
 		});
@@ -688,6 +776,55 @@ describe("meal item mutation tools", () => {
 		expect(JSON.stringify(result.structuredContent)).not.toContain('"productId"');
 		expect(JSON.stringify(result.structuredContent)).not.toContain('"recipeId"');
 		expect(JSON.stringify(result.structuredContent)).not.toContain('"foodType"');
+	});
+
+	it.each([
+		{
+			name: "recipe",
+			replacement: { recipeId: "159408954", measureId: "39", measureQuantity: 1.5, eaten: false },
+			expected: {
+				foodType: "RECIPE",
+				recipeId: "159408954",
+				measureId: "39",
+				measureQuantity: 1.5,
+				eaten: false,
+			},
+		},
+		{
+			name: "custom item",
+			replacement: { name: "Replacement custom", energyKcal: 250 },
+			expected: {
+				foodType: "CUSTOM_ITEM",
+				name: "Replacement custom",
+				energyKcal: 250,
+				proteinG: 0,
+				fatG: 0,
+				carbohydrateG: 0,
+				eaten: undefined,
+			},
+		},
+	])("accepts an add-compatible $name replacement payload", async ({ replacement, expected }) => {
+		const service = new FakeMealItemMutationService(successCases[5].result);
+		const registered = await registerToolForTest(new ReplaceMealItemTool(service));
+
+		await registered.invoke({
+			date: "2026-07-14",
+			mealKey: "supper",
+			itemId: "old-item",
+			replacement,
+		});
+
+		expect(service.calls).toEqual([
+			{
+				operation: "replace",
+				options: {
+					date: "2026-07-14",
+					mealKey: "supper",
+					itemId: "old-item",
+					replacement: expected,
+				},
+			},
+		]);
 	});
 
 	it("delegates trimmed custom-item name and zero nutrition updates", async () => {
@@ -806,6 +943,92 @@ describe("meal item mutation tools", () => {
 				items: [{ productId: "100", foodType: "PRODUCT", measureId: "999" }],
 			}),
 		).rejects.toThrow("Measure at items[0].measureId does not belong to the selected food.");
+		expect(calls).toEqual([]);
+	});
+
+	it("validates and confirms a replacement through the existing add preparation path", async () => {
+		const calls: ReplaceMealItemOptions[] = [];
+		const confirmations: ReplaceMealItemOptions[] = [];
+		const service = new MealItemMutationService(
+			{
+				replaceMealItem: async (options: ReplaceMealItemOptions) => {
+					calls.push(options);
+					return successCases[5].result;
+				},
+			} as unknown as DayPlanClient,
+			{ getAvailableMeasureIds: async () => new Set(["measure-2"]) },
+			{ getRecipe: async () => recipeDetails() },
+			{
+				...alwaysConfirmingMealItemMutations(),
+				confirmReplaced: async (options) => {
+					confirmations.push(options);
+				},
+			},
+		);
+		const options = new ReplaceMealItemOptions(
+			"2026-07-14",
+			"breakfast",
+			"old-item-1",
+			new ProductMealItemInput("food-2", "measure-2", 0.5),
+		);
+
+		const result = await service.replaceMealItem(options);
+
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.replacement).toBeInstanceOf(ProductMealItemInput);
+		expect(confirmations).toEqual(calls);
+		expect(result.message).toBe("Meal item replace accepted and confirmed in Fitatu.");
+	});
+
+	it("rejects a replacement with a mismatched product measure before the day-plan write", async () => {
+		const calls: ReplaceMealItemOptions[] = [];
+		const service = new MealItemMutationService(
+			{
+				replaceMealItem: async (options: ReplaceMealItemOptions) => {
+					calls.push(options);
+					return successCases[5].result;
+				},
+			} as unknown as DayPlanClient,
+			{ getAvailableMeasureIds: async () => new Set(["measure-1"]) },
+			{ getRecipe: async () => recipeDetails() },
+		);
+
+		await expect(
+			service.replaceMealItem(
+				new ReplaceMealItemOptions(
+					"2026-07-14",
+					"breakfast",
+					"old-item-1",
+					new ProductMealItemInput("food-2", "wrong-measure"),
+				),
+			),
+		).rejects.toThrow("Measure at items[0].measureId does not belong to the selected food.");
+		expect(calls).toEqual([]);
+	});
+
+	it("rejects a deleted recipe replacement before the day-plan write", async () => {
+		const calls: ReplaceMealItemOptions[] = [];
+		const service = new MealItemMutationService(
+			{
+				replaceMealItem: async (options: ReplaceMealItemOptions) => {
+					calls.push(options);
+					return successCases[5].result;
+				},
+			} as unknown as DayPlanClient,
+			{ getAvailableMeasureIds: async () => new Set(["39"]) },
+			{ getRecipe: async () => recipeDetails({ deleted: true }) },
+		);
+
+		await expect(
+			service.replaceMealItem(
+				new ReplaceMealItemOptions(
+					"2026-07-14",
+					"breakfast",
+					"old-item-1",
+					new RecipeMealItemInput("159408954", "39"),
+				),
+			),
+		).rejects.toThrow("Deleted recipe at items[0].recipeId cannot be added to a day plan.");
 		expect(calls).toEqual([]);
 	});
 
@@ -1071,7 +1294,8 @@ type MutationCall =
 	| { readonly operation: "add"; readonly options: AddMealItemsOptions }
 	| { readonly operation: "update"; readonly options: UpdateMealItemOptions }
 	| { readonly operation: "remove"; readonly options: RemoveMealItemsOptions }
-	| { readonly operation: "move"; readonly options: MoveMealItemOptions };
+	| { readonly operation: "move"; readonly options: MoveMealItemOptions }
+	| { readonly operation: "replace"; readonly options: ReplaceMealItemOptions };
 
 class FakeMealItemMutationService {
 	public readonly calls: MutationCall[] = [];
@@ -1095,6 +1319,10 @@ class FakeMealItemMutationService {
 
 	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {
 		return this.record({ operation: "move", options });
+	}
+
+	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult> {
+		return this.record({ operation: "replace", options });
 	}
 
 	private async record(call: MutationCall): Promise<MealItemMutationResult> {
@@ -1197,5 +1425,6 @@ function alwaysConfirmingMealItemMutations(): MealItemMutationConfirmationProvid
 			throw new Error("Move source is not used by this test");
 		},
 		confirmMoved: async () => undefined,
+		confirmReplaced: async () => undefined,
 	};
 }

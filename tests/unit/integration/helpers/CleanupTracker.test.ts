@@ -71,6 +71,7 @@ function failingConfirmationProvider(): MealItemMutationConfirmationProvider {
 			throw new Error("not used");
 		},
 		confirmMoved: async () => undefined,
+		confirmReplaced: async () => undefined,
 	};
 }
 

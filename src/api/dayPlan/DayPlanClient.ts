@@ -18,6 +18,7 @@ import { MoveMealItemOptions } from "./MoveMealItemOptions.ts";
 import { RemoveMealItemOptions } from "./RemoveMealItemOptions.ts";
 import { RemoveMealItemsOptions } from "./RemoveMealItemsOptions.ts";
 import { UpdateMealItemOptions } from "./UpdateMealItemOptions.ts";
+import { ReplaceMealItemOptions } from "./ReplaceMealItemOptions.ts";
 
 export class DayPlanClient extends FitatuApiClientBase {
 	private readonly dayPlanSyncCoordinator: DayPlanSyncCoordinator;
@@ -114,6 +115,22 @@ export class DayPlanClient extends FitatuApiClientBase {
 				normalizedOptions.date,
 				normalizedOptions.mealKey,
 				normalizedOptions.itemId,
+				userId,
+			),
+		);
+	}
+
+	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult> {
+		const userId = await this.getRequiredContextUserId(
+			options.userId,
+			FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem,
+		);
+		return this.mealItemMutationCoordinator.replaceMealItem(
+			new ReplaceMealItemOptions(
+				options.date,
+				options.mealKey,
+				options.itemId,
+				options.replacement,
 				userId,
 			),
 		);

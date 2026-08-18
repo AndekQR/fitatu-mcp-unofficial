@@ -1,7 +1,7 @@
 import { DayRevisions } from "./DayRevisions.ts";
 import type { MealItemOperationSummary } from "./MealItemOperationSummary.ts";
 
-export type MealItemOperationName = "add" | "update" | "remove" | "move";
+export type MealItemOperationName = "add" | "update" | "remove" | "move" | "replace";
 
 export class MealItemMutationResult {
 	public readonly status = "accepted";
@@ -18,6 +18,7 @@ export class MealItemMutationResult {
 	public readonly oldItemId: string | null;
 	public readonly newItemId: string | null;
 	public readonly dayRevisions: DayRevisions;
+	public readonly replacementEaten?: boolean;
 
 	private constructor(
 		operation: MealItemOperationName,
@@ -31,6 +32,7 @@ export class MealItemMutationResult {
 		oldItemId: string | null,
 		newItemId: string | null,
 		dayRevisions: DayRevisions,
+		replacementEaten?: boolean,
 	) {
 		this.operation = operation;
 		this.message = message;
@@ -43,6 +45,7 @@ export class MealItemMutationResult {
 		this.oldItemId = oldItemId;
 		this.newItemId = newItemId;
 		this.dayRevisions = dayRevisions;
+		this.replacementEaten = replacementEaten;
 		this.operationCount = acceptedItems.length;
 		this.itemIdChanged = oldItemId !== null && newItemId !== null && oldItemId !== newItemId;
 	}
@@ -131,6 +134,30 @@ export class MealItemMutationResult {
 		);
 	}
 
+	public static acceptedReplace(
+		targetDate: string,
+		mealKey: string,
+		oldItemId: string,
+		acceptedItem: MealItemOperationSummary,
+		dayRevisions: DayRevisions,
+		replacementEaten: boolean,
+	): MealItemMutationResult {
+		return new MealItemMutationResult(
+			"replace",
+			"Meal item replacement request accepted by Fitatu.",
+			targetDate,
+			mealKey,
+			[acceptedItem],
+			[acceptedItem.itemId],
+			[],
+			[oldItemId],
+			oldItemId,
+			acceptedItem.itemId,
+			dayRevisions,
+			replacementEaten,
+		);
+	}
+
 	public static confirmed(result: MealItemMutationResult): MealItemMutationResult {
 		return new MealItemMutationResult(
 			result.operation,
@@ -144,6 +171,7 @@ export class MealItemMutationResult {
 			result.oldItemId,
 			result.newItemId,
 			result.dayRevisions,
+			result.replacementEaten,
 		);
 	}
 }

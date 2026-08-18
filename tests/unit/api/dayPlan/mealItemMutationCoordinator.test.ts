@@ -4,6 +4,10 @@ import { MealItemMutationCoordinator } from "../../../../src/api/dayPlan/MealIte
 import type { MealItemInput } from "../../../../src/api/dayPlan/MealItemInput.ts";
 import type { DayPlanSyncProvider } from "../../../../src/api/dayPlan/DayPlanSyncProvider.ts";
 import type { DaySyncPayload } from "../../../../src/api/dayPlan/DaySyncPayload.ts";
+import { ProductMealItemInput } from "../../../../src/api/dayPlan/ProductMealItemInput.ts";
+import { RecipeMealItemInput } from "../../../../src/api/dayPlan/RecipeMealItemInput.ts";
+import { CustomMealItemInput } from "../../../../src/api/dayPlan/CustomMealItemInput.ts";
+import { ReplaceMealItemOptions } from "../../../../src/api/dayPlan/ReplaceMealItemOptions.ts";
 
 describe("MealItemMutationCoordinator single-day mutations", () => {
 	it("adds a product item and synchronizes the changed day", async () => {
@@ -371,6 +375,187 @@ describe("MealItemMutationCoordinator.removeMealItems", () => {
 	});
 });
 
+describe("MealItemMutationCoordinator.replaceMealItem", () => {
+	it("replaces one exact item in one sync while preserving its eaten state", async () => {
+		const syncService = new RecordingDayPlanSyncCoordinator(
+			createPayload({
+				dinner: [
+					createProductItem({ itemId: "deleted-before", productId: 99, deletedAt: "2026-06-30 10:00:00" }),
+					createProductItem({ itemId: "before", productId: 100 }),
+					{ ...createProductItem({ itemId: "old-item", productId: 101 }), eaten: true },
+					createProductItem({ itemId: "after", productId: 102 }),
+				],
+			}),
+		);
+		const coordinator = new MealItemMutationCoordinator(syncService);
+
+		const result = await coordinator.replaceMealItem(
+			new ReplaceMealItemOptions(
+				"2026-07-01",
+				"dinner",
+				"old-item",
+				new ProductMealItemInput("202", "2", 0.5),
+				"user-1",
+			),
+		);
+
+		expect(result).toMatchObject({
+			operation: "replace",
+			oldItemId: "old-item",
+			newItemId: expect.any(String),
+			deletedItemIds: ["old-item"],
+			itemIdChanged: true,
+		});
+		expect(result.provisionalItemIds).toEqual([result.newItemId]);
+		expect(syncService.getPayloadCalls).toHaveLength(1);
+		expect(syncService.syncCalls).toHaveLength(1);
+		const items = mealItems(syncService.currentPayload, "dinner");
+		expect(items.map((item) => item.planDayDietItemId)).toEqual([
+			"deleted-before",
+			"before",
+			"old-item",
+			result.newItemId,
+			"after",
+		]);
+		expect(items[2]?.deletedAt).toEqual(expect.any(String));
+		expect(items[3]).toMatchObject({
+			foodType: "PRODUCT",
+			productId: 202,
+			measureId: 2,
+			measureQuantity: 0.5,
+			eaten: true,
+			mealType: "dinner",
+		});
+	});
+
+	it("replaces a recipe with another recipe and honors an explicit eaten override", async () => {
+		const syncService = new RecordingDayPlanSyncCoordinator(
+			createPayload({
+				dinner: [{ ...createRecipeItem({ itemId: "old-recipe", recipeId: 501 }), eaten: true }],
+			}),
+		);
+		const coordinator = new MealItemMutationCoordinator(syncService);
+
+		const result = await coordinator.replaceMealItem(
+			new ReplaceMealItemOptions(
+				"2026-07-01",
+				"dinner",
+				"old-recipe",
+				new RecipeMealItemInput("502", "39", 1.5, false, 8),
+				"user-1",
+			),
+		);
+
+		expect(result).toMatchObject({ replacementEaten: false });
+		expect(syncService.syncCalls).toHaveLength(1);
+		expect(mealItems(syncService.currentPayload, "dinner")[1]).toMatchObject({
+			foodType: "RECIPE",
+			recipeId: 502,
+			measureId: 39,
+			measureQuantity: 1.5,
+			ingredientsServing: 8,
+			eaten: false,
+		});
+	});
+
+	it("replaces a custom item with another custom item", async () => {
+		const syncService = new RecordingDayPlanSyncCoordinator(
+			createPayload({ dinner: [createCustomItem({ itemId: "old-custom" })] }),
+		);
+		const coordinator = new MealItemMutationCoordinator(syncService);
+
+		const result = await coordinator.replaceMealItem(
+			new ReplaceMealItemOptions(
+				"2026-07-01",
+				"dinner",
+				"old-custom",
+				new CustomMealItemInput("New custom", 222, 20, 8, 15),
+				"user-1",
+			),
+		);
+
+		expect(result).toMatchObject({ replacementEaten: true });
+		expect(syncService.syncCalls).toHaveLength(1);
+		expect(mealItems(syncService.currentPayload, "dinner")[1]).toMatchObject({
+			foodType: "CUSTOM_ITEM",
+			name: "New custom",
+			energy: 222,
+			protein: 20,
+			fat: 8,
+			carbohydrate: 15,
+			eaten: true,
+		});
+	});
+
+	it("rejects replacing a catalog item with the same definition before synchronizing", async () => {
+		const syncService = new RecordingDayPlanSyncCoordinator(
+			createPayload({ dinner: [createProductItem({ itemId: "old-item", productId: 101 })] }),
+		);
+		const coordinator = new MealItemMutationCoordinator(syncService);
+
+		await expect(
+			coordinator.replaceMealItem(
+				new ReplaceMealItemOptions(
+					"2026-07-01",
+					"dinner",
+					"old-item",
+					new ProductMealItemInput("101", "2", 0.5),
+					"user-1",
+				),
+			),
+		).rejects.toThrow("update_meal_item");
+		expect(syncService.syncCalls).toHaveLength(0);
+	});
+
+	it("rejects replacing a recipe with the same recipe definition before synchronizing", async () => {
+		const syncService = new RecordingDayPlanSyncCoordinator(
+			createPayload({ dinner: [createRecipeItem({ itemId: "old-recipe", recipeId: 501 })] }),
+		);
+		const coordinator = new MealItemMutationCoordinator(syncService);
+
+		await expect(
+			coordinator.replaceMealItem(
+				new ReplaceMealItemOptions(
+					"2026-07-01",
+					"dinner",
+					"old-recipe",
+					new RecipeMealItemInput("501", "39"),
+					"user-1",
+				),
+			),
+		).rejects.toThrow("update_meal_item");
+		expect(syncService.syncCalls).toHaveLength(0);
+	});
+
+	it.each([
+		{ name: "missing", itemId: "missing-item" },
+		{ name: "already deleted", itemId: "deleted-item" },
+	])("rejects a $name source without synchronizing", async ({ itemId }) => {
+		const syncService = new RecordingDayPlanSyncCoordinator(
+			createPayload({
+				dinner: [
+					createProductItem({ itemId: "active-item", productId: 101 }),
+					createProductItem({ itemId: "deleted-item", productId: 102, deletedAt: "2026-07-01 10:00:00" }),
+				],
+			}),
+		);
+		const coordinator = new MealItemMutationCoordinator(syncService);
+
+		await expect(
+			coordinator.replaceMealItem(
+				new ReplaceMealItemOptions(
+					"2026-07-01",
+					"dinner",
+					itemId,
+					new ProductMealItemInput("202", "2"),
+					"user-1",
+				),
+			),
+		).rejects.toThrow("Active meal item was not found");
+		expect(syncService.syncCalls).toHaveLength(0);
+	});
+});
+
 describe("MealItemMutationCoordinator.moveMealItem", () => {
 	it("moves an item between meals in one day payload", async () => {
 		const syncService = new RecordingDayPlanSyncCoordinator({
@@ -529,7 +714,6 @@ class RecordingDayPlanSyncCoordinator implements DayPlanSyncProvider {
 function createPayload(meals: Record<string, readonly Record<string, unknown>[]>): DaySyncPayload {
 	return {
 		planDayRevisions: [],
-		activities: [],
 		dietPlan: Object.fromEntries(Object.entries(meals).map(([mealKey, items]) => [mealKey, { items: [...items] }])),
 		toilet: [],
 		water: { waterConsumption: 0 },

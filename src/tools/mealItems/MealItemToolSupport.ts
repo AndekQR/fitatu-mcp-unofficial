@@ -2,21 +2,20 @@ import { z } from "zod";
 import { CustomMealItemInput } from "../../api/dayPlan/CustomMealItemInput.ts";
 import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
 import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
-import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
+import type { MealItemMutationResult, MealItemOperationName } from "../../api/dayPlan/MealItemMutationResult.ts";
 import { ProductMealItemInput } from "../../api/dayPlan/ProductMealItemInput.ts";
 import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
-import { isoCalendarDateSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
+import { isoCalendarDateSchema, nonEmptyStringSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
 export const MEAL_KEY_HINT = `Typical keys are ${FITATU_MEAL_KEYS.join(", ")}, but accounts with renamed or additional meals may use other keys such as dinner.`;
 
 export const mealKeySchema = z.string().trim().min(1, "mealKey must be a non-empty string");
 
 const catalogMealItemInputShape = {
-	measureId: z
-		.string()
-		.min(1)
-		.describe("Measure id to use for this item. Prefer a measureId returned by search_food."),
+	measureId: nonEmptyStringSchema("measureId").describe(
+		"Measure id to use for this item. Prefer a measureId returned by search_food.",
+	),
 	measureQuantity: z
 		.number()
 		.positive()
@@ -27,7 +26,7 @@ const catalogMealItemInputShape = {
 
 const productMealItemInputSchema = z
 	.object({
-		productId: z.string().min(1).describe("Fitatu product id returned by search_food."),
+		productId: nonEmptyStringSchema("productId").describe("Fitatu product id returned by search_food."),
 		...catalogMealItemInputShape,
 	})
 	.strict()
@@ -71,16 +70,16 @@ export const mealItemInputSchema = z.union([
 ]);
 
 const acceptedItemBaseShape = {
-	index: z.number().int().describe("Zero-based index of the item in the accepted request."),
-	itemId: z.string().describe("Meal item id submitted in the accepted request."),
-	mealKey: z.string().describe("Meal key targeted by the submitted item."),
+	index: z.number().int().nonnegative().describe("Zero-based index of the item in the accepted request."),
+	itemId: nonEmptyStringSchema("itemId").describe("Meal item id submitted in the accepted request."),
+	mealKey: mealKeySchema.describe("Meal key targeted by the submitted item."),
 };
 
 const acceptedItemOutputSchema = z.union([
 	z
 		.object({
 			...acceptedItemBaseShape,
-			productId: z.string().describe("Submitted raw Fitatu product id."),
+			productId: nonEmptyStringSchema("productId").describe("Submitted raw Fitatu product id."),
 		})
 		.strict(),
 	z
@@ -102,13 +101,13 @@ const mealItemMutationOutputObjectSchema = z.object({
 		.describe(
 			"Fitatu accepted the synchronization request and the service confirmed every requested change in the persisted day plan.",
 		),
-	operation: z.enum(["add", "update", "remove", "move"]).describe("Meal item mutation operation that was requested."),
+	operation: z
+		.enum(["add", "update", "remove", "move", "replace"])
+		.describe("Meal item mutation operation that was requested."),
 	message: z.string().describe("Human-readable summary of the mutation result."),
-	targetDate: z
-		.string()
-		.describe(
-			"Primary YYYY-MM-DD date for the mutation. For move operations, this is the source date; inspect acceptedItems for the destination meal.",
-		),
+	targetDate: isoCalendarDateSchema("targetDate").describe(
+		"Primary YYYY-MM-DD date for the mutation. For move operations, this is the source date; inspect acceptedItems for the destination meal.",
+	),
 	mealKey: z
 		.string()
 		.optional()
@@ -118,13 +117,14 @@ const mealItemMutationOutputObjectSchema = z.object({
 	operationCount: z
 		.number()
 		.int()
+		.positive()
 		.describe("Number of meal items submitted in the synchronization request accepted by Fitatu."),
 	dayRevisions: z
 		.record(isoCalendarDateSchema(), z.string().min(1))
 		.describe(
 			"Fitatu synchronization revisions keyed by YYYY-MM-DD date. Empty only for a legacy endpoint response without receipts.",
 		),
-	acceptedItems: z.array(acceptedItemOutputSchema),
+	acceptedItems: z.array(acceptedItemOutputSchema).min(1),
 	provisionalItemIds: z
 		.array(z.string())
 		.optional()
@@ -144,7 +144,12 @@ const mealItemMutationOutputObjectSchema = z.object({
 	itemIdChanged: z.boolean().describe("Whether Fitatu changed the item id as part of the operation."),
 });
 
-export const mealItemMutationOutputSchema = mealItemMutationOutputObjectSchema.shape;
+export function mealItemMutationOutputSchema(operation: MealItemOperationName) {
+	return {
+		...mealItemMutationOutputObjectSchema.shape,
+		operation: z.literal(operation).describe("Meal item mutation operation performed by this tool."),
+	};
+}
 export type MealItemMutationForMcp = z.infer<typeof mealItemMutationOutputObjectSchema>;
 
 export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): MealItemInput {

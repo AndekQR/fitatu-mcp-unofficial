@@ -9,6 +9,7 @@ import { GetDayPlanItemsTool } from "./tools/dayPlanItems/GetDayPlanItemsTool.ts
 import { GetDietSummaryTool } from "./tools/dietSummary/GetDietSummaryTool.ts";
 import { MoveMealItemTool } from "./tools/mealItems/MoveMealItemTool.ts";
 import { RemoveMealItemsTool } from "./tools/mealItems/RemoveMealItemsTool.ts";
+import { ReplaceMealItemTool } from "./tools/mealItems/ReplaceMealItemTool.ts";
 import { UpdateMealItemTool } from "./tools/mealItems/UpdateMealItemTool.ts";
 import { SearchFoodTool } from "./tools/searchFood/SearchFoodTool.ts";
 import { CreateRecipeTool } from "./tools/recipes/CreateRecipeTool.ts";
@@ -33,6 +34,7 @@ const getServer = (): McpServer => {
 	new SearchFoodTool(applicationServices.foodSearchService).register(server);
 	new AddMealItemsTool(applicationServices.mealItemMutationService).register(server);
 	new UpdateMealItemTool(applicationServices.mealItemMutationService).register(server);
+	new ReplaceMealItemTool(applicationServices.mealItemMutationService).register(server);
 	new RemoveMealItemsTool(applicationServices.mealItemMutationService).register(server);
 	new MoveMealItemTool(applicationServices.mealItemMutationService).register(server);
 	new CreateRecipeTool(applicationServices.recipeService).register(server);

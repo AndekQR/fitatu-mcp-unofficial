@@ -120,21 +120,22 @@ http://localhost:3000/mcp
 
 ## Available Tools
 
-| Tool                 | Purpose                                                                             | Mutates Fitatu data |
-| -------------------- | ----------------------------------------------------------------------------------- | ------------------- |
-| `get_current_user`   | Returns a safe subset of the authenticated Fitatu user profile.                     | No                  |
-| `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date.                               | No                  |
-| `get_diet_summary`   | Returns an agent-friendly nutrition and energy summary for an inclusive date range. | No                  |
-| `search_food`        | Searches Fitatu food catalogs for product, recipe, and measure identifiers.         | No                  |
-| `add_meal_items`     | Adds products, recipes, or one-off custom items to a meal.                          | Yes                 |
-| `update_meal_item`   | Updates quantity, measure, or eaten state for an existing meal item.                | Yes                 |
-| `move_meal_item`     | Moves a meal item to another meal, date, or both.                                   | Yes                 |
-| `remove_meal_items`  | Atomically removes exact day-plan entries of any food type by item UUID.            | Yes                 |
-| `search_recipes`     | Lists or searches the user's recipes, public recipes, or both catalogs.             | No                  |
-| `get_recipe`         | Returns canonical per-serving details for a recipe.                                 | No                  |
-| `create_recipe`      | Creates a private recipe by default from product and measure identifiers.           | Yes                 |
-| `update_recipe`      | Partially updates an owned, editable recipe and returns its resulting recipe ID.    | Yes                 |
-| `delete_recipe`      | Soft-deletes a recipe definition after exact-name confirmation.                     | Yes                 |
+| Tool                 | Purpose                                                                               | Mutates Fitatu data |
+| -------------------- | ------------------------------------------------------------------------------------- | ------------------- |
+| `get_current_user`   | Returns a safe subset of the authenticated Fitatu user profile.                       | No                  |
+| `get_day_plan_items` | Returns meals and food items for a `YYYY-MM-DD` date.                                 | No                  |
+| `get_diet_summary`   | Returns an agent-friendly nutrition and energy summary for an inclusive date range.   | No                  |
+| `search_food`        | Searches Fitatu food catalogs for product, recipe, and measure identifiers.           | No                  |
+| `add_meal_items`     | Adds products, recipes, or one-off custom items to a meal.                            | Yes                 |
+| `update_meal_item`   | Updates quantity, measure, or eaten state for an existing meal item.                  | Yes                 |
+| `replace_meal_item`  | Replaces one exact meal entry with an add-compatible product, recipe, or custom item. | Yes                 |
+| `move_meal_item`     | Moves a meal item to another meal, date, or both.                                     | Yes                 |
+| `remove_meal_items`  | Atomically removes exact day-plan entries of any food type by item UUID.              | Yes                 |
+| `search_recipes`     | Lists or searches the user's recipes, public recipes, or both catalogs.               | No                  |
+| `get_recipe`         | Returns canonical per-serving details for a recipe.                                   | No                  |
+| `create_recipe`      | Creates a private recipe by default from product and measure identifiers.             | Yes                 |
+| `update_recipe`      | Partially updates an owned, editable recipe and returns its resulting recipe ID.      | Yes                 |
+| `delete_recipe`      | Soft-deletes a recipe definition after exact-name confirmation.                       | Yes                 |
 
 ## Configuration
 

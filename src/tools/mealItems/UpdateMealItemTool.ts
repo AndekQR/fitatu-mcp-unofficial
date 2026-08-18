@@ -10,9 +10,9 @@ import {
 	mealItemMutationOutputSchema,
 	toMealItemMutationForMcp,
 } from "./MealItemToolSupport.ts";
-import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
+import { isoCalendarDateSchema, nonEmptyStringSchema } from "../shared/ToolSchemas.ts";
 
-const idSchema = z.union([z.string().min(1), z.number().finite()]);
+const idSchema = z.union([nonEmptyStringSchema("measureId"), z.number().finite()]);
 
 export class UpdateMealItemTool {
 	public static readonly toolName = "update_meal_item";
@@ -38,10 +38,9 @@ export class UpdateMealItemTool {
 						mealKey: mealKeySchema.describe(
 							`Meal key containing the item. Use mealKey values returned by get_day_plan_items. ${MEAL_KEY_HINT}`,
 						),
-						itemId: z
-							.string()
-							.min(1)
-							.describe("Meal item id to update. Use itemId returned by get_day_plan_items."),
+						itemId: nonEmptyStringSchema("itemId").describe(
+							"Meal item id to update. Use itemId returned by get_day_plan_items.",
+						),
 						measureQuantity: z
 							.number()
 							.positive()
@@ -91,8 +90,9 @@ export class UpdateMealItemTool {
 								(value) => value !== undefined,
 							),
 						{ message: "Provide at least one update field" },
-					),
-				outputSchema: mealItemMutationOutputSchema,
+					)
+					.describe("Meal item update containing its identity and at least one update field."),
+				outputSchema: mealItemMutationOutputSchema("update"),
 				annotations: {
 					title: "Update Fitatu Meal Item",
 					readOnlyHint: false,

@@ -6,6 +6,7 @@ import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
 import { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
 import { RemoveMealItemOptions } from "../../api/dayPlan/RemoveMealItemOptions.ts";
 import { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
+import { ReplaceMealItemOptions } from "../../api/dayPlan/ReplaceMealItemOptions.ts";
 import { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
 import type { RecipeClient } from "../../api/recipes/RecipeClient.ts";
 import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
@@ -29,6 +30,7 @@ export interface MealItemMutationProvider {
 	removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult>;
 	removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult>;
 	moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult>;
+	replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult>;
 }
 
 export interface MealItemMutationConfirmationProvider {
@@ -37,6 +39,7 @@ export interface MealItemMutationConfirmationProvider {
 	confirmRemoved(options: RemoveMealItemsOptions): Promise<void>;
 	getMoveSource(options: MoveMealItemOptions): Promise<DayPlanItem>;
 	confirmMoved(options: MoveMealItemOptions, result: MealItemMutationResult, source: DayPlanItem): Promise<void>;
+	confirmReplaced(options: ReplaceMealItemOptions, result: MealItemMutationResult): Promise<void>;
 }
 
 export class MealItemMutationService implements MealItemMutationProvider {
@@ -99,6 +102,23 @@ export class MealItemMutationService implements MealItemMutationProvider {
 		const source = await this.confirmer.getMoveSource(preparedOptions);
 		const result = await this.dayPlanClient.moveMealItem(preparedOptions);
 		await this.confirmer.confirmMoved(preparedOptions, result, source);
+		return MealItemMutationResult.confirmed(result);
+	}
+
+	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult> {
+		const [replacement] = await this.prepareMealItems([options.replacement]);
+		if (replacement === undefined) {
+			throw new Error("Prepared replacement meal item was not available");
+		}
+		const preparedOptions = new ReplaceMealItemOptions(
+			options.date,
+			options.mealKey,
+			options.itemId,
+			replacement,
+			options.userId,
+		);
+		const result = await this.dayPlanClient.replaceMealItem(preparedOptions);
+		await this.confirmer.confirmReplaced(preparedOptions, result);
 		return MealItemMutationResult.confirmed(result);
 	}
 

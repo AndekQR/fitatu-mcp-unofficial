@@ -4,6 +4,7 @@ import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
 import type { MealItemMutationResult } from "../../../src/api/dayPlan/MealItemMutationResult.ts";
 import type { MoveMealItemOptions } from "../../../src/api/dayPlan/MoveMealItemOptions.ts";
 import type { RemoveMealItemsOptions } from "../../../src/api/dayPlan/RemoveMealItemsOptions.ts";
+import type { ReplaceMealItemOptions } from "../../../src/api/dayPlan/ReplaceMealItemOptions.ts";
 import type { UpdateMealItemOptions } from "../../../src/api/dayPlan/UpdateMealItemOptions.ts";
 import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
@@ -243,6 +244,18 @@ export class CleanupTrackingMealItemMutationConfirmer implements MealItemMutatio
 			result.newItemId,
 		);
 		await this.delegate.confirmMoved(options, result, source);
+	}
+
+	public async confirmReplaced(options: ReplaceMealItemOptions, result: MealItemMutationResult): Promise<void> {
+		this.cleanup.move({
+			fromDate: options.date,
+			fromMealKey: options.mealKey,
+			oldItemId: options.itemId,
+			toDate: options.date,
+			toMealKey: options.mealKey,
+			newItemId: result.newItemId,
+		});
+		await this.delegate.confirmReplaced(options, result);
 	}
 }
 

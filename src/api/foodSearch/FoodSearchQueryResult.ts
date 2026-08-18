@@ -3,7 +3,8 @@ import type { FoodSearchWarningDetail } from "./FoodSearchWarningDetail.ts";
 
 export class FoodSearchQueryResult {
 	public readonly query: string;
-	public readonly items: readonly NormalizedFoodSearchItem[];
+	public readonly userItems: readonly NormalizedFoodSearchItem[];
+	public readonly publicItems: readonly NormalizedFoodSearchItem[];
 	public readonly warnings: readonly string[];
 	public readonly warningDetails: readonly FoodSearchWarningDetail[];
 	public readonly searchAttemptCount: number;
@@ -11,14 +12,16 @@ export class FoodSearchQueryResult {
 
 	public constructor(
 		query: string,
-		items: readonly NormalizedFoodSearchItem[],
+		userItems: readonly NormalizedFoodSearchItem[],
+		publicItems: readonly NormalizedFoodSearchItem[],
 		warnings: readonly string[],
 		warningDetails: readonly FoodSearchWarningDetail[],
 		searchAttemptCount: number,
 		searchSuccessCount: number,
 	) {
 		this.query = query;
-		this.items = items;
+		this.userItems = userItems;
+		this.publicItems = publicItems;
 		this.warnings = warnings;
 		this.warningDetails = warningDetails;
 		this.searchAttemptCount = searchAttemptCount;

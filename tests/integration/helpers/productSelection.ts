@@ -1,7 +1,7 @@
-import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
 import type { FoodMeasure } from "../../../src/api/foodSearch/FoodMeasure.ts";
 import type { FoodSearchItem } from "../../../src/api/foodSearch/FoodSearchItem.ts";
 import type { FoodTypeName } from "../../../src/api/dayPlan/FoodType.ts";
+import type { FoodSearchProvider } from "../../../src/services/foodSearch/FoodSearchService.ts";
 
 export interface SelectedMeasure {
 	readonly measureId: string;
@@ -27,7 +27,7 @@ export interface SelectedProductsByMeasure {
 const SEARCH_TERMS = ["banan", "jogurt", "chleb", "mleko", "ryz", "jablko"];
 
 export async function selectProductsByMeasure(options: {
-	readonly foodSearchClient: FoodSearchClient;
+	readonly foodSearchService: FoodSearchProvider;
 	readonly date: string;
 }): Promise<SelectedProductsByMeasure> {
 	const attempts: string[] = [];
@@ -38,7 +38,7 @@ export async function selectProductsByMeasure(options: {
 
 	for (const query of SEARCH_TERMS) {
 		attempts.push(query);
-		const result = await options.foodSearchClient.search({
+		const result = await options.foodSearchService.search({
 			queries: [query],
 			date: options.date,
 			locale: "pl_PL",
@@ -49,7 +49,7 @@ export async function selectProductsByMeasure(options: {
 			detailsLimit: 8,
 		});
 
-		for (const item of result.items) {
+		for (const item of result.publicItems) {
 			const measures = uniqueMeasures(
 				[toMeasure(item), ...item.measures.map(normalizeMeasure)].filter(isMeasure),
 			);
@@ -83,10 +83,10 @@ export async function selectProductsByMeasure(options: {
 }
 
 export async function searchMultipleQueries(options: {
-	readonly foodSearchClient: FoodSearchClient;
+	readonly foodSearchService: FoodSearchProvider;
 	readonly date: string;
 }): Promise<void> {
-	const result = await options.foodSearchClient.search({
+	const result = await options.foodSearchService.search({
 		queries: ["banan", "jogurt"],
 		date: options.date,
 		locale: "pl_PL",
@@ -97,9 +97,39 @@ export async function searchMultipleQueries(options: {
 		detailsLimit: 2,
 	});
 
-	if (result.queryCount !== 2 || result.items.length === 0) {
+	if (result.queryCount !== 2 || result.publicItems.length === 0) {
 		throw new Error(`Expected multi-query search to return results, got queryCount=${result.queryCount}`);
 	}
+}
+
+export async function selectProductDifferentFrom(options: {
+	readonly foodSearchService: FoodSearchProvider;
+	readonly date: string;
+	readonly excludedProductId: string;
+}): Promise<SelectedProduct> {
+	for (const query of SEARCH_TERMS) {
+		const result = await options.foodSearchService.search({
+			queries: [query],
+			date: options.date,
+			locale: "pl_PL",
+			limit: 10,
+			includePublicFood: true,
+			includeUserFood: false,
+			includeDetails: false,
+		});
+		for (const item of result.publicItems) {
+			if (item.productId === options.excludedProductId) {
+				continue;
+			}
+			const measure = toMeasure(item);
+			const selected = toSelectedProduct(item, measure, measure ? [measure] : []);
+			if (selected) {
+				return selected;
+			}
+		}
+	}
+
+	throw new Error(`Could not find a product distinct from ${options.excludedProductId}`);
 }
 
 function toSelectedProduct(

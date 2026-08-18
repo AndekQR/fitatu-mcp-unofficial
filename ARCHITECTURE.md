@@ -3,6 +3,23 @@
 This document records project-wide architectural rules and the reasoning behind them. Read it before introducing or changing public models, service contracts,
 or mappings between layers.
 
+## API clients perform callouts; services interpret results
+
+An API client represents the technical Fitatu HTTP boundary. It may select an endpoint, construct paths, query parameters and headers, perform authentication
+and retry or fallback behavior, map transport and HTTP failures, parse JSON, and return the response received from Fitatu. It must not coordinate an
+application use case or attach business meaning to the response.
+
+In particular, API clients must not filter or rank domain results, deduplicate business entities, enrich results with additional calls, aggregate multiple
+queries, build user-facing warnings or display values, enforce domain policies, or construct service-level results. Those responsibilities belong to a
+service or to focused collaborators owned by the service layer, such as input normalizers, response mappers, filters, enrichers, or confirmers.
+
+Technical response decoding may remain at the HTTP boundary when it only establishes that the payload can be consumed safely. Mapping upstream fields into
+application or domain models belongs outside the client. A service should orchestrate multiple client calls and decide whether partial failures are allowed,
+how results are combined, and which errors or warnings callers receive.
+
+When a service starts accumulating unrelated private helpers, extract cohesive behavior into a named collaborator rather than moving the whole workflow into
+one large service class. Dependencies should be injected so the orchestration, mapping, and policies can be tested independently of HTTP.
+
 ## Data models use real class instances
 
 Production data models are classes with constructors or named factories that create real runtime instances. A method whose declared return type is a class must

@@ -18,7 +18,6 @@ export class NormalizedFoodSearchItem {
 	public readonly nutritionPerDefaultMeasure: FoodNutrition;
 	public readonly verified: boolean | null;
 	public readonly photoUrl: string | null;
-	public readonly matchScore: number;
 	public readonly measures: readonly FoodMeasure[];
 
 	public constructor(item: NormalizedFoodSearchItem);
@@ -37,7 +36,6 @@ export class NormalizedFoodSearchItem {
 		nutritionPerDefaultMeasure: FoodNutrition,
 		verified: boolean | null,
 		photoUrl: string | null,
-		matchScore: number,
 		measures: readonly FoodMeasure[],
 	);
 	public constructor(
@@ -55,7 +53,6 @@ export class NormalizedFoodSearchItem {
 		nutritionPerDefaultMeasure?: FoodNutrition,
 		verified?: boolean | null,
 		photoUrl?: string | null,
-		matchScore?: number,
 		measures?: readonly FoodMeasure[],
 	) {
 		if (itemOrSource instanceof NormalizedFoodSearchItem) {
@@ -73,7 +70,6 @@ export class NormalizedFoodSearchItem {
 			this.nutritionPerDefaultMeasure = itemOrSource.nutritionPerDefaultMeasure;
 			this.verified = itemOrSource.verified;
 			this.photoUrl = itemOrSource.photoUrl;
-			this.matchScore = itemOrSource.matchScore;
 			this.measures = itemOrSource.measures;
 			return;
 		}
@@ -95,12 +91,7 @@ export class NormalizedFoodSearchItem {
 		);
 		this.verified = requireFoodSearchValue(verified, "verified");
 		this.photoUrl = requireFoodSearchValue(photoUrl, "photoUrl");
-		this.matchScore = requireFoodSearchValue(matchScore, "matchScore");
 		this.measures = requireFoodSearchValue(measures, "measures");
-	}
-
-	public withMatchScore(matchScore: number): NormalizedFoodSearchItem {
-		return this.copy(this.nutritionPer100g, this.verified, this.photoUrl, matchScore, this.measures);
 	}
 
 	public withDetails(
@@ -109,14 +100,13 @@ export class NormalizedFoodSearchItem {
 		photoUrl: string | null,
 		measures: readonly FoodMeasure[],
 	): NormalizedFoodSearchItem {
-		return this.copy(nutritionPer100g, verified, photoUrl, this.matchScore, measures);
+		return this.copy(nutritionPer100g, verified, photoUrl, measures);
 	}
 
 	private copy(
 		nutritionPer100g: FoodNutrition,
 		verified: boolean | null,
 		photoUrl: string | null,
-		matchScore: number,
 		measures: readonly FoodMeasure[],
 	): NormalizedFoodSearchItem {
 		return new NormalizedFoodSearchItem(
@@ -134,7 +124,6 @@ export class NormalizedFoodSearchItem {
 			this.nutritionPerDefaultMeasure,
 			verified,
 			photoUrl,
-			matchScore,
 			measures,
 		);
 	}

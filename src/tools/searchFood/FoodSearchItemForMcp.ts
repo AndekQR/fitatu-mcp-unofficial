@@ -16,7 +16,6 @@ export class FoodSearchItemForMcp {
 	public readonly kcal: number | null;
 	public readonly verified: boolean | null;
 	public readonly photoUrl: string | null;
-	public readonly matchScore: number;
 	public readonly measures: readonly FoodMeasureForMcp[];
 
 	public constructor(item: FoodSearchItem) {
@@ -35,7 +34,6 @@ export class FoodSearchItemForMcp {
 		this.kcal = item.kcal;
 		this.verified = item.verified;
 		this.photoUrl = item.photoUrl;
-		this.matchScore = item.matchScore;
 		this.measures = item.measures.map((measure) => new FoodMeasureForMcp(measure));
 	}
 }

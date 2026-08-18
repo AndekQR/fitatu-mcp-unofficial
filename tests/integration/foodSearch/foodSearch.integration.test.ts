@@ -7,15 +7,17 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import type { FoodSearchItem } from "../../../src/api/foodSearch/FoodSearchItem.ts";
 import type { FoodSearchResult } from "../../../src/api/foodSearch/FoodSearchResult.ts";
 import type { FoodSearchSource } from "../../../src/api/foodSearch/FoodSearchSource.ts";
+import { FoodSearchService, type FoodSearchProvider } from "../../../src/services/foodSearch/FoodSearchService.ts";
 import { SearchFoodTool } from "../../../src/tools/searchFood/SearchFoodTool.ts";
 
 const foodSearchClient = new FoodSearchClient();
+const foodSearchService = new FoodSearchService(foodSearchClient);
 const DEFAULT_DATE = "2026-06-15";
 const PUBLIC_SOURCE: readonly FoodSearchSource[] = ["public"];
 
 describe.sequential("Fitatu food search integration", () => {
 	it("searches a stable public product query", async () => {
-		const result = await foodSearchClient.search({
+		const result = await foodSearchService.search({
 			queries: ["banan"],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
@@ -30,14 +32,14 @@ describe.sequential("Fitatu food search integration", () => {
 			queries: ["banan"],
 			expectedSources: PUBLIC_SOURCE,
 		});
-		expect(result.items.length).toBeGreaterThan(0);
-		expect(result.items.some((item) => item.matchScore > 0)).toBe(true);
+		expect(result.publicItems.length).toBeGreaterThan(0);
+		expect(result.userItems).toEqual([]);
 	});
 
 	it("searches multiple product queries at once", async () => {
 		const queries = ["banan", "jogurt", "chleb"];
 
-		const result = await foodSearchClient.search({
+		const result = await foodSearchService.search({
 			queries,
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
@@ -52,8 +54,8 @@ describe.sequential("Fitatu food search integration", () => {
 			queries,
 			expectedSources: PUBLIC_SOURCE,
 		});
-		expect(result.items.length).toBeGreaterThan(0);
-		expect(new Set(result.items.map((item) => item.queryIndex)).size).toBeGreaterThan(1);
+		expect(result.publicItems.length).toBeGreaterThan(0);
+		expect(new Set(result.publicItems.map((item) => item.queryIndex)).size).toBeGreaterThan(1);
 	});
 
 	it("searches meal ingredient queries from an agent food lookup response", async () => {
@@ -66,7 +68,7 @@ describe.sequential("Fitatu food search integration", () => {
 			"kiełbasa z piersi kurczaka Morliny",
 		];
 
-		const result = await foodSearchClient.search({
+		const result = await foodSearchService.search({
 			queries,
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
@@ -81,14 +83,16 @@ describe.sequential("Fitatu food search integration", () => {
 			queries,
 			expectedSources: ["public", "user"],
 		});
-		expect(result.items.length).toBeGreaterThan(0);
-		expect(new Set(result.items.map((item) => item.queryIndex)).size).toBe(queries.length);
+		expect(result.publicItems.length + result.userItems.length).toBeGreaterThan(0);
+		expect(new Set([...result.publicItems, ...result.userItems].map((item) => item.queryIndex)).size).toBe(
+			queries.length,
+		);
 	});
 
 	it("returns an empty successful response for a non-existing product query", async () => {
 		const query = "000000000000000000000000000000";
 
-		const result = await foodSearchClient.search({
+		const result = await foodSearchService.search({
 			queries: [query],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
@@ -104,13 +108,14 @@ describe.sequential("Fitatu food search integration", () => {
 			expectedSources: PUBLIC_SOURCE,
 		});
 		expect(result.count).toBe(0);
-		expect(result.items).toHaveLength(0);
+		expect(result.publicItems).toHaveLength(0);
+		expect(result.userItems).toHaveLength(0);
 	});
 
 	it("handles a strange query without throwing", async () => {
 		const query = "  żÓŁĆ ??? banan ###  ";
 
-		const result = await foodSearchClient.search({
+		const result = await foodSearchService.search({
 			queries: [query],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
@@ -128,7 +133,7 @@ describe.sequential("Fitatu food search integration", () => {
 	});
 
 	it("honors limit, locale, and disabled details parameters", async () => {
-		const result = await foodSearchClient.search({
+		const result = await foodSearchService.search({
 			queries: ["mleko"],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
@@ -143,12 +148,12 @@ describe.sequential("Fitatu food search integration", () => {
 			queries: ["mleko"],
 			expectedSources: PUBLIC_SOURCE,
 		});
-		expect(result.items.length).toBeLessThanOrEqual(2);
-		expect(result.items.every((item) => item.measures.length === 0)).toBe(true);
+		expect(result.publicItems.length).toBeLessThanOrEqual(2);
+		expect(result.publicItems.every((item) => item.measures.length === 0)).toBe(true);
 	});
 
 	it("searches only the public catalog when user food is disabled", async () => {
-		const result = await foodSearchClient.search({
+		const result = await foodSearchService.search({
 			queries: ["jablko"],
 			date: DEFAULT_DATE,
 			locale: "pl_PL",
@@ -163,8 +168,8 @@ describe.sequential("Fitatu food search integration", () => {
 			queries: ["jablko"],
 			expectedSources: PUBLIC_SOURCE,
 		});
-		expect(result.items.length).toBeGreaterThan(0);
-		expect(result.items.every((item) => item.source === "public")).toBe(true);
+		expect(result.publicItems.length).toBeGreaterThan(0);
+		expect(result.userItems).toEqual([]);
 	});
 
 	it("returns a structured MCP error when all requested food search requests fail", async () => {
@@ -189,12 +194,12 @@ describe.sequential("Fitatu food search integration", () => {
 			}),
 		});
 		const clientError = userError.withAttempts([publicError.failure], "All Fitatu food search requests failed");
-		const fakeFoodSearchClient = {
+		const fakeFoodSearchService = {
 			search: async () => {
 				throw clientError;
 			},
-		} as unknown as FoodSearchClient;
-		const tool = new SearchFoodTool(fakeFoodSearchClient);
+		} as FoodSearchProvider;
+		const tool = new SearchFoodTool(fakeFoodSearchService);
 		const handler = registerToolForTest(tool);
 
 		const result = await handler({ queries: ["pomidory koktajlowe"] });
@@ -232,14 +237,22 @@ function expectSearchResult(
 	expect(result.date).toBe(DEFAULT_DATE);
 	expect(result.queries).toEqual(options.queries);
 	expect(result.queryCount).toBe(options.queries.length);
-	expect(result.count).toBe(result.items.length);
+	expect(result.count).toBe(result.userItems.length + result.publicItems.length);
 	expect(Array.isArray(result.warnings)).toBe(true);
 	expect(Array.isArray(result.warningDetails)).toBe(true);
 	expect(result.warnings.filter(isSearchRequestFailureWarning)).toHaveLength(0);
 
-	result.items.forEach((item, index) => {
-		expectSearchItem(item, index, options.queries, options.expectedSources);
+	result.userItems.forEach((item, index) => {
+		expectSearchItem(item, index, options.queries, ["user"]);
 	});
+	result.publicItems.forEach((item, index) => {
+		expectSearchItem(item, index, options.queries, ["public"]);
+	});
+	expect(result.userItems.every(({ source }) => source === "user")).toBe(true);
+	expect(result.publicItems.every(({ source }) => source === "public")).toBe(true);
+	expect(
+		[...result.userItems, ...result.publicItems].every(({ source }) => options.expectedSources.includes(source)),
+	).toBe(true);
 }
 
 function expectSearchItem(
@@ -257,7 +270,6 @@ function expectSearchItem(
 	expect(item.productId).toBe(item.foodId);
 	expect(item.displayName).toEqual(expect.any(String));
 	expect(item.displayName.length).toBeGreaterThan(0);
-	expect(item.matchScore).toEqual(expect.any(Number));
 	expect(Array.isArray(item.measures)).toBe(true);
 }
 

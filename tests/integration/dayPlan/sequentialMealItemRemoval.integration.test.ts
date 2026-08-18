@@ -4,6 +4,7 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
 import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
+import { FoodSearchService } from "../../../src/services/foodSearch/FoodSearchService.ts";
 import { CleanupTracker, CleanupTrackingMealItemMutationConfirmer } from "../helpers/cleanupTracker.ts";
 import { expectMealItem, expectNoMealItem } from "../helpers/dayPlanAssertions.ts";
 import { selectProductsByMeasure } from "../helpers/productSelection.ts";
@@ -11,10 +12,11 @@ import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 
 const dayPlanClient = new DayPlanClient();
 const foodSearchClient = new FoodSearchClient();
+const foodSearchService = new FoodSearchService(foodSearchClient);
 const cleanup = new CleanupTracker(dayPlanClient);
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
-	foodSearchClient,
+	foodSearchService,
 	new RecipeClient(),
 	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
 );
@@ -28,7 +30,7 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 
 	it("removes batch-added breakfast products in one accepted day sync", async () => {
 		const date = getIntegrationTestDate();
-		const products = await selectProductsByMeasure({ foodSearchClient, date });
+		const products = await selectProductsByMeasure({ foodSearchService: foodSearchService, date });
 		const items = [products.fallbackProduct, products.gramProduct, products.packageProduct].map((product) => ({
 			productId: product.productId,
 			foodType: "PRODUCT" as const,
@@ -75,7 +77,7 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 
 	it("removes a catalog item before adding its custom replacement", async () => {
 		const date = addDays(getIntegrationTestDate(), 3);
-		const products = await selectProductsByMeasure({ foodSearchClient, date });
+		const products = await selectProductsByMeasure({ foodSearchService: foodSearchService, date });
 		await cleanup.prepareMealAddition(date, REPLACEMENT_MEAL_KEY, 1);
 		const addCatalogResult = await mealItemMutationService.addMealItems({
 			date,

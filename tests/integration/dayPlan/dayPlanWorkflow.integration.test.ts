@@ -4,6 +4,7 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
 import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
+import { FoodSearchService } from "../../../src/services/foodSearch/FoodSearchService.ts";
 import { ApplicationServices } from "../../../src/services/ApplicationServices.ts";
 import type { DayPlan } from "../../../src/api/dayPlan/DayPlan.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
@@ -14,11 +15,12 @@ import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 
 const dayPlanClient = new DayPlanClient();
 const foodSearchClient = new FoodSearchClient();
+const foodSearchService = new FoodSearchService(foodSearchClient);
 const cleanup = new CleanupTracker(dayPlanClient);
 const dietSummaryService = new ApplicationServices().dietSummaryService;
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
-	foodSearchClient,
+	foodSearchService,
 	new RecipeClient(),
 	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
 );
@@ -33,8 +35,8 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 		const nextDate = addDays(date, 1);
 		const initialPlan = await dayPlanClient.getDayPlan({ date, withRating: true });
 		const [sourceMealKey, targetMealKey] = selectTwoMealKeys(initialPlan);
-		await searchMultipleQueries({ foodSearchClient, date });
-		const products = await selectProductsByMeasure({ foodSearchClient, date });
+		await searchMultipleQueries({ foodSearchService, date });
+		const products = await selectProductsByMeasure({ foodSearchService, date });
 		const measureProduct = [products.fallbackProduct, products.gramProduct, products.packageProduct].find(
 			(product) => product.availableMeasures.some((measure) => measure.measureId !== product.measure.measureId),
 		);

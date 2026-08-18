@@ -16,21 +16,20 @@ describe("SearchFoodTool", () => {
 		const service = new FakeFoodSearchService();
 		const registered = await registerToolForTest(new SearchFoodTool(service));
 
-		const result = await registered.invoke({ queries: ["jogurt naturalny"] });
+		const result = await registered.invoke({ queries: ["jogurt naturalny"], date: "2026-07-14" });
 
 		expect(registered.name).toBe("search_food");
 		expect(registered.config.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true });
-		expect(registered.config.description).toContain(
-			"These details can be useful when adding a selected item to a day plan",
-		);
-		expect(JSON.stringify(registered.config.inputSchema)).toContain(
-			"These details can be useful when adding a selected item to a day plan",
-		);
+		expect(registered.config.description).toContain("does not infer brand or retailer aliases");
+		expect(registered.config.description).toContain("separate userItems and publicItems");
+		expect(registered.config.description).toContain("does not merge or deduplicate");
+		expect(JSON.stringify(registered.config.inputSchema)).toContain("submit plausible query variants together");
 		expect(service.requests).toEqual([
 			{
 				queries: ["jogurt naturalny"],
+				date: "2026-07-14",
 				locale: "pl_PL",
-				limit: 3,
+				limit: 5,
 				includeUserFood: true,
 				includePublicFood: true,
 				includeDetails: false,
@@ -45,7 +44,9 @@ describe("SearchFoodTool", () => {
 						{
 							queryCount: 1,
 							resultCount: 0,
-							results: [{ queryIndex: 0, query: "jogurt naturalny", count: 0, items: [] }],
+							results: [
+								{ queryIndex: 0, query: "jogurt naturalny", count: 0, userItems: [], publicItems: [] },
+							],
 						},
 						null,
 						2,
@@ -55,7 +56,7 @@ describe("SearchFoodTool", () => {
 			structuredContent: {
 				queryCount: 1,
 				resultCount: 0,
-				results: [{ queryIndex: 0, query: "jogurt naturalny", count: 0, items: [] }],
+				results: [{ queryIndex: 0, query: "jogurt naturalny", count: 0, userItems: [], publicItems: [] }],
 			},
 		});
 	});
@@ -68,6 +69,29 @@ describe("SearchFoodTool", () => {
 
 		expect(result.isError).toBe(true);
 		expect(service.requests).toHaveLength(0);
+	});
+
+	it.each([
+		{ queries: ["   "] },
+		{ queries: ["jogurt"], locale: "   " },
+		{ queries: ["jogurt"], includeUserFood: false, includePublicFood: false },
+	])("rejects semantically empty search input %# before calling the service", async (input) => {
+		const service = new FakeFoodSearchService();
+		const registered = await registerToolForTest(new SearchFoodTool(service));
+
+		const result = await registered.invoke(input);
+
+		expect(result.isError).toBe(true);
+		expect(service.requests).toHaveLength(0);
+	});
+
+	it("trims search queries and locale at the MCP boundary", async () => {
+		const service = new FakeFoodSearchService();
+		const registered = await registerToolForTest(new SearchFoodTool(service));
+
+		await registered.invoke({ queries: ["  jogurt  "], locale: "  pl_PL  " });
+
+		expect(service.requests[0]).toMatchObject({ queries: ["jogurt"], locale: "pl_PL" });
 	});
 
 	it("redacts unexpected service errors", async () => {
@@ -99,7 +123,7 @@ describe("SearchFoodTool", () => {
 		expect(parseTextContent(result)).toMatchObject({
 			results: [
 				{
-					items: [
+					userItems: [
 						{
 							recipeId: "100",
 						},
@@ -136,7 +160,7 @@ describe("SearchFoodTool", () => {
 		const payload = JSON.stringify(parseTextContent(result));
 
 		expect(parseTextContent(result)).toMatchObject({
-			results: [{ items: [{ productId: "200" }] }],
+			results: [{ publicItems: [{ productId: "200" }] }],
 			warningDetails: [
 				{
 					message: "Public catalog was temporarily unavailable.",
@@ -169,7 +193,7 @@ describe("SearchFoodTool", () => {
 
 		expect(parseTextContent(result)).toMatchObject({
 			resultCount: 0,
-			results: [{ count: 0, items: [] }],
+			results: [{ count: 0, userItems: [], publicItems: [] }],
 			warnings: [expect.stringContaining("CUSTOM_ITEM")],
 		});
 		expect(payload).not.toContain('"foodId"');
@@ -202,7 +226,14 @@ class FakeFoodSearchService implements FoodSearchProvider {
 				: this.includeCustom
 					? [foodItem(query, "user", "custom-1", "CUSTOM_ITEM", "Quick add", "1", 100, false)]
 					: [];
-		return new FoodSearchResult("2026-07-14", options.queries, items, [...this.warnings], [...this.warningDetails]);
+		return new FoodSearchResult(
+			"2026-07-14",
+			options.queries,
+			items.filter(({ source }) => source === "user"),
+			items.filter(({ source }) => source === "public"),
+			[...this.warnings],
+			[...this.warningDetails],
+		);
 	}
 }
 
@@ -231,7 +262,6 @@ function foodItem(
 		emptyNutrition(),
 		verified,
 		null,
-		1,
 		[],
 	);
 	return new FoodSearchItem(item, 0, 0, query, name);

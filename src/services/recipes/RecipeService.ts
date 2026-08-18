@@ -11,7 +11,6 @@ import { RecipeReplacementInput } from "../../api/recipes/RecipeReplacementInput
 import type { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
 import type { RecipeWriteInput } from "../../api/recipes/RecipeWriteInput.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
-import type { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
 import type { FoodMeasure } from "../../api/foodSearch/FoodMeasure.ts";
 import { ServiceError } from "../ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../ServiceErrorCode.ts";
@@ -55,7 +54,7 @@ export class RecipeService implements RecipeProvider {
 
 	public constructor(
 		recipeClient: RecipeClient,
-		foodMeasureProvider: Pick<FoodSearchClient, "getAvailableMeasureIds" | "getAvailableMeasures">,
+		foodMeasureProvider: FoodMeasureProvider,
 		confirmer: RecipeMutationConfirmationProvider = new RecipeMutationConfirmer(recipeClient),
 	) {
 		this.recipeClient = recipeClient;

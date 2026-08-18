@@ -9,6 +9,7 @@ import type { RecipeSearchResult } from "../../../src/api/recipes/RecipeSearchRe
 import { DetailedRecipeSearchItem } from "../../../src/services/recipes/DetailedRecipeSearchItem.ts";
 import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
 import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
+import { FoodSearchService } from "../../../src/services/foodSearch/FoodSearchService.ts";
 import { RecipeMutationConfirmer } from "../../../src/services/recipes/RecipeMutationConfirmer.ts";
 import { RecipeService } from "../../../src/services/recipes/RecipeService.ts";
 import {
@@ -22,16 +23,17 @@ import { getIntegrationTestDate } from "../helpers/testDates.ts";
 
 const recipeClient = new RecipeClient();
 const foodSearchClient = new FoodSearchClient();
+const foodSearchService = new FoodSearchService(foodSearchClient);
 const dayPlanClient = new DayPlanClient();
 const cleanup = new CleanupTracker(dayPlanClient, recipeClient);
 const recipeService = new RecipeService(
 	recipeClient,
-	foodSearchClient,
+	foodSearchService,
 	new CleanupTrackingRecipeMutationConfirmer(new RecipeMutationConfirmer(recipeClient), cleanup),
 );
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
-	foodSearchClient,
+	foodSearchService,
 	recipeClient,
 	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
 );
@@ -46,7 +48,7 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 		const updatedName = `${uniqueName}_updated`;
 		const date = getIntegrationTestDate();
 		const products = await selectProductsByMeasure({
-			foodSearchClient,
+			foodSearchService: foodSearchService,
 			date,
 		});
 

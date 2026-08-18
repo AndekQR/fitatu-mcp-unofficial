@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { DateUtils } from "../../shared/DateUtils.ts";
 
-export const rawRecipeIdSchema = z.string().regex(/^[1-9]\d*$/, "recipeId must be a positive numeric string");
+export function nonEmptyStringSchema(fieldName: string) {
+	return z.string().trim().min(1, `${fieldName} must be a non-empty string`);
+}
+
+export const rawRecipeIdSchema = nonEmptyStringSchema("recipeId");
 
 export function isoCalendarDateSchema(fieldName = "date") {
 	return z

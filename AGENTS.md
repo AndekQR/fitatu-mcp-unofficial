@@ -108,11 +108,21 @@ Each MCP tool should have:
 
 Tool handlers should stay thin when possible. They should validate input, delegate work to client or service code, and return a clear MCP-compatible response.
 
+Whenever a tool contract, service model, API response mapping, or accepted identifier format changes, update the corresponding Zod `inputSchema` and
+`outputSchema` in the same change. Keep tool and field descriptions synchronized with the actual runtime constraints and verify the JSON Schema published by
+the MCP SDK, especially when using Zod refinements that may not be representable in JSON Schema. Update the existing MCP contract tests to cover the changed
+constraint and its serialized schema where practical.
+
 Do not expose raw upstream responses unless they are intentionally part of the tool contract and safe to return.
 
 ## Fitatu HTTP Integration
 
 Fitatu HTTP calls should be implemented through a dedicated wrapper or client layer instead of scattered direct `fetch` calls.
+
+API clients are limited to HTTP concerns: endpoint and request construction, authentication, technical retries or endpoint fallbacks, status/error mapping,
+JSON decoding, and returning the upstream response. Put input normalization, domain mapping, filtering, deduplication, enrichment, multi-call orchestration,
+partial-failure policy, and user-facing warnings in services or focused service-layer collaborators. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full
+responsibility boundary.
 
 The HTTP layer should handle:
 

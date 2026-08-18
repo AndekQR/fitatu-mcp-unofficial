@@ -7,7 +7,6 @@ import { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
 import { RemoveMealItemOptions } from "../../api/dayPlan/RemoveMealItemOptions.ts";
 import { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
 import { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
-import type { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
 import type { RecipeClient } from "../../api/recipes/RecipeClient.ts";
 import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
@@ -48,7 +47,7 @@ export class MealItemMutationService implements MealItemMutationProvider {
 
 	public constructor(
 		dayPlanClient: DayPlanClient,
-		foodMeasureProvider: Pick<FoodSearchClient, "getAvailableMeasureIds">,
+		foodMeasureProvider: FoodMeasureProvider,
 		recipeStateProvider: Pick<RecipeClient, "getRecipe">,
 		confirmer: MealItemMutationConfirmationProvider = new MealItemMutationConfirmer(dayPlanClient),
 	) {

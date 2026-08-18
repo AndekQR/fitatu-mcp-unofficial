@@ -10,16 +10,20 @@ export class FoodSearchResultForMcp {
 	public readonly warningDetails: readonly FoodSearchWarningDetailForMcp[];
 
 	public constructor(result: FoodSearchResult) {
-		const reusableItems = result.items.filter((item) => item.foodType !== "CUSTOM_ITEM");
-		const omittedCustomItems = result.items.filter((item) => item.foodType === "CUSTOM_ITEM");
+		const reusableUserItems = result.userItems.filter((item) => item.foodType !== "CUSTOM_ITEM");
+		const reusablePublicItems = result.publicItems.filter((item) => item.foodType !== "CUSTOM_ITEM");
+		const omittedCustomItems = [...result.userItems, ...result.publicItems].filter(
+			(item) => item.foodType === "CUSTOM_ITEM",
+		);
 		this.queryCount = result.queryCount;
-		this.resultCount = reusableItems.length;
+		this.resultCount = reusableUserItems.length + reusablePublicItems.length;
 		this.results = result.queries.map(
 			(query, queryIndex) =>
 				new FoodSearchQueryResultForMcp({
 					queryIndex,
 					query,
-					items: reusableItems.filter((item) => item.queryIndex === queryIndex),
+					userItems: reusableUserItems.filter((item) => item.queryIndex === queryIndex),
+					publicItems: reusablePublicItems.filter((item) => item.queryIndex === queryIndex),
 				}),
 		);
 		this.warnings = [

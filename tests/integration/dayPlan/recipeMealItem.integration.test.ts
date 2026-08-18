@@ -5,6 +5,7 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
 import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
+import { FoodSearchService } from "../../../src/services/foodSearch/FoodSearchService.ts";
 import { CleanupTracker, CleanupTrackingMealItemMutationConfirmer } from "../helpers/cleanupTracker.ts";
 import { findMealItem } from "../helpers/dayPlanAssertions.ts";
 import { getIntegrationTestDate } from "../helpers/testDates.ts";
@@ -13,7 +14,7 @@ const dayPlanClient = new DayPlanClient();
 const cleanup = new CleanupTracker(dayPlanClient);
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
-	new FoodSearchClient(),
+	new FoodSearchService(new FoodSearchClient()),
 	new RecipeClient(),
 	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
 );

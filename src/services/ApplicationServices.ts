@@ -35,20 +35,21 @@ export class ApplicationServices {
 		const summaryClient = new SummaryClient({ authClient, userClient, mobileClientProfile });
 		const foodSearchClient = new FoodSearchClient({ authClient, userClient, mobileClientProfile });
 		const recipeClient = new RecipeClient({ authClient, userClient, mobileClientProfile });
+		const foodSearchService = new FoodSearchService(foodSearchClient);
 
 		this.currentUserService = new CurrentUserService(userClient);
 		this.dayPlanQueryService = new DayPlanQueryService(dayPlanClient);
 		this.dietSummaryService = new DietSummaryService(summaryClient, userClient);
 		this.mealItemMutationService = new MealItemMutationService(
 			dayPlanClient,
-			foodSearchClient,
+			foodSearchService,
 			recipeClient,
 			new MealItemMutationConfirmer(dayPlanClient, new BoundedPoller()),
 		);
-		this.foodSearchService = new FoodSearchService(foodSearchClient);
+		this.foodSearchService = foodSearchService;
 		this.recipeService = new RecipeService(
 			recipeClient,
-			foodSearchClient,
+			foodSearchService,
 			new RecipeMutationConfirmer(recipeClient, new BoundedPoller()),
 		);
 	}

@@ -93,7 +93,12 @@ export class GetDietSummaryTool {
 							"Inclusive range end date in YYYY-MM-DD format.",
 						),
 					})
-					.strict(),
+					.strict()
+					.refine(({ fromDate, toDate }) => fromDate <= toDate, {
+						message: "fromDate must be before or equal to toDate",
+						path: ["toDate"],
+					})
+					.describe("Inclusive date range where fromDate must be before or equal to toDate."),
 				outputSchema: dietSummaryOutputSchema,
 				annotations: {
 					title: "Get Fitatu Diet Summary",

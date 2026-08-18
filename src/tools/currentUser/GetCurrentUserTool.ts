@@ -12,7 +12,6 @@ const currentUserOutputSchema = {
 	user: z
 		.object({
 			id: optionalString.describe("Authenticated Fitatu user id, when available."),
-			username: optionalString.describe("Fitatu username or email when available."),
 			nickname: optionalString.describe("Fitatu display nickname when available."),
 			locale: optionalString.describe("User interface locale configured in Fitatu, when available."),
 			storageLocale: optionalString.describe("Fitatu storage locale used for account data, when available."),
@@ -72,7 +71,6 @@ export class GetCurrentUserTool {
 	private toSafeCurrentUser(user: FitatuUserProfile): SafeCurrentUser {
 		return {
 			id: user.id ?? undefined,
-			username: user.username ?? undefined,
 			nickname: user.nickname ?? undefined,
 			locale: user.locale ?? undefined,
 			storageLocale: user.storageLocale ?? undefined,

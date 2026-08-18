@@ -44,7 +44,7 @@ const dayPlanItemSchema = z.object({
 });
 
 const dayPlanOutputSchema = {
-	date: z.string().describe("YYYY-MM-DD date of the returned day plan."),
+	date: isoCalendarDateSchema().describe("YYYY-MM-DD date of the returned day plan."),
 	meals: z
 		.array(
 			z.object({

@@ -47,6 +47,17 @@ describe("GetDietSummaryTool", () => {
 		expect(service.requests).toHaveLength(0);
 	});
 
+	it("rejects a reversed date range before calling the service", async () => {
+		const service = new FakeDietSummaryService(createSummary());
+		const registered = await registerToolForTest(new GetDietSummaryTool(service));
+
+		const result = await registered.invoke({ fromDate: "2026-07-14", toDate: "2026-07-13" });
+
+		expect(result.isError).toBe(true);
+		expect(getTextContent(result)).toContain("fromDate must be before or equal to toDate");
+		expect(service.requests).toHaveLength(0);
+	});
+
 	it("redacts unexpected service errors", async () => {
 		const service = new FakeDietSummaryService(undefined, new Error("secret summary response"));
 		const registered = await registerToolForTest(new GetDietSummaryTool(service));

@@ -11,6 +11,7 @@ describe("GetCurrentUserTool", () => {
 		const service = new FakeCurrentUserService(
 			FitatuUserProfile.fromApiResponse({
 				id: "user-1",
+				username: "sensitive-login@example.test",
 				nickname: "Test user",
 				email: "sensitive@example.test",
 				roles: ["ROLE_USER"],
@@ -39,6 +40,7 @@ describe("GetCurrentUserTool", () => {
 		expect(result.structuredContent).toEqual(expectedContent);
 		expect(parseTextContent(result)).toEqual(expectedContent);
 		expect(getTextContent(result)).not.toContain("sensitive@example.test");
+		expect(getTextContent(result)).not.toContain("sensitive-login@example.test");
 		expect(getTextContent(result)).not.toContain("ROLE_USER");
 	});
 

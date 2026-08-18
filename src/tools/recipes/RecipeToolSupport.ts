@@ -5,7 +5,7 @@ import { RecipeTag } from "../../api/recipes/RecipeTag.ts";
 import { RecipeUpdateInput } from "../../api/recipes/RecipeUpdateInput.ts";
 import type { RecipeServiceDetails } from "../../services/recipes/RecipeServiceDetails.ts";
 import type { RecipeWarning } from "../../services/recipes/RecipeWarning.ts";
-import { rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
+import { nonEmptyStringSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
 export const recipeIdInputSchema = rawRecipeIdSchema.describe(
 	"Raw Fitatu recipe id returned by a recipe-aware MCP tool.",
@@ -17,16 +17,12 @@ export const recipeMutationStatusSchema = z
 
 export const recipeIngredientInputSchema = z
 	.object({
-		productId: z
-			.string()
-			.regex(/^[1-9]\d*$/)
-			.describe("Positive product id for this ingredient. Pass search_food results[].items[].productId here."),
-		measureId: z
-			.string()
-			.regex(/^[1-9]\d*$/)
-			.describe(
-				"Positive measure id selected from search_food results[].items[].measureId or measures[].measureId for the chosen product.",
-			),
+		productId: nonEmptyStringSchema("productId").describe(
+			"Non-empty raw Fitatu product id for this ingredient. Pass search_food results[].userItems[].productId or results[].publicItems[].productId here.",
+		),
+		measureId: nonEmptyStringSchema("measureId").describe(
+			"Non-empty raw Fitatu measure id selected from search_food results[].userItems[].measureId, results[].publicItems[].measureId, or measures[].measureId for the chosen product.",
+		),
 		measureQuantity: z
 			.number()
 			.positive()
@@ -134,10 +130,9 @@ const nutritionOutputSchema = z
 
 const recipeMeasureOutputSchema = z
 	.object({
-		measureId: z
-			.string()
-			.regex(/^[1-9]\d*$/)
-			.describe("Measure id to pass with this recipeId to add_meal_items."),
+		measureId: nonEmptyStringSchema("measureId").describe(
+			"Measure id to pass with this recipeId to add_meal_items.",
+		),
 		measureName: z.string().optional().describe("Human-readable measure name returned by Fitatu."),
 		weightG: z
 			.number()
@@ -155,10 +150,7 @@ const recipeMeasureOutputSchema = z
 
 const ingredientOutputSchema = z
 	.object({
-		productId: z
-			.string()
-			.regex(/^[1-9]\d*$/)
-			.describe("Fitatu product id stored in the recipe."),
+		productId: nonEmptyStringSchema("productId").describe("Fitatu product id stored in the recipe."),
 		recipeId: rawRecipeIdSchema
 			.optional()
 			.describe("Underlying raw recipe id; omitted for ordinary product ingredients."),
@@ -166,10 +158,7 @@ const ingredientOutputSchema = z
 		type: z
 			.literal("PRODUCT")
 			.describe("Ingredient kind. Recipe writes currently support PRODUCT ingredients only."),
-		measureId: z
-			.string()
-			.regex(/^[1-9]\d*$/)
-			.describe("Fitatu measure id used for this ingredient."),
+		measureId: nonEmptyStringSchema("measureId").describe("Fitatu measure id used for this ingredient."),
 		measureQuantity: z.number().positive().describe("Positive quantity of the selected measure."),
 		measureName: z.string().optional().describe("Human-readable measure name, when Fitatu provides it."),
 		measureWeightG: z
@@ -192,8 +181,8 @@ export const recipeWarningOutputSchema = z
 	.object({
 		code: z.literal("DUPLICATE_INGREDIENT_SELECTION"),
 		message: z.string(),
-		productId: z.string().regex(/^[1-9]\d*$/),
-		measureId: z.string().regex(/^[1-9]\d*$/),
+		productId: nonEmptyStringSchema("productId"),
+		measureId: nonEmptyStringSchema("measureId"),
 		indexes: z.array(z.number().int().nonnegative()).min(2),
 	})
 	.describe("Non-fatal warning about a recipe write request.");
@@ -236,7 +225,9 @@ export const recipeDetailsOutputShape = {
 	ingredients: z
 		.array(ingredientOutputSchema)
 		.describe("Canonical ingredient list; an empty array means Fitatu returned no usable ingredients."),
-	nutritionPerServing: nutritionOutputSchema,
+	nutritionPerServing: nutritionOutputSchema
+		.optional()
+		.describe("Nutrition calculated for one serving, omitted when Fitatu provides no nutrient values."),
 	weightPerServingG: z
 		.number()
 		.nonnegative()
@@ -329,20 +320,25 @@ export function toRecipeDetailsForMcp(recipe: RecipeServiceDetails): z.infer<typ
 		},
 		weightPerServingG: recipe.weightPerServingG ?? undefined,
 		measures: recipe.measures.flatMap((measure) => {
-			if (measure.measureId === null || !/^[1-9]\d*$/.test(measure.measureId)) {
+			const measureId = measure.measureId?.trim();
+			if (!measureId) {
 				return [];
 			}
 			return [
 				{
-					measureId: measure.measureId,
+					measureId,
 					measureName: measure.measureName ?? undefined,
-					weightG: measure.weightG ?? undefined,
+					weightG: nonNegativeOrUndefined(measure.weightG),
 					unit: measure.unit ?? undefined,
-					energyKcal: measure.energyKcal ?? undefined,
+					energyKcal: nonNegativeOrUndefined(measure.energyKcal),
 				},
 			];
 		}),
 	};
+}
+
+function nonNegativeOrUndefined(value: number | null): number | undefined {
+	return value !== null && value >= 0 ? value : undefined;
 }
 
 export function toRecipeUpdateInput(input: {

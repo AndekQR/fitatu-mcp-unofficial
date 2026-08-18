@@ -105,9 +105,11 @@ describe("Recipe MCP tools", () => {
 		expect(registered.config.outputSchema?.required).toEqual(
 			expect.arrayContaining(["status", "recipeId", "details", "warnings"]),
 		);
-		expect(JSON.stringify(registered.config.inputSchema)).toContain(
-			"Fitatu may normalize custom tag text to lowercase",
-		);
+		const serializedInputSchema = JSON.stringify(registered.config.inputSchema);
+		expect(serializedInputSchema).toContain("results[].userItems[].productId");
+		expect(serializedInputSchema).toContain("results[].publicItems[].productId");
+		expect(serializedInputSchema).not.toContain("results[].items[]");
+		expect(serializedInputSchema).toContain("Fitatu may normalize custom tag text to lowercase");
 		expect(service.createInputs[0]).toEqual({
 			name: "Test recipe",
 			ingredients: [{ itemId: "10", measureId: "2", measureQuantity: 1, type: "PRODUCT" }],
@@ -213,14 +215,26 @@ describe("Recipe MCP tools", () => {
 		);
 	});
 
-	it("get_recipe rejects a prefixed recipe id before delegation", async () => {
+	it("get_recipe accepts and trims any non-empty raw recipe id supported by the client", async () => {
 		const service = new RecordingRecipeService();
 		const registered = await registerToolForTest(new GetRecipeTool(service));
 
-		const result = await registered.invoke({ recipeId: "recipe:100" });
+		const result = await registered.invoke({ recipeId: "  recipe:100  " });
 
-		expect(result.isError).toBe(true);
-		expect(service.getIds).toEqual([]);
+		expect(result.isError).not.toBe(true);
+		expect(service.getIds).toEqual(["recipe:100"]);
+	});
+
+	it("get_recipe omits nutritionPerServing when Fitatu provides no nutrient values", async () => {
+		const service = new RecordingRecipeService();
+		service.detailsValue = details({}, false);
+		const registered = await registerToolForTest(new GetRecipeTool(service));
+
+		const result = await registered.invoke({ recipeId: "100" });
+
+		expect(result.isError).not.toBe(true);
+		expect(parseTextContent(result)).not.toHaveProperty("nutritionPerServing");
+		expect(registered.config.outputSchema?.required).not.toContain("nutritionPerServing");
 	});
 
 	it("search_recipes supports listing with an omitted query", async () => {
@@ -698,7 +712,7 @@ class RecordingRecipeService implements RecipeProvider {
 	}
 }
 
-function details(overrides: Partial<RecipeDetails> = {}): RecipeServiceDetails {
+function details(overrides: Partial<RecipeDetails> = {}, includeNutrition = true): RecipeServiceDetails {
 	const recipe = RecipeDetails.fromApiResponse({
 		id: overrides.recipeId ?? "100",
 		userId: overrides.userId ?? "test-user",
@@ -713,10 +727,7 @@ function details(overrides: Partial<RecipeDetails> = {}): RecipeServiceDetails {
 		mealSchema: overrides.mealSchema ?? [],
 		tags: [],
 		items: [],
-		energy: 100,
-		protein: 10,
-		fat: 5,
-		carbohydrate: 12,
+		...(includeNutrition ? { energy: 100, protein: 10, fat: 5, carbohydrate: 12 } : {}),
 		weight: overrides.weightPerServingG ?? null,
 		categories: overrides.categories ?? null,
 	});

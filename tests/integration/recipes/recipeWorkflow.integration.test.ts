@@ -171,12 +171,11 @@ describe.sequential("Fitatu recipe integration workflow", () => {
 				},
 			],
 		});
-		const provisionalMealItemId = requireItemId(addResult.provisionalItemIds[0]);
+		const provisionalMealItemId = requireItemId(addResult.addedItems[0]?.itemId);
 		cleanup.track(date, "supper", provisionalMealItemId);
 		expect(addResult).toMatchObject({
-			status: "accepted",
 			operation: "add",
-			acceptedItems: [
+			addedItems: [
 				{
 					itemId: provisionalMealItemId,
 					foodType: "RECIPE",

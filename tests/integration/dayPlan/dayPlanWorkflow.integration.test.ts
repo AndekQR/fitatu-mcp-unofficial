@@ -83,18 +83,17 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			],
 		});
 
-		expect(addResult.status).toBe("accepted");
 		expect(addResult.operation).toBe("add");
-		expect(addResult.operationCount).toBe(3);
-		expect(addResult.provisionalItemIds).toHaveLength(3);
-		for (const provisionalItemId of addResult.provisionalItemIds) {
-			cleanup.track(date, sourceMealKey, provisionalItemId);
+		expect(addResult.addedItems).toHaveLength(3);
+		for (const addedItem of addResult.addedItems) {
+			cleanup.track(date, sourceMealKey, addedItem.itemId);
 		}
 
+		const addedItemIds = addResult.addedItems.map(({ itemId }) => itemId);
 		const persistedItems = await getItems({
 			date,
 			mealKey: sourceMealKey,
-			itemIds: addResult.provisionalItemIds,
+			itemIds: addedItemIds,
 		});
 		const [quantityItem, measureItem, combinedItem] = persistedItems;
 		const quantityItemId = requireItemId(quantityItem?.itemId ?? null);
@@ -107,7 +106,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			itemId: quantityItemId,
 			measureQuantity: 3,
 		});
-		expect(quantityUpdate.updatedItemIds).toEqual([quantityItemId]);
+		expect(quantityUpdate.updatedItem.itemId).toBe(quantityItemId);
 		expect(
 			(
 				await getItemMatching({
@@ -125,7 +124,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			itemId: measureItemId,
 			measureId: alternateMeasure.measureId,
 		});
-		expect(measureUpdate.updatedItemIds).toEqual([measureItemId]);
+		expect(measureUpdate.updatedItem.itemId).toBe(measureItemId);
 		expect(
 			(
 				await getItemMatching({
@@ -144,7 +143,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			measureQuantity: 1.5,
 			eaten: true,
 		});
-		expect(combinedUpdate.updatedItemIds).toEqual([combinedItemId]);
+		expect(combinedUpdate.updatedItem.itemId).toBe(combinedItemId);
 		const afterCombinedUpdate = await getItemMatching({
 			date,
 			mealKey: sourceMealKey,
@@ -171,11 +170,9 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 		});
 		expect(replaceResult).toMatchObject({
 			operation: "replace",
-			oldItemId: combinedItemId,
-			deletedItemIds: [combinedItemId],
-			itemIdChanged: true,
+			previousItemId: combinedItemId,
 		});
-		const replacementItemId = requireItemId(replaceResult.newItemId);
+		const replacementItemId = replaceResult.replacementItem.itemId;
 		await expectMissingItem({ date, mealKey: sourceMealKey, itemId: combinedItemId });
 		const replacementItem = await getItem({
 			date,
@@ -192,22 +189,21 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			toMealKey: targetMealKey,
 		});
 		expect(sameDayMove.operation).toBe("move");
-		expect(sameDayMove.oldItemId).toBe(quantityItemId);
-		expect(sameDayMove.newItemId).toBeTruthy();
-		expect(sameDayMove.itemIdChanged).toBe(true);
+		expect(sameDayMove.previousItemId).toBe(quantityItemId);
+		expect(sameDayMove.movedItem.itemId).toBeTruthy();
 		cleanup.move({
 			fromDate: date,
 			fromMealKey: sourceMealKey,
 			oldItemId: quantityItemId,
 			toDate: date,
 			toMealKey: targetMealKey,
-			newItemId: sameDayMove.newItemId,
+			newItemId: sameDayMove.movedItem.itemId,
 		});
 
 		const sameDayMovedItem = await getItem({
 			date,
 			mealKey: targetMealKey,
-			itemId: requireItemId(sameDayMove.newItemId),
+			itemId: sameDayMove.movedItem.itemId,
 		});
 		expect(sameDayMovedItem.measureQuantity).toBe(3);
 
@@ -219,22 +215,21 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			toMealKey: targetMealKey,
 		});
 		expect(crossDayMove.operation).toBe("move");
-		expect(crossDayMove.oldItemId).toBe(measureItemId);
-		expect(crossDayMove.newItemId).toBeTruthy();
-		expect(crossDayMove.itemIdChanged).toBe(true);
+		expect(crossDayMove.previousItemId).toBe(measureItemId);
+		expect(crossDayMove.movedItem.itemId).toBeTruthy();
 		cleanup.move({
 			fromDate: date,
 			fromMealKey: sourceMealKey,
 			oldItemId: measureItemId,
 			toDate: nextDate,
 			toMealKey: targetMealKey,
-			newItemId: crossDayMove.newItemId,
+			newItemId: crossDayMove.movedItem.itemId,
 		});
 
 		const crossDayMovedItem = await getItem({
 			date: nextDate,
 			mealKey: targetMealKey,
-			itemId: requireItemId(crossDayMove.newItemId),
+			itemId: crossDayMove.movedItem.itemId,
 		});
 		expect(crossDayMovedItem.measureId).toBe(Number(alternateMeasure.measureId));
 
@@ -244,7 +239,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			itemId: replacementItemId,
 		});
 		expect(removeResult.operation).toBe("remove");
-		expect(removeResult.deletedItemIds).toEqual([replacementItemId]);
+		expect(removeResult.removedItems.map(({ itemId }) => itemId)).toEqual([replacementItemId]);
 		cleanup.untrack(date, sourceMealKey, replacementItemId);
 
 		await expectMissingItem({
@@ -278,16 +273,15 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 		});
 
 		expect(addResult).toMatchObject({
-			status: "accepted",
 			operation: "add",
-			acceptedItems: [
+			addedItems: [
 				{
 					foodType: "CUSTOM_ITEM",
 					mealKey,
 				},
 			],
 		});
-		const itemId = requireItemId(addResult.provisionalItemIds[0] ?? null);
+		const itemId = requireItemId(addResult.addedItems[0]?.itemId ?? null);
 		cleanup.track(date, mealKey, itemId);
 
 		const item = await getItemMatching({
@@ -335,8 +329,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			Object.assign(expectedState, update.expected);
 			expect(updateResult).toMatchObject({
 				operation: "update",
-				updatedItemIds: [itemId],
-				itemIdChanged: false,
+				updatedItem: { itemId },
 			});
 			const updatedItem = await getItemMatching({
 				date,
@@ -355,7 +348,7 @@ describe.sequential("Fitatu day plan integration workflow", () => {
 			mealKey,
 			itemId,
 		});
-		expect(removeResult.deletedItemIds).toEqual([itemId]);
+		expect(removeResult.removedItems.map(({ itemId: removedItemId }) => removedItemId)).toEqual([itemId]);
 		cleanup.untrack(date, mealKey, itemId);
 		await expectMissingItem({ date, mealKey, itemId });
 	});

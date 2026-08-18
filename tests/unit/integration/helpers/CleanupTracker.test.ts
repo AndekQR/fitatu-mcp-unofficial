@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { AddMealItemsOptions } from "../../../../src/api/dayPlan/AddMealItemsOptions.ts";
+import { AddMealItemsResult } from "../../../../src/api/dayPlan/AddMealItemsResult.ts";
 import { DayPlan } from "../../../../src/api/dayPlan/DayPlan.ts";
 import type { DayPlanClient } from "../../../../src/api/dayPlan/DayPlanClient.ts";
 import { DayRevisions } from "../../../../src/api/dayPlan/DayRevisions.ts";
-import { MealItemMutationResult } from "../../../../src/api/dayPlan/MealItemMutationResult.ts";
 import { MealItemOperationSummary } from "../../../../src/api/dayPlan/MealItemOperationSummary.ts";
+import { RemoveMealItemsResult } from "../../../../src/api/dayPlan/RemoveMealItemsResult.ts";
 import { MutationConfirmationContext } from "../../../../src/services/MutationConfirmationContext.ts";
 import { MutationConfirmationError } from "../../../../src/services/MutationConfirmationError.ts";
 import type { MealItemMutationConfirmationProvider } from "../../../../src/services/dayPlan/MealItemMutationService.ts";
@@ -28,10 +29,10 @@ describe("CleanupTracker", () => {
 					throw new Error("item not found");
 				}
 				removedItemIds.push(itemId);
-				return MealItemMutationResult.acceptedRemove(
+				return new RemoveMealItemsResult(
 					date,
 					[new MealItemOperationSummary(0, itemId, null, null, "PRODUCT", mealKey)],
-					mealKey,
+					DayRevisions.empty(),
 				);
 			},
 		} as unknown as DayPlanClient;
@@ -40,7 +41,7 @@ describe("CleanupTracker", () => {
 		const options = new AddMealItemsOptions(date, mealKey, [
 			{ foodType: "PRODUCT", productId: "101", measureId: "2" },
 		]);
-		const result = MealItemMutationResult.acceptedAdd(
+		const result = new AddMealItemsResult(
 			date,
 			mealKey,
 			[new MealItemOperationSummary(0, "submitted-item", "101", null, "PRODUCT", mealKey)],

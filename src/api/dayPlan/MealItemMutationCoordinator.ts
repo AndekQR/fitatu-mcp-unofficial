@@ -5,6 +5,7 @@ import { ValidationError } from "../../shared/ValidationError.ts";
 import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS } from "../fitatuApiClientBase/FitatuClientOperations.ts";
 import type { AddMealItemsOptions } from "./AddMealItemsOptions.ts";
+import { AddMealItemsResult } from "./AddMealItemsResult.ts";
 import { DayItemPayload } from "./DayItemPayload.ts";
 import { DayPlanDietPlan } from "./DayPlanDietPlan.ts";
 import { createPlanDayDietItemId } from "./DayPlanItemIdFactory.ts";
@@ -12,13 +13,16 @@ import { nowTimestamp } from "./DayPlanTimestamps.ts";
 import { normalizeMealKey } from "./DayPlanValidators.ts";
 import { FoundDietItem } from "./FoundDietItem.ts";
 import { MealItemRemovalTarget } from "./MealItemRemovalTarget.ts";
-import { MealItemMutationResult } from "./MealItemMutationResult.ts";
+import { MoveMealItemResult } from "./MoveMealItemResult.ts";
 import type { MoveMealItemOptions } from "./MoveMealItemOptions.ts";
 import type { RemoveMealItemOptions } from "./RemoveMealItemOptions.ts";
 import { RemoveMealItemsOptions } from "./RemoveMealItemsOptions.ts";
+import { RemoveMealItemsResult } from "./RemoveMealItemsResult.ts";
+import { ReplaceMealItemResult } from "./ReplaceMealItemResult.ts";
 import type { DayPlanSyncProvider } from "./DayPlanSyncProvider.ts";
 import type { UpdateMealItemOptions } from "./UpdateMealItemOptions.ts";
 import type { ReplaceMealItemOptions } from "./ReplaceMealItemOptions.ts";
+import { UpdateMealItemResult } from "./UpdateMealItemResult.ts";
 import type { MealItemInput } from "./MealItemInput.ts";
 import { ProductMealItemInput } from "./ProductMealItemInput.ts";
 import { RecipeMealItemInput } from "./RecipeMealItemInput.ts";
@@ -31,7 +35,7 @@ export class MealItemMutationCoordinator {
 		this.dayPlanSyncProvider = dayPlanSyncProvider;
 	}
 
-	public async addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult> {
+	public async addMealItems(options: AddMealItemsOptions): Promise<AddMealItemsResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanAddItems);
 		const { date, mealKey, acceptedItems } = normalizeMutationInput(
 			FITATU_CLIENT_OPERATIONS.dayPlanAddItems,
@@ -57,7 +61,7 @@ export class MealItemMutationCoordinator {
 
 		const dayRevisions = await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
 
-		return MealItemMutationResult.acceptedAdd(
+		return new AddMealItemsResult(
 			date,
 			mealKey,
 			acceptedItems.map(({ summary }) => summary),
@@ -65,7 +69,7 @@ export class MealItemMutationCoordinator {
 		);
 	}
 
-	public async updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
+	public async updateMealItem(options: UpdateMealItemOptions): Promise<UpdateMealItemResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem);
 		const { date, mealKey, itemId, measureQuantity, measureId, name, nutrition } = normalizeMutationInput(
 			FITATU_CLIENT_OPERATIONS.dayPlanUpdateItem,
@@ -178,10 +182,10 @@ export class MealItemMutationCoordinator {
 
 		const dayRevisions = await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
 
-		return MealItemMutationResult.acceptedUpdate(date, target.toOperationSummary(0, itemId), dayRevisions);
+		return new UpdateMealItemResult(date, target.toOperationSummary(0, itemId), dayRevisions);
 	}
 
-	public async removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
+	public async removeMealItem(options: RemoveMealItemOptions): Promise<RemoveMealItemsResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
 		const target = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem, () => {
 			const mealKey = normalizeMealKey(options.mealKey, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItem);
@@ -189,15 +193,10 @@ export class MealItemMutationCoordinator {
 			return new MealItemRemovalTarget(mealKey, itemId);
 		});
 		const result = await this.removeMealItems(new RemoveMealItemsOptions(options.date, [target], userId));
-		return MealItemMutationResult.acceptedRemove(
-			result.targetDate,
-			result.acceptedItems,
-			result.acceptedItems[0]?.mealKey ?? null,
-			result.dayRevisions,
-		);
+		return result;
 	}
 
-	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult> {
+	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<ReplaceMealItemResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem);
 		const { date, mealKey, itemId } = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanReplaceItem, () => ({
 			date: DateUtils.validateIsoDate(options.date),
@@ -224,17 +223,10 @@ export class MealItemMutationCoordinator {
 		source.items.splice(source.index, 1, source.createDeletedMarker(), replacement.payload);
 
 		const dayRevisions = await this.dayPlanSyncProvider.syncSingleDay(userId, date, dayPayload);
-		return MealItemMutationResult.acceptedReplace(
-			date,
-			mealKey,
-			oldItemId,
-			replacement.summary,
-			dayRevisions,
-			replacementEaten,
-		);
+		return new ReplaceMealItemResult(date, mealKey, oldItemId, replacement.summary, dayRevisions, replacementEaten);
 	}
 
-	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
+	public async removeMealItems(options: RemoveMealItemsOptions): Promise<RemoveMealItemsResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems);
 		const { date, items } = normalizeMutationInput(FITATU_CLIENT_OPERATIONS.dayPlanRemoveItems, () => ({
 			date: DateUtils.validateIsoDate(options.date),
@@ -264,10 +256,10 @@ export class MealItemMutationCoordinator {
 			target.toOperationSummary(index, getRequiredItemId(target.item)),
 		);
 
-		return MealItemMutationResult.acceptedRemove(date, acceptedItems, null, dayRevisions);
+		return new RemoveMealItemsResult(date, acceptedItems, dayRevisions);
 	}
 
-	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {
+	public async moveMealItem(options: MoveMealItemOptions): Promise<MoveMealItemResult> {
 		const userId = requireUserId(options.userId, FITATU_CLIENT_OPERATIONS.dayPlanMoveItem);
 		const { fromDate, toDate, fromMealKey, toMealKey, itemId } = normalizeMutationInput(
 			FITATU_CLIENT_OPERATIONS.dayPlanMoveItem,
@@ -341,7 +333,7 @@ export class MealItemMutationCoordinator {
 			destinationItems,
 			destinationItems.length - 1,
 		).toOperationSummary(0, newItemId);
-		return MealItemMutationResult.acceptedMove(fromDate, fromMealKey, itemId, acceptedItem, dayRevisions);
+		return new MoveMealItemResult(fromDate, fromMealKey, itemId, toDate, acceptedItem, dayRevisions);
 	}
 }
 

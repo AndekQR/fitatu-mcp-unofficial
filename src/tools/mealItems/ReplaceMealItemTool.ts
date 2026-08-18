@@ -8,10 +8,10 @@ import {
 	createSafeMealItemErrorResult,
 	MEAL_KEY_HINT,
 	mealItemInputSchema,
-	mealItemMutationOutputSchema,
 	mealKeySchema,
+	replaceMealItemOutputSchema,
 	toMealItemInput,
-	toMealItemMutationForMcp,
+	toReplaceMealItemForMcp,
 } from "./MealItemToolSupport.ts";
 
 export class ReplaceMealItemTool {
@@ -29,7 +29,7 @@ export class ReplaceMealItemTool {
 			{
 				title: "Replace Fitatu Meal Item",
 				description:
-					"Replaces and confirms one existing Fitatu meal item. Select the existing entry by its exact date, mealKey, and itemId, then provide replacement using the same strict PRODUCT, RECIPE, or fallback CUSTOM_ITEM payload accepted by add_meal_items. If replacement.eaten is omitted, the existing eaten state is preserved. Replacing a PRODUCT or RECIPE with the same catalog definition is rejected; use update_meal_item for quantity, measure, or eaten changes. A successful result confirms that the old item disappeared and the new item persisted in the same meal; item order is not part of the contract.",
+					"Replaces and confirms one existing Fitatu meal item. Select the existing entry by its exact date, mealKey, and itemId, then provide replacement using the same strict PRODUCT, RECIPE, or fallback CUSTOM_ITEM payload accepted by add_meal_items. If replacement.eaten is omitted, the existing eaten state is preserved. Replacing a PRODUCT or RECIPE with the same catalog definition is rejected; use update_meal_item for quantity, measure, or eaten changes. Returns { status: 'confirmed', date, mealKey, previousItemId, itemId }; use the returned itemId for later mutations. The new item remains in the same meal, but item order is not part of the contract.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(
@@ -46,7 +46,7 @@ export class ReplaceMealItemTool {
 						),
 					})
 					.strict(),
-				outputSchema: mealItemMutationOutputSchema("replace"),
+				outputSchema: replaceMealItemOutputSchema,
 				annotations: {
 					title: "Replace Fitatu Meal Item",
 					readOnlyHint: false,
@@ -60,7 +60,7 @@ export class ReplaceMealItemTool {
 					const result = await this.mealItemMutationService.replaceMealItem(
 						new ReplaceMealItemOptions(date, mealKey, itemId, toMealItemInput(replacement)),
 					);
-					return createTextResult(toMealItemMutationForMcp(result));
+					return createTextResult(toReplaceMealItemForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(
 						ReplaceMealItemTool.toolName,

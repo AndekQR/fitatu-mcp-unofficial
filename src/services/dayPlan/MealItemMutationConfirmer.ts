@@ -1,13 +1,15 @@
 import type { AddMealItemsOptions } from "../../api/dayPlan/AddMealItemsOptions.ts";
+import type { AddMealItemsResult } from "../../api/dayPlan/AddMealItemsResult.ts";
 import type { DayPlan } from "../../api/dayPlan/DayPlan.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
 import type { GetDayPlanOptions } from "../../api/dayPlan/GetDayPlanOptions.ts";
 import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
-import type { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
+import type { MoveMealItemResult } from "../../api/dayPlan/MoveMealItemResult.ts";
 import type { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
 import type { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
 import type { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
 import type { ReplaceMealItemOptions } from "../../api/dayPlan/ReplaceMealItemOptions.ts";
+import type { ReplaceMealItemResult } from "../../api/dayPlan/ReplaceMealItemResult.ts";
 import { BoundedPoller } from "../../shared/BoundedPoller.ts";
 import { AddMealItemsTool } from "../../tools/addMealItems/AddMealItemsTool.ts";
 import { GetDayPlanItemsTool } from "../../tools/dayPlanItems/GetDayPlanItemsTool.ts";
@@ -41,7 +43,7 @@ export class MealItemMutationConfirmer {
 		this.confirmation = new MutationConfirmationSupport(poller);
 	}
 
-	public async confirmAdded(options: AddMealItemsOptions, result: MealItemMutationResult): Promise<void> {
+	public async confirmAdded(options: AddMealItemsOptions, result: AddMealItemsResult): Promise<void> {
 		await this.confirmation.confirm(ADD_CONFIRMATION, async () => {
 			const dayPlan = await this.dayPlanProvider.getDayPlan({
 				date: options.date,
@@ -52,7 +54,7 @@ export class MealItemMutationConfirmer {
 				return false;
 			}
 
-			return result.acceptedItems.every((acceptedItem) => {
+			return result.addedItems.every((acceptedItem) => {
 				const expected = options.items[acceptedItem.index];
 				const actual = meal.items.find(({ itemId }) => itemId === acceptedItem.itemId);
 				return expected !== undefined && actual !== undefined && matchesMealItem(actual, expected, false);
@@ -60,12 +62,7 @@ export class MealItemMutationConfirmer {
 		});
 	}
 
-	public async confirmReplaced(options: ReplaceMealItemOptions, result: MealItemMutationResult): Promise<void> {
-		const newItemId = result.newItemId;
-		if (newItemId === null) {
-			throw new Error("Replacement meal item id was not available");
-		}
-
+	public async confirmReplaced(options: ReplaceMealItemOptions, result: ReplaceMealItemResult): Promise<void> {
 		await this.confirmation.confirm(REPLACE_CONFIRMATION, async () => {
 			const dayPlan = await this.dayPlanProvider.getDayPlan({
 				date: options.date,
@@ -75,7 +72,7 @@ export class MealItemMutationConfirmer {
 				meal.items.every(({ itemId }) => itemId !== options.itemId),
 			);
 			const meal = dayPlan.meals.find(({ mealKey }) => mealKey === options.mealKey);
-			const replacement = meal?.items.find(({ itemId }) => itemId === newItemId);
+			const replacement = meal?.items.find(({ itemId }) => itemId === result.replacementItem.itemId);
 			return (
 				oldItemIsAbsent &&
 				replacement !== undefined &&
@@ -139,16 +136,11 @@ export class MealItemMutationConfirmer {
 
 	public async confirmMoved(
 		options: MoveMealItemOptions,
-		result: MealItemMutationResult,
+		result: MoveMealItemResult,
 		source: DayPlanItem,
 	): Promise<void> {
 		const toDate = options.toDate ?? options.fromDate;
 		const toMealKey = options.toMealKey ?? options.fromMealKey;
-		const newItemId = result.newItemId;
-		if (newItemId === null) {
-			throw new Error("Moved meal item id was not available");
-		}
-
 		await this.confirmation.confirm(MOVE_CONFIRMATION, async () => {
 			const sourcePlan = await this.dayPlanProvider.getDayPlan({
 				date: options.fromDate,
@@ -159,7 +151,7 @@ export class MealItemMutationConfirmer {
 					? sourcePlan
 					: await this.dayPlanProvider.getDayPlan({ date: toDate, userId: options.userId });
 			const oldItem = findItem(sourcePlan, options.fromMealKey, options.itemId);
-			const newItem = findItem(targetPlan, toMealKey, newItemId);
+			const newItem = findItem(targetPlan, toMealKey, result.movedItem.itemId);
 			return oldItem === undefined && newItem !== undefined && matchesMovedItem(newItem, source);
 		});
 	}

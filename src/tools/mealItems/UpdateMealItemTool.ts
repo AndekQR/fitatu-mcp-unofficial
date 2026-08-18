@@ -7,8 +7,8 @@ import {
 	createSafeMealItemErrorResult,
 	MEAL_KEY_HINT,
 	mealKeySchema,
-	mealItemMutationOutputSchema,
-	toMealItemMutationForMcp,
+	toUpdateMealItemForMcp,
+	updateMealItemOutputSchema,
 } from "./MealItemToolSupport.ts";
 import { isoCalendarDateSchema, nonEmptyStringSchema } from "../shared/ToolSchemas.ts";
 
@@ -29,7 +29,7 @@ export class UpdateMealItemTool {
 			{
 				title: "Update Fitatu Meal Item",
 				description:
-					"Updates and confirms one existing Fitatu meal item selected by its exact date, mealKey, and itemId. PRODUCT and RECIPE quantity or measure changes require a measure belonging to that food definition. For CUSTOM_ITEM entries, only the name, calories, protein, fat, carbohydrates, or eaten flag can be updated; their technical measure fields are immutable. A successful accepted result means every requested field was observed in the persisted day plan.",
+					"Updates and confirms one existing Fitatu meal item selected by its exact date, mealKey, and itemId. PRODUCT and RECIPE quantity or measure changes require a measure belonging to that food definition. For CUSTOM_ITEM entries, only the name, calories, protein, fat, carbohydrates, or eaten flag can be updated; their technical measure fields are immutable. Returns { status: 'confirmed', date, mealKey, itemId } after every requested field is observed in the persisted day plan.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(
@@ -92,7 +92,7 @@ export class UpdateMealItemTool {
 						{ message: "Provide at least one update field" },
 					)
 					.describe("Meal item update containing its identity and at least one update field."),
-				outputSchema: mealItemMutationOutputSchema("update"),
+				outputSchema: updateMealItemOutputSchema,
 				annotations: {
 					title: "Update Fitatu Meal Item",
 					readOnlyHint: false,
@@ -131,7 +131,7 @@ export class UpdateMealItemTool {
 							carbohydrateG,
 						),
 					);
-					return createTextResult(toMealItemMutationForMcp(result));
+					return createTextResult(toUpdateMealItemForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(
 						UpdateMealItemTool.toolName,

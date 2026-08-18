@@ -4,13 +4,13 @@ import { AddMealItemsOptions } from "../../api/dayPlan/AddMealItemsOptions.ts";
 import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
+	addMealItemsOutputSchema,
 	createSafeMealItemErrorResult,
 	MEAL_KEY_HINT,
 	mealKeySchema,
 	mealItemInputSchema,
-	mealItemMutationOutputSchema,
+	toAddMealItemsForMcp,
 	toMealItemInput,
-	toMealItemMutationForMcp,
 } from "../mealItems/MealItemToolSupport.ts";
 import { isoCalendarDateSchema } from "../shared/ToolSchemas.ts";
 
@@ -29,7 +29,7 @@ export class AddMealItemsTool {
 			{
 				title: "Add Fitatu Meal Items",
 				description:
-					"Validates, submits, and confirms products, recipes, or fallback one-off custom items in a Fitatu meal. Prefer a catalog product or recipe: search with search_food or search_recipes first, then provide productId and measureId for a product or raw recipeId and measureId for a recipe. Custom items are not preferred; use name and nutrition values only when no suitable catalog match exists. The id field selects the variant. Deleted recipes and mismatched measures are rejected before synchronization. A successful accepted result means every submitted item was observed in the persisted day plan by its exact itemId.",
+					"Validates, submits, and confirms products, recipes, or fallback one-off custom items in a Fitatu meal. Prefer a catalog product or recipe: search with search_food or search_recipes first, then provide productId and measureId for a product or raw recipeId and measureId for a recipe. Custom items are not preferred; use name and nutrition values only when no suitable catalog match exists. The id field selects the variant. Deleted recipes and mismatched measures are rejected before synchronization. Returns { status: 'confirmed', date, mealKey, addedItems: [{ inputIndex, itemId }] }; each itemId is persisted and ready for later meal-item mutations.",
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(
@@ -46,7 +46,7 @@ export class AddMealItemsTool {
 							),
 					})
 					.strict(),
-				outputSchema: mealItemMutationOutputSchema("add"),
+				outputSchema: addMealItemsOutputSchema,
 				annotations: {
 					title: "Add Fitatu Meal Items",
 					readOnlyHint: false,
@@ -60,7 +60,7 @@ export class AddMealItemsTool {
 					const result = await this.mealItemMutationService.addMealItems(
 						new AddMealItemsOptions(date, mealKey, items.map(toMealItemInput)),
 					);
-					return createTextResult(toMealItemMutationForMcp(result));
+					return createTextResult(toAddMealItemsForMcp(result));
 				} catch (error) {
 					return createSafeMealItemErrorResult(
 						AddMealItemsTool.toolName,

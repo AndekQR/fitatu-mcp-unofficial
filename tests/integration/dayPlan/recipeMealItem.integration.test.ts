@@ -45,13 +45,12 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 			],
 		});
 
-		expect(addResult.status).toBe("accepted");
 		expect(addResult.operation).toBe("add");
-		expect(addResult.acceptedItems).toMatchObject([
+		expect(addResult.addedItems).toMatchObject([
 			{ foodType: "RECIPE", productId: null, recipeId: RECIPE_ID, mealKey: MEAL_KEY },
 		]);
 
-		const itemId = addResult.provisionalItemIds[0];
+		const itemId = addResult.addedItems[0]?.itemId;
 		expect(itemId).toBeTruthy();
 		cleanup.track(date, MEAL_KEY, itemId);
 
@@ -83,9 +82,8 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 				],
 			});
 
-			expect(addResult.status).toBe("accepted");
 			expect(addResult.operation).toBe("add");
-			expect(addResult.acceptedItems).toMatchObject([
+			expect(addResult.addedItems).toMatchObject([
 				{
 					foodType: "RECIPE",
 					productId: null,
@@ -94,7 +92,7 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 				},
 			]);
 
-			const itemId = requireItemId(addResult.provisionalItemIds[0]);
+			const itemId = requireItemId(addResult.addedItems[0]?.itemId);
 			cleanup.track(date, MEAL_KEY, itemId);
 
 			const item = await waitForItem(date, MEAL_KEY, itemId);
@@ -125,7 +123,7 @@ describe.sequential("Fitatu recipe meal-item integration", () => {
 				],
 			});
 
-			const itemId = requireItemId(addResult.provisionalItemIds[0]);
+			const itemId = requireItemId(addResult.addedItems[0]?.itemId);
 			cleanup.track(date, MEAL_KEY, itemId);
 
 			const item = await waitForItem(date, MEAL_KEY, itemId);

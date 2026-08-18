@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { AddMealItemsOptions } from "../../../../src/api/dayPlan/AddMealItemsOptions.ts";
+import { AddMealItemsResult } from "../../../../src/api/dayPlan/AddMealItemsResult.ts";
 import { DayRevisions } from "../../../../src/api/dayPlan/DayRevisions.ts";
-import type { MealItemMutationResult } from "../../../../src/api/dayPlan/MealItemMutationResult.ts";
+import { MealItemOperationSummary } from "../../../../src/api/dayPlan/MealItemOperationSummary.ts";
+import { MoveMealItemResult } from "../../../../src/api/dayPlan/MoveMealItemResult.ts";
 import type { DayPlanClient } from "../../../../src/api/dayPlan/DayPlanClient.ts";
 import { DayPlan } from "../../../../src/api/dayPlan/DayPlan.ts";
 import { MoveMealItemOptions } from "../../../../src/api/dayPlan/MoveMealItemOptions.ts";
 import { ProductMealItemInput } from "../../../../src/api/dayPlan/ProductMealItemInput.ts";
 import { RecipeMealItemInput } from "../../../../src/api/dayPlan/RecipeMealItemInput.ts";
 import type { RemoveMealItemsOptions } from "../../../../src/api/dayPlan/RemoveMealItemsOptions.ts";
+import { RemoveMealItemsResult } from "../../../../src/api/dayPlan/RemoveMealItemsResult.ts";
 import { ReplaceMealItemOptions } from "../../../../src/api/dayPlan/ReplaceMealItemOptions.ts";
+import { ReplaceMealItemResult } from "../../../../src/api/dayPlan/ReplaceMealItemResult.ts";
 import type { UpdateMealItemOptions } from "../../../../src/api/dayPlan/UpdateMealItemOptions.ts";
+import { UpdateMealItemResult } from "../../../../src/api/dayPlan/UpdateMealItemResult.ts";
 import type { RecipeDetails } from "../../../../src/api/recipes/RecipeDetails.ts";
 import {
 	type MealItemMutationConfirmationProvider,
@@ -70,30 +75,20 @@ const successCases = [
 		},
 		result: createMutationResult({
 			operation: "add",
-			message: "Accepted 1 item for breakfast",
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			itemId: "new-item-1",
-			provisionalItemIds: ["new-item-1"],
 		}),
 		expectedStructuredContent: {
-			status: "accepted",
-			operation: "add",
-			message: "Accepted 1 item for breakfast",
-			targetDate: "2026-07-14",
+			status: "confirmed",
+			date: "2026-07-14",
 			mealKey: "breakfast",
-			operationCount: 1,
-			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
-			acceptedItems: [
+			addedItems: [
 				{
-					index: 0,
+					inputIndex: 0,
 					itemId: "new-item-1",
-					productId: "food-1",
-					mealKey: "breakfast",
 				},
 			],
-			provisionalItemIds: ["new-item-1"],
-			itemIdChanged: false,
 		},
 		destructiveHint: false,
 	},
@@ -130,30 +125,20 @@ const successCases = [
 		},
 		result: createMutationResult({
 			operation: "add",
-			message: "Accepted 1 item for dinner",
 			targetDate: "2026-07-14",
 			mealKey: "dinner",
 			itemId: "new-item-2",
-			provisionalItemIds: ["new-item-2"],
 		}),
 		expectedStructuredContent: {
-			status: "accepted",
-			operation: "add",
-			message: "Accepted 1 item for dinner",
-			targetDate: "2026-07-14",
+			status: "confirmed",
+			date: "2026-07-14",
 			mealKey: "dinner",
-			operationCount: 1,
-			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
-			acceptedItems: [
+			addedItems: [
 				{
-					index: 0,
+					inputIndex: 0,
 					itemId: "new-item-2",
-					productId: "food-1",
-					mealKey: "dinner",
 				},
 			],
-			provisionalItemIds: ["new-item-2"],
-			itemIdChanged: false,
 		},
 		destructiveHint: false,
 	},
@@ -185,30 +170,15 @@ const successCases = [
 		},
 		result: createMutationResult({
 			operation: "update",
-			message: "Accepted update for item-1",
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			itemId: "item-1",
-			updatedItemIds: ["item-1"],
 		}),
 		expectedStructuredContent: {
-			status: "accepted",
-			operation: "update",
-			message: "Accepted update for item-1",
-			targetDate: "2026-07-14",
+			status: "confirmed",
+			date: "2026-07-14",
 			mealKey: "breakfast",
-			operationCount: 1,
-			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
-			acceptedItems: [
-				{
-					index: 0,
-					itemId: "item-1",
-					productId: "food-1",
-					mealKey: "breakfast",
-				},
-			],
-			updatedItemIds: ["item-1"],
-			itemIdChanged: false,
+			itemId: "item-1",
 		},
 		destructiveHint: false,
 	},
@@ -234,30 +204,20 @@ const successCases = [
 		},
 		result: createMutationResult({
 			operation: "remove",
-			message: "Accepted removal of item-1",
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			itemId: "item-1",
-			deletedItemIds: ["item-1"],
 		}),
 		expectedStructuredContent: {
-			status: "accepted",
-			operation: "remove",
-			message: "Accepted removal of item-1",
-			targetDate: "2026-07-14",
-			mealKey: "breakfast",
-			operationCount: 1,
-			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
-			acceptedItems: [
+			status: "confirmed",
+			date: "2026-07-14",
+			removedItems: [
 				{
-					index: 0,
+					inputIndex: 0,
 					itemId: "item-1",
-					productId: "food-1",
 					mealKey: "breakfast",
 				},
 			],
-			deletedItemIds: ["item-1"],
-			itemIdChanged: false,
 		},
 		destructiveHint: true,
 	},
@@ -283,32 +243,21 @@ const successCases = [
 		},
 		result: createMutationResult({
 			operation: "move",
-			message: "Accepted move to lunch",
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			itemId: "new-item-2",
 			oldItemId: "item-1",
-			newItemId: "new-item-2",
+			toDate: "2026-07-15",
+			toMealKey: "lunch",
 		}),
 		expectedStructuredContent: {
-			status: "accepted",
-			operation: "move",
-			message: "Accepted move to lunch",
-			targetDate: "2026-07-14",
-			mealKey: "breakfast",
-			operationCount: 1,
-			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
-			acceptedItems: [
-				{
-					index: 0,
-					itemId: "new-item-2",
-					productId: "food-1",
-					mealKey: "breakfast",
-				},
-			],
-			oldItemId: "item-1",
-			newItemId: "new-item-2",
-			itemIdChanged: true,
+			status: "confirmed",
+			fromDate: "2026-07-14",
+			fromMealKey: "breakfast",
+			previousItemId: "item-1",
+			toDate: "2026-07-15",
+			toMealKey: "lunch",
+			itemId: "new-item-2",
 		},
 		destructiveHint: false,
 	},
@@ -342,36 +291,17 @@ const successCases = [
 		},
 		result: createMutationResult({
 			operation: "replace",
-			message: "Accepted replacement for old-item-1",
 			targetDate: "2026-07-14",
 			mealKey: "breakfast",
 			itemId: "new-item-3",
-			provisionalItemIds: ["new-item-3"],
-			deletedItemIds: ["old-item-1"],
 			oldItemId: "old-item-1",
-			newItemId: "new-item-3",
 		}),
 		expectedStructuredContent: {
-			status: "accepted",
-			operation: "replace",
-			message: "Accepted replacement for old-item-1",
-			targetDate: "2026-07-14",
+			status: "confirmed",
+			date: "2026-07-14",
 			mealKey: "breakfast",
-			operationCount: 1,
-			dayRevisions: { "2026-07-14": "revision-2026-07-14" },
-			acceptedItems: [
-				{
-					index: 0,
-					itemId: "new-item-3",
-					productId: "food-1",
-					mealKey: "breakfast",
-				},
-			],
-			provisionalItemIds: ["new-item-3"],
-			deletedItemIds: ["old-item-1"],
-			oldItemId: "old-item-1",
-			newItemId: "new-item-3",
-			itemIdChanged: true,
+			previousItemId: "old-item-1",
+			itemId: "new-item-3",
 		},
 		destructiveHint: true,
 	},
@@ -621,7 +551,7 @@ describe("meal item mutation tools", () => {
 		expect(properties[field]?.enum).toBeUndefined();
 	});
 
-	it.each(successCases)("$name delegates validated input and returns accepted content", async (testCase) => {
+	it.each(successCases)("$name delegates validated input and returns confirmed content", async (testCase) => {
 		const service = new FakeMealItemMutationService(testCase.result);
 		const registered = await registerToolForTest(testCase.createTool(service));
 
@@ -633,9 +563,21 @@ describe("meal item mutation tools", () => {
 			destructiveHint: testCase.destructiveHint,
 			idempotentHint: false,
 		});
-		expect(registered.config.outputSchema).toMatchObject({
-			properties: { operation: { const: testCase.result.operation } },
-		});
+		const outputSchema = registered.config.outputSchema;
+		expect(outputSchema).toMatchObject({ properties: { status: { const: "confirmed" } } });
+		if (!outputSchema) {
+			throw new Error("Expected a mutation output schema");
+		}
+		const outputProperties = outputSchema.properties as Record<string, unknown>;
+		for (const technicalField of [
+			"dayRevisions",
+			"provisionalItemIds",
+			"itemIdChanged",
+			"operationCount",
+			"message",
+		]) {
+			expect(outputProperties).not.toHaveProperty(technicalField);
+		}
 		expect(result.structuredContent).toEqual(testCase.expectedStructuredContent);
 		expect(result.content).toEqual([
 			{ type: "text", text: JSON.stringify(testCase.expectedStructuredContent, null, 2) },
@@ -644,26 +586,12 @@ describe("meal item mutation tools", () => {
 
 	it("accepts and returns any non-empty raw recipeId supported by the client", async () => {
 		const rawRecipeId = "recipe:159408954";
-		const recipeResult: MealItemMutationResult = {
-			...createMutationResult({
-				operation: "add",
-				message: "Accepted recipe",
-				targetDate: "2026-07-14",
-				mealKey: "supper",
-				itemId: "recipe-item-1",
-				provisionalItemIds: ["recipe-item-1"],
-			}),
-			acceptedItems: [
-				{
-					index: 0,
-					itemId: "recipe-item-1",
-					productId: null,
-					recipeId: rawRecipeId,
-					foodType: "RECIPE",
-					mealKey: "supper",
-				},
-			],
-		};
+		const recipeResult = new AddMealItemsResult(
+			"2026-07-14",
+			"supper",
+			[new MealItemOperationSummary(0, "recipe-item-1", null, rawRecipeId, "RECIPE", "supper")],
+			DayRevisions.fromRecord({ "2026-07-14": "revision-2026-07-14" }),
+		);
 		const service = new FakeMealItemMutationService(recipeResult);
 		const registered = await registerToolForTest(new AddMealItemsTool(service));
 
@@ -699,37 +627,23 @@ describe("meal item mutation tools", () => {
 			},
 		]);
 		expect(result.structuredContent).toMatchObject({
-			acceptedItems: [
+			addedItems: [
 				{
 					itemId: "recipe-item-1",
-					recipeId: rawRecipeId,
 				},
 			],
 		});
+		expect(JSON.stringify(result.structuredContent)).not.toContain('"recipeId"');
 		expect(JSON.stringify(result.structuredContent)).not.toContain('"foodType"');
 	});
 
 	it("creates a custom item from a name and nutrition without a definition id", async () => {
-		const customResult: MealItemMutationResult = {
-			...createMutationResult({
-				operation: "add",
-				message: "Accepted custom item",
-				targetDate: "2026-07-14",
-				mealKey: "supper",
-				itemId: "custom-item-1",
-				provisionalItemIds: ["custom-item-1"],
-			}),
-			acceptedItems: [
-				{
-					index: 0,
-					itemId: "custom-item-1",
-					productId: null,
-					recipeId: null,
-					foodType: "CUSTOM_ITEM",
-					mealKey: "supper",
-				},
-			],
-		};
+		const customResult = new AddMealItemsResult(
+			"2026-07-14",
+			"supper",
+			[new MealItemOperationSummary(0, "custom-item-1", null, null, "CUSTOM_ITEM", "supper")],
+			DayRevisions.fromRecord({ "2026-07-14": "revision-2026-07-14" }),
+		);
 		const service = new FakeMealItemMutationService(customResult);
 		const registered = await registerToolForTest(new AddMealItemsTool(service));
 
@@ -766,10 +680,9 @@ describe("meal item mutation tools", () => {
 			},
 		]);
 		expect(result.structuredContent).toMatchObject({
-			acceptedItems: [
+			addedItems: [
 				{
 					itemId: "custom-item-1",
-					mealKey: "supper",
 				},
 			],
 		});
@@ -828,7 +741,7 @@ describe("meal item mutation tools", () => {
 	});
 
 	it("delegates trimmed custom-item name and zero nutrition updates", async () => {
-		const service = new FakeMealItemMutationService(successCases[1].result);
+		const service = new FakeMealItemMutationService(successCases[2].result);
 		const registered = await registerToolForTest(new UpdateMealItemTool(service));
 
 		await registered.invoke({
@@ -977,7 +890,7 @@ describe("meal item mutation tools", () => {
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.replacement).toBeInstanceOf(ProductMealItemInput);
 		expect(confirmations).toEqual(calls);
-		expect(result.message).toBe("Meal item replace accepted and confirmed in Fitatu.");
+		expect(result).toBe(successCases[5].result);
 	});
 
 	it("rejects a replacement with a mismatched product measure before the day-plan write", async () => {
@@ -1193,7 +1106,7 @@ describe("meal item mutation tools", () => {
 				mealKey: "supper",
 				items: [item],
 			}),
-		).resolves.toMatchObject({ status: "accepted", operation: "add" });
+		).resolves.toMatchObject({ operation: "add" });
 		expect(calls).toEqual([{ date: "2026-07-14", mealKey: "supper", items: [item] }]);
 		expect(measureLookupCalled).toBe(false);
 		expect(recipeLookupCalled).toBe(false);
@@ -1297,38 +1210,49 @@ type MutationCall =
 	| { readonly operation: "move"; readonly options: MoveMealItemOptions }
 	| { readonly operation: "replace"; readonly options: ReplaceMealItemOptions };
 
+type TestMealItemMutationResult =
+	AddMealItemsResult | UpdateMealItemResult | RemoveMealItemsResult | MoveMealItemResult | ReplaceMealItemResult;
+
 class FakeMealItemMutationService {
 	public readonly calls: MutationCall[] = [];
 
 	public constructor(
-		private readonly result: MealItemMutationResult,
+		private readonly result: TestMealItemMutationResult,
 		private readonly error?: Error,
 	) {}
 
-	public async addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult> {
+	public async addMealItems(options: AddMealItemsOptions): Promise<AddMealItemsResult> {
 		return this.record({ operation: "add", options });
 	}
 
-	public async updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
+	public async updateMealItem(options: UpdateMealItemOptions): Promise<UpdateMealItemResult> {
 		return this.record({ operation: "update", options });
 	}
 
-	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
+	public async removeMealItems(options: RemoveMealItemsOptions): Promise<RemoveMealItemsResult> {
 		return this.record({ operation: "remove", options });
 	}
 
-	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {
+	public async moveMealItem(options: MoveMealItemOptions): Promise<MoveMealItemResult> {
 		return this.record({ operation: "move", options });
 	}
 
-	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult> {
+	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<ReplaceMealItemResult> {
 		return this.record({ operation: "replace", options });
 	}
 
-	private async record(call: MutationCall): Promise<MealItemMutationResult> {
+	private record(call: Extract<MutationCall, { readonly operation: "add" }>): Promise<AddMealItemsResult>;
+	private record(call: Extract<MutationCall, { readonly operation: "update" }>): Promise<UpdateMealItemResult>;
+	private record(call: Extract<MutationCall, { readonly operation: "remove" }>): Promise<RemoveMealItemsResult>;
+	private record(call: Extract<MutationCall, { readonly operation: "move" }>): Promise<MoveMealItemResult>;
+	private record(call: Extract<MutationCall, { readonly operation: "replace" }>): Promise<ReplaceMealItemResult>;
+	private async record(call: MutationCall): Promise<TestMealItemMutationResult> {
 		this.calls.push(call);
 		if (this.error) {
 			throw this.error;
+		}
+		if (this.result.operation !== call.operation) {
+			throw new Error(`Expected a ${call.operation} test result, received ${this.result.operation}`);
 		}
 
 		return this.result;
@@ -1377,43 +1301,55 @@ function dayPlanWithItem(mealKey: string, item: Record<string, unknown>): DayPla
 	});
 }
 
-function createMutationResult(options: {
-	readonly operation: MealItemMutationResult["operation"];
-	readonly message: string;
+type MutationResultOptions = {
 	readonly targetDate: string;
 	readonly mealKey: string;
 	readonly itemId: string;
-	readonly provisionalItemIds?: readonly string[];
-	readonly updatedItemIds?: readonly string[];
-	readonly deletedItemIds?: readonly string[];
-	readonly oldItemId?: string;
-	readonly newItemId?: string;
-}): MealItemMutationResult {
-	return {
-		status: "accepted",
-		operation: options.operation,
-		message: options.message,
-		targetDate: options.targetDate,
-		mealKey: options.mealKey,
-		operationCount: 1,
-		acceptedItems: [
-			{
-				index: 0,
-				itemId: options.itemId,
-				productId: "food-1",
-				recipeId: null,
-				foodType: "PRODUCT",
-				mealKey: options.mealKey,
-			},
-		],
-		provisionalItemIds: options.provisionalItemIds ?? [],
-		updatedItemIds: options.updatedItemIds ?? [],
-		deletedItemIds: options.deletedItemIds ?? [],
-		oldItemId: options.oldItemId ?? null,
-		newItemId: options.newItemId ?? null,
-		itemIdChanged: Boolean(options.oldItemId && options.newItemId && options.oldItemId !== options.newItemId),
-		dayRevisions: DayRevisions.fromRecord({ [options.targetDate]: `revision-${options.targetDate}` }),
-	};
+} & (
+	| { readonly operation: "add" | "update" | "remove" }
+	| { readonly operation: "move"; readonly oldItemId: string; readonly toDate: string; readonly toMealKey: string }
+	| { readonly operation: "replace"; readonly oldItemId: string }
+);
+
+function createMutationResult(options: MutationResultOptions): TestMealItemMutationResult {
+	const dayRevisions = DayRevisions.fromRecord({
+		[options.targetDate]: `revision-${options.targetDate}`,
+	});
+	const item = new MealItemOperationSummary(
+		0,
+		options.itemId,
+		"food-1",
+		null,
+		"PRODUCT",
+		options.operation === "move" ? options.toMealKey : options.mealKey,
+	);
+
+	switch (options.operation) {
+		case "add":
+			return new AddMealItemsResult(options.targetDate, options.mealKey, [item], dayRevisions);
+		case "update":
+			return new UpdateMealItemResult(options.targetDate, item, dayRevisions);
+		case "remove":
+			return new RemoveMealItemsResult(options.targetDate, [item], dayRevisions);
+		case "move":
+			return new MoveMealItemResult(
+				options.targetDate,
+				options.mealKey,
+				options.oldItemId,
+				options.toDate,
+				item,
+				dayRevisions,
+			);
+		case "replace":
+			return new ReplaceMealItemResult(
+				options.targetDate,
+				options.mealKey,
+				options.oldItemId,
+				item,
+				dayRevisions,
+				false,
+			);
+	}
 }
 
 function alwaysConfirmingMealItemMutations(): MealItemMutationConfirmationProvider {

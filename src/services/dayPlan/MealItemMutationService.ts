@@ -1,16 +1,20 @@
 import { AddMealItemsOptions } from "../../api/dayPlan/AddMealItemsOptions.ts";
+import type { AddMealItemsResult } from "../../api/dayPlan/AddMealItemsResult.ts";
 import { DayPlanClient } from "../../api/dayPlan/DayPlanClient.ts";
 import type { FoodTypeName } from "../../api/dayPlan/FoodType.ts";
-import { MealItemMutationResult } from "../../api/dayPlan/MealItemMutationResult.ts";
+import type { MoveMealItemResult } from "../../api/dayPlan/MoveMealItemResult.ts";
 import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
 import { MoveMealItemOptions } from "../../api/dayPlan/MoveMealItemOptions.ts";
 import { RemoveMealItemOptions } from "../../api/dayPlan/RemoveMealItemOptions.ts";
 import { RemoveMealItemsOptions } from "../../api/dayPlan/RemoveMealItemsOptions.ts";
+import type { RemoveMealItemsResult } from "../../api/dayPlan/RemoveMealItemsResult.ts";
+import type { ReplaceMealItemResult } from "../../api/dayPlan/ReplaceMealItemResult.ts";
 import { ReplaceMealItemOptions } from "../../api/dayPlan/ReplaceMealItemOptions.ts";
 import { UpdateMealItemOptions } from "../../api/dayPlan/UpdateMealItemOptions.ts";
 import type { RecipeClient } from "../../api/recipes/RecipeClient.ts";
 import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
 import type { DayPlanItem } from "../../api/dayPlan/DayPlanItem.ts";
+import type { UpdateMealItemResult } from "../../api/dayPlan/UpdateMealItemResult.ts";
 import { MealItemRemovalTarget } from "../../api/dayPlan/MealItemRemovalTarget.ts";
 import { ServiceError } from "../ServiceError.ts";
 import { SERVICE_ERROR_CODES } from "../ServiceErrorCode.ts";
@@ -25,21 +29,21 @@ interface RecipeStateProvider {
 }
 
 export interface MealItemMutationProvider {
-	addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult>;
-	updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult>;
-	removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult>;
-	removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult>;
-	moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult>;
-	replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult>;
+	addMealItems(options: AddMealItemsOptions): Promise<AddMealItemsResult>;
+	updateMealItem(options: UpdateMealItemOptions): Promise<UpdateMealItemResult>;
+	removeMealItem(options: RemoveMealItemOptions): Promise<RemoveMealItemsResult>;
+	removeMealItems(options: RemoveMealItemsOptions): Promise<RemoveMealItemsResult>;
+	moveMealItem(options: MoveMealItemOptions): Promise<MoveMealItemResult>;
+	replaceMealItem(options: ReplaceMealItemOptions): Promise<ReplaceMealItemResult>;
 }
 
 export interface MealItemMutationConfirmationProvider {
-	confirmAdded(options: AddMealItemsOptions, result: MealItemMutationResult): Promise<void>;
+	confirmAdded(options: AddMealItemsOptions, result: AddMealItemsResult): Promise<void>;
 	confirmUpdated(options: UpdateMealItemOptions): Promise<void>;
 	confirmRemoved(options: RemoveMealItemsOptions): Promise<void>;
 	getMoveSource(options: MoveMealItemOptions): Promise<DayPlanItem>;
-	confirmMoved(options: MoveMealItemOptions, result: MealItemMutationResult, source: DayPlanItem): Promise<void>;
-	confirmReplaced(options: ReplaceMealItemOptions, result: MealItemMutationResult): Promise<void>;
+	confirmMoved(options: MoveMealItemOptions, result: MoveMealItemResult, source: DayPlanItem): Promise<void>;
+	confirmReplaced(options: ReplaceMealItemOptions, result: ReplaceMealItemResult): Promise<void>;
 }
 
 export class MealItemMutationService implements MealItemMutationProvider {
@@ -60,23 +64,23 @@ export class MealItemMutationService implements MealItemMutationProvider {
 		this.confirmer = confirmer;
 	}
 
-	public async addMealItems(options: AddMealItemsOptions): Promise<MealItemMutationResult> {
+	public async addMealItems(options: AddMealItemsOptions): Promise<AddMealItemsResult> {
 		const items = await this.prepareMealItems(options.items);
 		const preparedOptions = new AddMealItemsOptions(options.date, options.mealKey, items, options.userId);
 		const result = await this.dayPlanClient.addMealItems(preparedOptions);
 		await this.confirmer.confirmAdded(preparedOptions, result);
-		return MealItemMutationResult.confirmed(result);
+		return result;
 	}
 
-	public async updateMealItem(options: UpdateMealItemOptions): Promise<MealItemMutationResult> {
+	public async updateMealItem(options: UpdateMealItemOptions): Promise<UpdateMealItemResult> {
 		const preparedOptions = UpdateMealItemOptions.from(options);
 		await this.validateMealItemMeasureUpdate(preparedOptions);
 		const result = await this.dayPlanClient.updateMealItem(preparedOptions);
 		await this.confirmer.confirmUpdated(preparedOptions);
-		return MealItemMutationResult.confirmed(result);
+		return result;
 	}
 
-	public async removeMealItem(options: RemoveMealItemOptions): Promise<MealItemMutationResult> {
+	public async removeMealItem(options: RemoveMealItemOptions): Promise<RemoveMealItemsResult> {
 		const preparedOptions = RemoveMealItemOptions.from(options);
 		const result = await this.dayPlanClient.removeMealItem(preparedOptions);
 		await this.confirmer.confirmRemoved(
@@ -86,26 +90,26 @@ export class MealItemMutationService implements MealItemMutationProvider {
 				preparedOptions.userId,
 			),
 		);
-		return MealItemMutationResult.confirmed(result);
+		return result;
 	}
 
-	public async removeMealItems(options: RemoveMealItemsOptions): Promise<MealItemMutationResult> {
+	public async removeMealItems(options: RemoveMealItemsOptions): Promise<RemoveMealItemsResult> {
 		const preparedOptions = RemoveMealItemsOptions.from(options);
 		const result = await this.dayPlanClient.removeMealItems(preparedOptions);
 		await this.confirmer.confirmRemoved(preparedOptions);
-		return MealItemMutationResult.confirmed(result);
+		return result;
 	}
 
-	public async moveMealItem(options: MoveMealItemOptions): Promise<MealItemMutationResult> {
+	public async moveMealItem(options: MoveMealItemOptions): Promise<MoveMealItemResult> {
 		const preparedOptions = MoveMealItemOptions.from(options);
 		this.validateMoveDestination(preparedOptions);
 		const source = await this.confirmer.getMoveSource(preparedOptions);
 		const result = await this.dayPlanClient.moveMealItem(preparedOptions);
 		await this.confirmer.confirmMoved(preparedOptions, result, source);
-		return MealItemMutationResult.confirmed(result);
+		return result;
 	}
 
-	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<MealItemMutationResult> {
+	public async replaceMealItem(options: ReplaceMealItemOptions): Promise<ReplaceMealItemResult> {
 		const [replacement] = await this.prepareMealItems([options.replacement]);
 		if (replacement === undefined) {
 			throw new Error("Prepared replacement meal item was not available");
@@ -119,7 +123,7 @@ export class MealItemMutationService implements MealItemMutationProvider {
 		);
 		const result = await this.dayPlanClient.replaceMealItem(preparedOptions);
 		await this.confirmer.confirmReplaced(preparedOptions, result);
-		return MealItemMutationResult.confirmed(result);
+		return result;
 	}
 
 	private async prepareMealItems(items: AddMealItemsOptions["items"]): Promise<readonly MealItemInput[]> {

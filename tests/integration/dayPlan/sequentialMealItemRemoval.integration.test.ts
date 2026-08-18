@@ -45,12 +45,10 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 			items,
 		});
 
-		expect(addResult.status).toBe("accepted");
 		expect(addResult.operation).toBe("add");
-		expect(addResult.operationCount).toBe(items.length);
-		expect(addResult.provisionalItemIds).toHaveLength(items.length);
+		expect(addResult.addedItems).toHaveLength(items.length);
 
-		const persistedItemIds = addResult.provisionalItemIds;
+		const persistedItemIds = addResult.addedItems.map(({ itemId }) => itemId);
 		const afterAdd = await dayPlanClient.getDayPlan({ date });
 		for (const itemId of persistedItemIds) {
 			expectMealItem(afterAdd, MEAL_KEY, itemId);
@@ -64,10 +62,8 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 			items: persistedItemIds.map((itemId) => ({ mealKey: MEAL_KEY, itemId })),
 		});
 
-		expect(removeResult.status).toBe("accepted");
 		expect(removeResult.operation).toBe("remove");
-		expect(removeResult.operationCount).toBe(items.length);
-		expect(removeResult.deletedItemIds).toEqual(persistedItemIds);
+		expect(removeResult.removedItems.map(({ itemId }) => itemId)).toEqual(persistedItemIds);
 		const afterRemoval = await dayPlanClient.getDayPlan({ date });
 		for (const itemId of persistedItemIds) {
 			expectNoMealItem(afterRemoval, MEAL_KEY, itemId);
@@ -92,7 +88,7 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 				},
 			],
 		});
-		const provisionalCatalogItemId = requireItemId(addCatalogResult.provisionalItemIds[0] ?? null);
+		const provisionalCatalogItemId = requireItemId(addCatalogResult.addedItems[0]?.itemId ?? null);
 		cleanup.track(date, REPLACEMENT_MEAL_KEY, provisionalCatalogItemId);
 
 		const catalogItemId = provisionalCatalogItemId;
@@ -103,9 +99,8 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 			items: [{ mealKey: REPLACEMENT_MEAL_KEY, itemId: catalogItemId }],
 		});
 		expect(removeResult).toMatchObject({
-			status: "accepted",
 			operation: "remove",
-			deletedItemIds: [catalogItemId],
+			removedItems: [{ itemId: catalogItemId }],
 		});
 
 		const replacementName = `Fitatu MCP custom replacement ${Date.now()}`;
@@ -125,7 +120,7 @@ describe.sequential("Fitatu sequential meal-item removal integration", () => {
 				},
 			],
 		});
-		const customItemId = requireItemId(addCustomResult.provisionalItemIds[0] ?? null);
+		const customItemId = requireItemId(addCustomResult.addedItems[0]?.itemId ?? null);
 		cleanup.track(date, REPLACEMENT_MEAL_KEY, customItemId);
 
 		const finalItems =

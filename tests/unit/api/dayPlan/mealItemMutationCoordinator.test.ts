@@ -21,10 +21,10 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 			items: [{ productId: "101", foodType: "PRODUCT", measureId: "1", measureQuantity: 2, eaten: true }],
 		});
 
-		expect(result).toMatchObject({ operation: "add", operationCount: 1, itemIdChanged: false });
+		expect(result).toMatchObject({ operation: "add", date: "2026-07-01", mealKey: "breakfast" });
 		expect(result.dayRevisions).toBeInstanceOf(DayRevisions);
 		expect(result.dayRevisions.toRecord()).toEqual({ "2026-07-01": "revision-2026-07-01" });
-		expect(result.provisionalItemIds).toHaveLength(1);
+		expect(result.addedItems).toHaveLength(1);
 		expect(syncService.syncCalls).toHaveLength(1);
 		expect(mealItems(syncService.currentPayload, "breakfast")[0]).toMatchObject({
 			productId: 101,
@@ -45,7 +45,7 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 			items: [{ productId: "101", foodType: "PRODUCT", measureId: "1" }],
 		});
 
-		expect(result).toMatchObject({ operation: "add", operationCount: 1, mealKey: "Dinner" });
+		expect(result).toMatchObject({ operation: "add", addedItems: [expect.any(Object)], mealKey: "Dinner" });
 		expect(mealItems(syncService.currentPayload, "Dinner")[0]).toMatchObject({ productId: 101 });
 	});
 
@@ -105,7 +105,7 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 			],
 		});
 
-		expect(result.acceptedItems).toMatchObject([
+		expect(result.addedItems).toMatchObject([
 			{
 				productId: null,
 				recipeId: null,
@@ -146,7 +146,7 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 			eaten: true,
 		});
 
-		expect(result.updatedItemIds).toEqual(["item-1"]);
+		expect(result.updatedItem.itemId).toBe("item-1");
 		expect(syncService.item("breakfast", "item-1")).toMatchObject({
 			productId: 101,
 			measureId: 1,
@@ -170,7 +170,7 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 			proteinG: 13,
 		});
 
-		expect(result).toMatchObject({ updatedItemIds: ["custom-1"], itemIdChanged: false });
+		expect(result).toMatchObject({ updatedItem: { itemId: "custom-1" } });
 		expect(syncService.item("supper", "custom-1")).toMatchObject({
 			...customItem,
 			name: "Corrected snack",
@@ -215,7 +215,7 @@ describe("MealItemMutationCoordinator single-day mutations", () => {
 			itemId: "recipe-1",
 		});
 
-		expect(result.deletedItemIds).toEqual(["recipe-1"]);
+		expect(result.removedItems.map(({ itemId }) => itemId)).toEqual(["recipe-1"]);
 		const itemAfter = syncService.item("breakfast", "recipe-1");
 		expect(itemAfter?.deletedAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
 		expect(itemAfter).toEqual({ ...itemBefore, deletedAt: itemAfter?.deletedAt });
@@ -307,16 +307,11 @@ describe("MealItemMutationCoordinator.removeMealItems", () => {
 				{ mealKey: "lunch", itemId: "recipe-1" },
 			],
 		});
-		expect(result).toMatchObject({
-			operation: "remove",
-			operationCount: 3,
-		});
+		expect(result).toMatchObject({ operation: "remove", date: "2026-07-01" });
 
 		expect(result.operation).toBe("remove");
-		expect(result.mealKey).toBeNull();
-		expect(result.operationCount).toBe(3);
-		expect(result.deletedItemIds).toEqual(["breakfast-1", "lunch-1", "recipe-1"]);
-		expect(result.acceptedItems).toMatchObject([
+		expect(result.removedItems.map(({ itemId }) => itemId)).toEqual(["breakfast-1", "lunch-1", "recipe-1"]);
+		expect(result.removedItems).toMatchObject([
 			{ itemId: "breakfast-1", productId: 101, foodType: "PRODUCT", mealKey: "breakfast" },
 			{ itemId: "lunch-1", productId: 202, foodType: "PRODUCT", mealKey: "lunch" },
 			{ itemId: "recipe-1", recipeId: 101, foodType: "RECIPE", mealKey: "lunch" },
@@ -346,8 +341,7 @@ describe("MealItemMutationCoordinator.removeMealItems", () => {
 			items: [{ mealKey: "breakfast", itemId: "breakfast-2" }],
 		});
 
-		expect(result.operationCount).toBe(1);
-		expect(result.deletedItemIds).toEqual(["breakfast-2"]);
+		expect(result.removedItems.map(({ itemId }) => itemId)).toEqual(["breakfast-2"]);
 		expect(syncService.syncCalls).toHaveLength(1);
 	});
 
@@ -401,12 +395,9 @@ describe("MealItemMutationCoordinator.replaceMealItem", () => {
 
 		expect(result).toMatchObject({
 			operation: "replace",
-			oldItemId: "old-item",
-			newItemId: expect.any(String),
-			deletedItemIds: ["old-item"],
-			itemIdChanged: true,
+			previousItemId: "old-item",
+			replacementItem: { itemId: expect.any(String) },
 		});
-		expect(result.provisionalItemIds).toEqual([result.newItemId]);
 		expect(syncService.getPayloadCalls).toHaveLength(1);
 		expect(syncService.syncCalls).toHaveLength(1);
 		const items = mealItems(syncService.currentPayload, "dinner");
@@ -414,7 +405,7 @@ describe("MealItemMutationCoordinator.replaceMealItem", () => {
 			"deleted-before",
 			"before",
 			"old-item",
-			result.newItemId,
+			result.replacementItem.itemId,
 			"after",
 		]);
 		expect(items[2]?.deletedAt).toEqual(expect.any(String));
@@ -579,7 +570,7 @@ describe("MealItemMutationCoordinator.moveMealItem", () => {
 		expect(mealItems(syncedDay, "breakfast")[0]).toMatchObject({ planDayDietItemId: "item-1" });
 		expect(mealItems(syncedDay, "breakfast")[0]?.deletedAt).toBeTruthy();
 		expect(mealItems(syncedDay, "lunch")[0]).toMatchObject({
-			planDayDietItemId: result.newItemId,
+			planDayDietItemId: result.movedItem.itemId,
 			productId: 101,
 			mealType: "lunch",
 		});
@@ -601,8 +592,8 @@ describe("MealItemMutationCoordinator.moveMealItem", () => {
 			toMealKey: "lunch",
 		});
 
-		expect(result.oldItemId).toBe("item-1");
-		expect(result.newItemId).not.toBe("item-1");
+		expect(result.previousItemId).toBe("item-1");
+		expect(result.movedItem.itemId).not.toBe("item-1");
 		expect(syncService.syncDaysCalls).toHaveLength(1);
 		expect(syncService.syncDaysCalls[0]?.userId).toBe("user-1");
 		expect(Object.keys(syncService.syncDaysCalls[0]?.daysPayload ?? {})).toEqual(["2026-07-01", "2026-07-02"]);
@@ -613,7 +604,7 @@ describe("MealItemMutationCoordinator.moveMealItem", () => {
 		});
 		expect(mealItems(syncedDays["2026-07-01"], "breakfast")[0]?.deletedAt).toBeTruthy();
 		expect(mealItems(syncedDays["2026-07-02"], "lunch")[0]).toMatchObject({
-			planDayDietItemId: result.newItemId,
+			planDayDietItemId: result.movedItem.itemId,
 			productId: 101,
 			mealType: "lunch",
 		});

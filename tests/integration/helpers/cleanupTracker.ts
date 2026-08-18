@@ -1,10 +1,12 @@
 import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
 import type { AddMealItemsOptions } from "../../../src/api/dayPlan/AddMealItemsOptions.ts";
+import type { AddMealItemsResult } from "../../../src/api/dayPlan/AddMealItemsResult.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
-import type { MealItemMutationResult } from "../../../src/api/dayPlan/MealItemMutationResult.ts";
+import type { MoveMealItemResult } from "../../../src/api/dayPlan/MoveMealItemResult.ts";
 import type { MoveMealItemOptions } from "../../../src/api/dayPlan/MoveMealItemOptions.ts";
 import type { RemoveMealItemsOptions } from "../../../src/api/dayPlan/RemoveMealItemsOptions.ts";
 import type { ReplaceMealItemOptions } from "../../../src/api/dayPlan/ReplaceMealItemOptions.ts";
+import type { ReplaceMealItemResult } from "../../../src/api/dayPlan/ReplaceMealItemResult.ts";
 import type { UpdateMealItemOptions } from "../../../src/api/dayPlan/UpdateMealItemOptions.ts";
 import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
@@ -213,9 +215,9 @@ export class CleanupTrackingMealItemMutationConfirmer implements MealItemMutatio
 		this.cleanup = cleanup;
 	}
 
-	public async confirmAdded(options: AddMealItemsOptions, result: MealItemMutationResult): Promise<void> {
-		for (const itemId of result.provisionalItemIds) {
-			this.cleanup.track(options.date, options.mealKey, itemId);
+	public async confirmAdded(options: AddMealItemsOptions, result: AddMealItemsResult): Promise<void> {
+		for (const item of result.addedItems) {
+			this.cleanup.track(options.date, options.mealKey, item.itemId);
 		}
 		await this.delegate.confirmAdded(options, result);
 		this.cleanup.confirmMealAddition(options.date, options.mealKey);
@@ -235,25 +237,25 @@ export class CleanupTrackingMealItemMutationConfirmer implements MealItemMutatio
 
 	public async confirmMoved(
 		options: MoveMealItemOptions,
-		result: MealItemMutationResult,
+		result: MoveMealItemResult,
 		source: DayPlanItem,
 	): Promise<void> {
 		this.cleanup.track(
 			options.toDate ?? options.fromDate,
 			options.toMealKey ?? options.fromMealKey,
-			result.newItemId,
+			result.movedItem.itemId,
 		);
 		await this.delegate.confirmMoved(options, result, source);
 	}
 
-	public async confirmReplaced(options: ReplaceMealItemOptions, result: MealItemMutationResult): Promise<void> {
+	public async confirmReplaced(options: ReplaceMealItemOptions, result: ReplaceMealItemResult): Promise<void> {
 		this.cleanup.move({
 			fromDate: options.date,
 			fromMealKey: options.mealKey,
 			oldItemId: options.itemId,
 			toDate: options.date,
 			toMealKey: options.mealKey,
-			newItemId: result.newItemId,
+			newItemId: result.replacementItem.itemId,
 		});
 		await this.delegate.confirmReplaced(options, result);
 	}

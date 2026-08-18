@@ -1,10 +1,14 @@
 import { z } from "zod";
+import type { AddMealItemsResult } from "../../api/dayPlan/AddMealItemsResult.ts";
 import { CustomMealItemInput } from "../../api/dayPlan/CustomMealItemInput.ts";
 import { FITATU_MEAL_KEYS } from "../../api/dayPlan/DayPlanValidators.ts";
 import type { MealItemInput } from "../../api/dayPlan/MealItemInput.ts";
-import type { MealItemMutationResult, MealItemOperationName } from "../../api/dayPlan/MealItemMutationResult.ts";
+import type { MoveMealItemResult } from "../../api/dayPlan/MoveMealItemResult.ts";
 import { ProductMealItemInput } from "../../api/dayPlan/ProductMealItemInput.ts";
 import { RecipeMealItemInput } from "../../api/dayPlan/RecipeMealItemInput.ts";
+import type { RemoveMealItemsResult } from "../../api/dayPlan/RemoveMealItemsResult.ts";
+import type { ReplaceMealItemResult } from "../../api/dayPlan/ReplaceMealItemResult.ts";
+import type { UpdateMealItemResult } from "../../api/dayPlan/UpdateMealItemResult.ts";
 import { ToolErrorResult } from "../shared/ToolErrorResult.ts";
 import { isoCalendarDateSchema, nonEmptyStringSchema, rawRecipeIdSchema } from "../shared/ToolSchemas.ts";
 
@@ -69,88 +73,70 @@ export const mealItemInputSchema = z.union([
 	customMealItemInputSchema,
 ]);
 
-const acceptedItemBaseShape = {
-	index: z.number().int().nonnegative().describe("Zero-based index of the item in the accepted request."),
-	itemId: nonEmptyStringSchema("itemId").describe("Meal item id submitted in the accepted request."),
-	mealKey: mealKeySchema.describe("Meal key targeted by the submitted item."),
+const confirmedStatusShape = {
+	status: z.literal("confirmed").describe("The requested mutation was observed in the persisted Fitatu day plan."),
 };
 
-const acceptedItemOutputSchema = z.union([
-	z
-		.object({
-			...acceptedItemBaseShape,
-			productId: nonEmptyStringSchema("productId").describe("Submitted raw Fitatu product id."),
-		})
-		.strict(),
-	z
-		.object({
-			...acceptedItemBaseShape,
-			recipeId: rawRecipeIdSchema.describe("Submitted raw Fitatu recipe id."),
-		})
-		.strict(),
-	z
-		.object({
-			...acceptedItemBaseShape,
-		})
-		.strict(),
-]);
+const itemIdSchema = nonEmptyStringSchema("itemId").describe(
+	"Persisted meal item id to use in later update, move, replace, or remove operations.",
+);
 
-const mealItemMutationOutputObjectSchema = z.object({
-	status: z
-		.literal("accepted")
-		.describe(
-			"Fitatu accepted the synchronization request and the service confirmed every requested change in the persisted day plan.",
-		),
-	operation: z
-		.enum(["add", "update", "remove", "move", "replace"])
-		.describe("Meal item mutation operation that was requested."),
-	message: z.string().describe("Human-readable summary of the mutation result."),
-	targetDate: isoCalendarDateSchema("targetDate").describe(
-		"Primary YYYY-MM-DD date for the mutation. For move operations, this is the source date; inspect acceptedItems for the destination meal.",
+const indexedItemSchema = z
+	.object({
+		inputIndex: z.number().int().nonnegative().describe("Zero-based index of the corresponding input item."),
+		itemId: itemIdSchema,
+	})
+	.strict();
+
+const removedItemSchema = z
+	.object({
+		inputIndex: z.number().int().nonnegative().describe("Zero-based index of the corresponding removal target."),
+		itemId: nonEmptyStringSchema("itemId").describe("Meal item id confirmed absent from the day plan."),
+		mealKey: mealKeySchema.describe("Meal key from which the item was removed."),
+	})
+	.strict();
+
+export const addMealItemsOutputSchema = {
+	...confirmedStatusShape,
+	date: isoCalendarDateSchema().describe("Day where the new meal items were confirmed."),
+	mealKey: mealKeySchema.describe("Meal containing the confirmed new items."),
+	addedItems: z.array(indexedItemSchema).min(1).describe("Confirmed new items in input order."),
+};
+
+export const updateMealItemOutputSchema = {
+	...confirmedStatusShape,
+	date: isoCalendarDateSchema().describe("Day where the updated meal item was confirmed."),
+	mealKey: mealKeySchema.describe("Meal containing the confirmed updated item."),
+	itemId: itemIdSchema,
+};
+
+export const removeMealItemsOutputSchema = {
+	...confirmedStatusShape,
+	date: isoCalendarDateSchema().describe("Day from which the meal items were removed."),
+	removedItems: z.array(removedItemSchema).min(1).describe("Items confirmed absent from the day plan."),
+};
+
+export const moveMealItemOutputSchema = {
+	...confirmedStatusShape,
+	fromDate: isoCalendarDateSchema("fromDate").describe("Previous day of the moved item."),
+	fromMealKey: mealKeySchema.describe("Previous meal key of the moved item."),
+	previousItemId: nonEmptyStringSchema("previousItemId").describe(
+		"Previous item id confirmed absent from the source meal.",
 	),
-	mealKey: z
-		.string()
-		.optional()
-		.describe(
-			"Primary Fitatu meal key for the mutation, when applicable. For move operations, this is the source meal key; inspect acceptedItems for the destination meal.",
-		),
-	operationCount: z
-		.number()
-		.int()
-		.positive()
-		.describe("Number of meal items submitted in the synchronization request accepted by Fitatu."),
-	dayRevisions: z
-		.record(isoCalendarDateSchema(), z.string().min(1))
-		.describe(
-			"Fitatu synchronization revisions keyed by YYYY-MM-DD date. Empty only for a legacy endpoint response without receipts.",
-		),
-	acceptedItems: z.array(acceptedItemOutputSchema).min(1),
-	provisionalItemIds: z
-		.array(z.string())
-		.optional()
-		.describe(
-			"Client-generated item ids submitted for creation and confirmed by the service in the persisted day plan.",
-		),
-	updatedItemIds: z
-		.array(z.string())
-		.optional()
-		.describe("Meal item ids updated by the accepted mutation, when any."),
-	deletedItemIds: z
-		.array(z.string())
-		.optional()
-		.describe("Meal item ids deleted by the accepted mutation, when any."),
-	oldItemId: z.string().optional().describe("Original item id when an operation replaced or moved an item."),
-	newItemId: z.string().optional().describe("New item id when Fitatu returned a replacement id."),
-	itemIdChanged: z.boolean().describe("Whether Fitatu changed the item id as part of the operation."),
-});
+	toDate: isoCalendarDateSchema("toDate").describe("Current day of the moved item."),
+	toMealKey: mealKeySchema.describe("Current meal key of the moved item."),
+	itemId: itemIdSchema,
+};
 
-export function mealItemMutationOutputSchema(operation: MealItemOperationName) {
-	return {
-		...mealItemMutationOutputObjectSchema.shape,
-		operation: z.literal(operation).describe("Meal item mutation operation performed by this tool."),
-	};
-}
-export type MealItemMutationForMcp = z.infer<typeof mealItemMutationOutputObjectSchema>;
+export const replaceMealItemOutputSchema = {
+	...confirmedStatusShape,
+	date: isoCalendarDateSchema().describe("Day containing the confirmed replacement item."),
+	mealKey: mealKeySchema.describe("Meal containing the confirmed replacement item."),
+	previousItemId: nonEmptyStringSchema("previousItemId").describe(
+		"Previous item id confirmed absent after replacement.",
+	),
+	itemId: itemIdSchema,
+};
 
 export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): MealItemInput {
 	if ("productId" in input) {
@@ -169,51 +155,66 @@ export function toMealItemInput(input: z.infer<typeof mealItemInputSchema>): Mea
 	);
 }
 
-export function toMealItemMutationForMcp(result: MealItemMutationResult): MealItemMutationForMcp {
+export function toAddMealItemsForMcp(
+	result: AddMealItemsResult,
+): z.infer<z.ZodObject<typeof addMealItemsOutputSchema>> {
 	return {
-		status: result.status,
-		operation: result.operation,
-		message: result.message,
-		targetDate: result.targetDate,
-		mealKey: result.mealKey ?? undefined,
-		operationCount: result.operationCount,
-		dayRevisions: result.dayRevisions.toRecord(),
-		acceptedItems: result.acceptedItems.map((item) => {
-			if (item.foodType === "CUSTOM_ITEM") {
-				return {
-					index: item.index,
-					itemId: item.itemId,
-					mealKey: item.mealKey,
-				};
-			}
-			return item.foodType === "RECIPE"
-				? {
-						index: item.index,
-						itemId: item.itemId,
-						recipeId: requireDefinitionId(item.recipeId, "recipeId"),
-						mealKey: item.mealKey,
-					}
-				: {
-						index: item.index,
-						itemId: item.itemId,
-						productId: requireDefinitionId(item.productId, "productId"),
-						mealKey: item.mealKey,
-					};
-		}),
-		provisionalItemIds: [...result.provisionalItemIds],
-		updatedItemIds: [...result.updatedItemIds],
-		deletedItemIds: [...result.deletedItemIds],
-		oldItemId: result.oldItemId ?? undefined,
-		newItemId: result.newItemId ?? undefined,
-		itemIdChanged: result.itemIdChanged,
+		status: "confirmed",
+		date: result.date,
+		mealKey: result.mealKey,
+		addedItems: result.addedItems.map((item) => ({ inputIndex: item.index, itemId: item.itemId })),
 	};
 }
 
-function requireDefinitionId(value: string | number | null, fieldName: string): string {
-	if (value === null) {
-		throw new Error(`${fieldName} is required for accepted meal item`);
-	}
-	return String(value);
+export function toUpdateMealItemForMcp(
+	result: UpdateMealItemResult,
+): z.infer<z.ZodObject<typeof updateMealItemOutputSchema>> {
+	return {
+		status: "confirmed",
+		date: result.date,
+		mealKey: result.updatedItem.mealKey,
+		itemId: result.updatedItem.itemId,
+	};
+}
+
+export function toRemoveMealItemsForMcp(
+	result: RemoveMealItemsResult,
+): z.infer<z.ZodObject<typeof removeMealItemsOutputSchema>> {
+	return {
+		status: "confirmed",
+		date: result.date,
+		removedItems: result.removedItems.map((item) => ({
+			inputIndex: item.index,
+			itemId: item.itemId,
+			mealKey: item.mealKey,
+		})),
+	};
+}
+
+export function toMoveMealItemForMcp(
+	result: MoveMealItemResult,
+): z.infer<z.ZodObject<typeof moveMealItemOutputSchema>> {
+	return {
+		status: "confirmed",
+		fromDate: result.fromDate,
+		fromMealKey: result.fromMealKey,
+		previousItemId: result.previousItemId,
+		toDate: result.toDate,
+		toMealKey: result.movedItem.mealKey,
+		itemId: result.movedItem.itemId,
+	};
+}
+
+export function toReplaceMealItemForMcp(
+	result: ReplaceMealItemResult,
+): z.infer<z.ZodObject<typeof replaceMealItemOutputSchema>> {
+	return {
+		status: "confirmed",
+		date: result.date,
+		mealKey: result.mealKey,
+		previousItemId: result.previousItemId,
+		itemId: result.replacementItem.itemId,
+	};
 }
 
 export function createSafeMealItemErrorResult(toolName: string, fallbackMessage: string, error: unknown) {

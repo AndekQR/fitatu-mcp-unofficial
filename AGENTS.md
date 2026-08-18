@@ -1,198 +1,223 @@
-# Repository Guidelines
+# Agent Instructions
 
-## Project Purpose
+This repository implements an unofficial Model Context Protocol (MCP) server for Fitatu in TypeScript. These instructions define how an AI agent should work
+in this repository. They apply to the entire project unless a more specific `AGENTS.md` exists in a subdirectory.
 
-This repository is intended to implement a Model Context Protocol server for Fitatu in TypeScript.
+## 1. Sources and their roles
 
-The project should use the official Model Context Protocol TypeScript SDK as the primary reference for MCP server, tool, and resource implementation patterns.
+Use each source for its stated purpose:
 
-Any existing Python implementation should be treated only as a read-only reference. It may help identify possible Fitatu endpoints, request payloads, response
-shapes, tool names, or edge cases, but it should not be copied mechanically. The Python code may contain mistakes, inconsistencies, or design choices that
-should be improved in the TypeScript implementation.
+- The user's current request defines the scope and desired outcome.
+- This file defines repository-wide working and implementation rules.
+- [ARCHITECTURE.md](./ARCHITECTURE.md) defines directory ownership, layer boundaries, dependency direction, model construction, and architectural review rules.
+- `package.json` defines the available development, build, and verification commands.
+- The official Model Context Protocol TypeScript SDK is the primary technical reference for MCP servers, tools, resources, schemas, and transports.
+- [PYTHON_REFERENCE_ENDPOINTS.md](./PYTHON_REFERENCE_ENDPOINTS.md) and the Python project at `/Users/daniel/Projects/fitatu_mcp` are read-only research sources.
 
-Sometimes the existing Python project with similar might be helpful, it's under /Users/daniel/Projects/fitatu_mcp
+If existing code conflicts with an architectural rule, do not copy or expand the inconsistency without first determining the intended design.
 
-## Build, Test, and Development Commands
+## 2. Non-negotiable rules
 
-Use the commands defined in `package.json`. Work on the current branch, if not specified otherwise.
+- Work on the current branch unless the user explicitly requests another branch.
+- Read [ARCHITECTURE.md](./ARCHITECTURE.md) before changing public models, service contracts, layer mappings, or MCP contracts.
+- Keep MCP tools, application services, Fitatu HTTP clients, domain mapping, and error presentation in their owning layers.
+- Validate external input and upstream data at the appropriate boundary.
+- Keep secrets and personal data out of source code, logs, errors, fixtures, and committed output.
+- Do not add new tests unless the user explicitly requests them. Modify existing tests when needed to keep them consistent with a change.
+- Confirm that a script exists in `package.json` before running it.
+- Do not copy the Python reference implementation mechanically.
 
-Common expected commands may include:
+## 3. Agent workflow
 
-- `npm run dev`
-- `npm run build`
-- `npm start`
-- `npm run test`
-- `npm run test:ci`
-- `npm run lint`
-- `npm run lint:fix`
-- `npm run format`
-- `npm run format:check`
+For implementation work:
 
-Before relying on any command, confirm that it exists in `package.json`.
+1. Read the relevant repository instructions and inspect the affected code before editing.
+2. Identify the owning layer using [ARCHITECTURE.md](./ARCHITECTURE.md).
+3. Check `package.json` before choosing commands.
+4. Make the smallest cohesive change that fully satisfies the request.
+5. Keep related runtime contracts, Zod schemas, field descriptions, and existing tests synchronized.
+6. Run verification proportionate to the change, using the commands defined in `package.json`.
+7. Review the final diff for accidental changes, sensitive data, architectural violations, and stale documentation.
+8. Report what changed, which checks ran, and any remaining risk or unverified behavior.
 
-## Commit Messages
+For read-only review or diagnosis, inspect and report evidence without changing code unless the user also asks for a fix.
 
-Prefer commit messages with at least two complete sentences describing the introduced changes. Use the first sentence as a concise summary and the following
-sentence or sentences to explain the most important behavioural, architectural, or operational details.
+## 4. Commands
 
-Conventional Commit prefixes such as `feat:`, `fix:`, or `refactor:` are optional. Do not add a prefix unless it makes the message clearer.
+The current project commands are:
 
-## Coding Style & Naming Conventions
+| Purpose | Command | Notes |
+| --- | --- | --- |
+| Development server | `npm run dev` | Runs the TypeScript entry point in watch mode. |
+| Production build | `npm run build` | Produces the distributable output. |
+| Start built server | `npm start` | Requires a successful build. |
+| Unit tests in watch mode | `npm run test` | Intended for interactive development. |
+| Deterministic unit test run | `npm run test:ci` | Produces coverage and JSON test output. |
+| Coverage report | `npm run test:coverage` | Produces local coverage reports. |
+| Integration tests | `npm run test:integration` | Requires valid Fitatu credentials and may mutate account data. |
+| Type checking | `npm run typecheck` | Checks production and test TypeScript configurations. |
+| Lint | `npm run lint` | Checks source, tests, and Vitest configuration. |
+| Lint with fixes | `npm run lint:fix` | Mutates files to apply supported fixes. |
+| Format | `npm run format` | Mutates supported TypeScript and configuration files. |
+| Format check | `npm run format:check` | Verifies formatting without changing files. |
 
-Use TypeScript with ES module syntax.
+Do not assume this table is current after `package.json` changes. The package scripts remain authoritative.
 
-Only use TypeScript syntax that Node.js supports in strip-only mode. Do not use parameter properties such as `constructor(public readonly value: string)`.
+## 5. TypeScript and code organization
+
+Use TypeScript with ES module syntax. Use only syntax supported by Node.js in strip-only mode; do not use parameter properties such as
+`constructor(public readonly value: string)`.
 
 Prefer:
 
-- Explicit types for public APIs.
-- `camelCase` for variables, functions, methods, and object properties.
-- `PascalCase` for classes, interfaces, and types.
-- Prefer classes over interfaces. Each class in its own file.
-- Descriptive names over abbreviations.
-- Small modules with clear responsibilities.
-- `zod` for validating external input.
+- explicit types for public APIs;
+- `camelCase` for variables, functions, methods, and object properties;
+- `PascalCase` for classes, interfaces, and types;
+- classes for production data models, with each class in its own file;
+- interfaces for behavior, ports, and technical collaboration contracts;
+- type aliases for compile-time constructs such as unions and Zod-inferred types;
+- descriptive names rather than abbreviations;
+- small modules with clear responsibilities;
+- dependency injection for configuration, logging, clients, and service collaborators where practical;
+- `zod` for validating external input;
+- typed errors and focused mapper functions where they improve clarity.
 
 Avoid:
 
-- `any`, unless there is a strong reason.
-- Global mutable state.
-- Hard-coded secrets.
-- Magic values without names.
-- Long functions that mix validation, HTTP calls, mapping, and MCP response formatting.
-- Logging tokens, cookies, authorization headers, or personal data.
+- `any` without a strong, documented reason;
+- global mutable state;
+- hard-coded secrets;
+- unexplained magic values;
+- near-copy data models built with `type`, `Omit`, `Partial`, intersections, or repeated fields;
+- long functions that mix validation, HTTP communication, mapping, domain logic, and MCP formatting;
+- large procedural handlers when a client, service, typed error, or focused collaborator provides a clearer boundary.
 
-## Architecture Guidelines
+The complete model construction and declaration rules are in [ARCHITECTURE.md](./ARCHITECTURE.md). In particular, a method declaring a class return type must
+return a real instance of that class, not a structurally compatible object literal.
 
-Read and follow [ARCHITECTURE.md](./ARCHITECTURE.md) before introducing or changing public models, service contracts, or mappings between layers.
+## 6. MCP tool contracts
 
-Keep responsibilities separated.
+Every MCP tool must have:
 
-The implementation should distinguish between:
+- a clear name;
+- a concise and accurate description;
+- typed input and output schemas, preferably using Zod;
+- predictable behavior;
+- safe error handling;
+- tests for success and failure paths.
 
-- MCP tool or resource registration.
-- Input validation.
-- Fitatu HTTP communication.
-- Request and response mapping.
-- Domain-level logic.
-- Error handling.
-- Tests.
+If required coverage is missing but the user did not authorize new tests, do not add it silently. Report the gap and request that test creation be included in
+the scope.
 
-Prefer object-oriented design where it improves encapsulation, readability, and testability. Client classes, service classes, typed errors, and small mapper
-functions are preferred over large procedural handlers.
+Tool handlers should validate input, delegate application behavior to services, and serialize a clear MCP-compatible result. They must not perform direct
+Fitatu HTTP calls or expose raw upstream responses unless the upstream shape is intentionally part of the public contract and is safe to return.
 
-Use dependency injection for configuration, logging, and HTTP clients where practical.
+Whenever a tool contract, service model, API mapping, or accepted identifier changes:
 
-For data-model declarations in particular:
+1. Update the corresponding Zod `inputSchema` and `outputSchema` in the same change.
+2. Keep tool and field descriptions synchronized with actual runtime constraints.
+3. Verify the JSON Schema published by the MCP SDK, especially for Zod refinements that may not be representable in JSON Schema.
+4. Update existing MCP contract tests to cover the constraint and serialized schema where practical.
 
-- Use classes with constructors or named factories for production data models.
-- A method declaring a class return type must return a real instance of that class, not a structurally compatible object literal.
-- Keep one canonical base model per concept. Add another model only for a genuinely different state or contract.
-- Do not create near-copy object models with `type`, `Omit`, `Partial`, intersections, or repeated fields.
-- Reserve `interface` for behavior, ports, and technical collaboration contracts.
-- Reserve `type` for compile-time constructs such as literal unions, discriminated unions, and Zod-inferred types.
-- Plain objects remain acceptable for technical configuration, private helpers, and final MCP/Zod serialization.
+## 7. Fitatu HTTP integration
 
-The full rationale, construction policy, extension rules, and review checklist live in [ARCHITECTURE.md](./ARCHITECTURE.md).
+Implement Fitatu calls through the dedicated API client layer, never as scattered direct `fetch` calls.
 
-## MCP Tool Implementation
-
-Each MCP tool should have:
-
-- A clear name.
-- A concise description.
-- A typed input schema, preferably using `zod`.
-- A handler with predictable behaviour.
-- Safe error handling.
-- Tests for success and failure paths.
-
-Tool handlers should stay thin when possible. They should validate input, delegate work to client or service code, and return a clear MCP-compatible response.
-
-Whenever a tool contract, service model, API response mapping, or accepted identifier format changes, update the corresponding Zod `inputSchema` and
-`outputSchema` in the same change. Keep tool and field descriptions synchronized with the actual runtime constraints and verify the JSON Schema published by
-the MCP SDK, especially when using Zod refinements that may not be representable in JSON Schema. Update the existing MCP contract tests to cover the changed
-constraint and its serialized schema where practical.
-
-Do not expose raw upstream responses unless they are intentionally part of the tool contract and safe to return.
-
-## Fitatu HTTP Integration
-
-Fitatu HTTP calls should be implemented through a dedicated wrapper or client layer instead of scattered direct `fetch` calls.
-
-API clients are limited to HTTP concerns: endpoint and request construction, authentication, technical retries or endpoint fallbacks, status/error mapping,
-JSON decoding, and returning the upstream response. Put input normalization, domain mapping, filtering, deduplication, enrichment, multi-call orchestration,
-partial-failure policy, and user-facing warnings in services or focused service-layer collaborators. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full
-responsibility boundary.
+API clients own HTTP concerns such as endpoints, request construction, authentication, technical retries or fallbacks, status and transport error mapping,
+JSON decoding, and technical response validation. Services own input normalization, domain mapping, filtering, ranking, deduplication, enrichment, multi-call
+orchestration, partial-failure policy, confirmation policy, and user-facing warnings.
 
 The HTTP layer should handle:
 
-- Base URL configuration.
-- Request headers.
-- Authorization values supplied through configuration.
-- Query parameters.
-- JSON serialization and parsing.
-- HTTP status handling.
-- Safe error mapping.
+- base URL configuration;
+- request paths and query parameters;
+- request headers and configured authorization values;
+- JSON serialization and parsing;
+- HTTP status and transport failures;
+- safe technical error mapping.
 
-Captured HTTP traffic may be used only for legitimate work with the user’s own account and own network traffic.
+Use captured HTTP traffic only for legitimate work with the user's own account and network traffic. Do not build functionality intended to bypass
+authentication, steal credentials, evade limits, scrape at scale, or access accounts that do not belong to the user.
 
-Do not implement functionality intended to bypass authentication, steal credentials, evade limits, scrape at scale, or access data from accounts that do not
-belong to the user.
+## 8. Validation, errors, and sensitive data
 
-## Validation & Error Handling
+Validate all MCP tool inputs before making a Fitatu request. Validate upstream response shapes before using them to construct production models.
 
-Validate all MCP tool inputs before making Fitatu requests.
+Use explicit errors where useful, including for:
 
-Use explicit errors where useful, for example for:
+- invalid input;
+- authentication failures;
+- HTTP or transport failures;
+- unexpected upstream response shapes;
+- service-level policy or confirmation failures.
 
-- Authentication failures.
-- Invalid input.
-- HTTP errors.
-- Unexpected response shapes.
+Errors should be actionable but safe. Never expose or log:
 
-Error messages should be actionable but safe.
+- passwords or account credentials;
+- access or refresh tokens;
+- cookies or authorization headers;
+- full request bodies containing personal data;
+- full upstream responses containing personal data;
+- raw stack traces in MCP-facing responses;
+- personal nutrition logs, body measurements, profile data, or user identifiers unless explicitly required by a safe public contract.
 
-Do not expose:
+## 9. Configuration
 
-- Access tokens.
-- Refresh tokens.
-- Cookies.
-- Authorization headers.
-- Full request bodies containing personal data.
-- Full upstream responses containing personal data.
-- Raw stack traces in MCP-facing responses.
+Read runtime configuration from environment variables or the repository's explicit configuration mechanism. Never hard-code or commit secrets.
 
-## Testing Guidelines
+When adding a configuration value, document:
 
-Do not add new tests unless explicitly requested by the user; modifying existing tests is allowed when needed to keep them consistent with code changes.
+- its variable name;
+- whether it is required;
+- its default value, if any;
+- whether it is sensitive;
+- its operational purpose.
 
-## Configuration & Operational Notes
+Keep `.env.example`, runtime validation, and user-facing configuration documentation synchronized when applicable.
 
-Runtime configuration should be sourced from environment variables or another explicit configuration mechanism used by the project.
+## 10. Testing
 
-Secrets must not be hard-coded or committed.
+Do not add new test files or new test cases unless the user explicitly requests them. Existing tests may be updated when required by an implementation or
+contract change.
 
-Fitatu-related credentials, tokens, cookies, user identifiers, nutrition logs, body measurements, and profile data should be treated as sensitive.
+- Unit tests must be deterministic and must not load real Fitatu credentials.
+- Integration tests require valid credentials and may read or mutate data in the authenticated account.
+- Treat integration test execution as a potentially state-changing operation.
+- Keep secrets, captured private responses, and personal data out of fixtures and committed test artifacts.
+- Prefer the narrowest relevant verification first, then broader checks when proportionate to the change.
 
-When adding configuration values, document:
+## 11. Reference implementations
 
-- The variable name.
-- Whether it is required.
-- Its default value, if any.
-- Whether it contains sensitive data.
+The Python project at `/Users/daniel/Projects/fitatu_mcp` is read-only and may contain mistakes, inconsistencies, or design choices that should not be repeated.
 
-## Working With Reference Implementations
+Use it to investigate:
 
-When using a Python reference implementation, extract intent rather than structure.
+- potentially useful operations;
+- Fitatu endpoints;
+- possible request payloads and response fields;
+- tool names;
+- previously observed edge cases.
 
-Use it to understand:
+Extract intent, not structure. Before implementing equivalent behavior, verify that it fits this repository's TypeScript architecture. Prefer explicit types,
+validation, dependency injection, safe errors, and small focused modules.
 
-- Which operations may be useful.
-- Which Fitatu endpoints may be involved.
-- What request payloads may look like.
-- What response fields may exist.
-- What edge cases were previously observed.
+## 12. Commit messages
 
-Before implementing the same behaviour in TypeScript, verify that the design is appropriate for the current repository.
+When committing, prefer at least two complete sentences. Use the first sentence as a concise summary and the following sentence or sentences to describe the
+most important behavioral, architectural, or operational details.
 
-Prefer a cleaner TypeScript implementation using explicit types, validation, dependency injection, safe errors, and small modules.
+Conventional Commit prefixes such as `feat:`, `fix:`, or `refactor:` are optional. Use one only when it improves clarity.
+
+## 13. Final review checklist
+
+Before handing work back, verify that:
+
+- the requested scope is complete and unrelated user changes remain untouched;
+- the implementation follows the dependency direction and ownership rules in [ARCHITECTURE.md](./ARCHITECTURE.md);
+- external inputs and responses are validated at the correct boundary;
+- MCP schemas, descriptions, service contracts, and runtime behavior agree;
+- errors and logs do not leak secrets or personal data;
+- configuration and documentation are synchronized where relevant;
+- only authorized test changes were made;
+- relevant commands were run from `package.json`, or omitted checks are explicitly reported;
+- the final diff contains no accidental generated files or unrelated formatting changes.

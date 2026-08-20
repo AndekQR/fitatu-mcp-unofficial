@@ -18,6 +18,7 @@ update your own meal plan.
 - Food search with product and measure identifiers for follow-up mutations.
 - Meal item add, update, move, and remove tools.
 - Recipe search and complete recipe lifecycle tools: create, inspect, update, and delete.
+- Body measurement read and write tools for weight, circumferences, and body fat percentage.
 - Docker workflow for local/private deployment.
 
 ## Requirements
@@ -135,6 +136,8 @@ http://localhost:3000/mcp
 | `create_recipe`      | Creates a private recipe by default from product and measure identifiers.           | Yes                 |
 | `update_recipe`      | Partially updates an owned, editable recipe and returns its resulting recipe ID.    | Yes                 |
 | `delete_recipe`      | Soft-deletes a recipe definition after exact-name confirmation.                     | Yes                 |
+| `get_body_measurement` | Returns the body measurement stored for a `YYYY-MM-DD` date, or `found: false`.   | No                  |
+| `save_body_measurement` | Merges weight, circumferences, or body fat into one date's measurement.          | Yes                 |
 
 ## Configuration
 

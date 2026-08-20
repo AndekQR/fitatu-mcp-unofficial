@@ -4,6 +4,8 @@ import { logger } from "./logger.ts";
 import { getConfig } from "./config.ts";
 import { McpHttpServer } from "./McpHttpServer.ts";
 import { AddMealItemsTool } from "./tools/addMealItems/AddMealItemsTool.ts";
+import { GetBodyMeasurementTool } from "./tools/bodyMeasurements/GetBodyMeasurementTool.ts";
+import { SaveBodyMeasurementTool } from "./tools/bodyMeasurements/SaveBodyMeasurementTool.ts";
 import { GetCurrentUserTool } from "./tools/currentUser/GetCurrentUserTool.ts";
 import { GetDayPlanItemsTool } from "./tools/dayPlanItems/GetDayPlanItemsTool.ts";
 import { GetDietSummaryTool } from "./tools/dietSummary/GetDietSummaryTool.ts";
@@ -40,6 +42,8 @@ const getServer = (): McpServer => {
 	new SearchRecipesTool(applicationServices.recipeService).register(server);
 	new UpdateRecipeTool(applicationServices.recipeService).register(server);
 	new DeleteRecipeTool(applicationServices.recipeService).register(server);
+	new GetBodyMeasurementTool(applicationServices.bodyMeasurementService).register(server);
+	new SaveBodyMeasurementTool(applicationServices.bodyMeasurementService).register(server);
 
 	return server;
 };

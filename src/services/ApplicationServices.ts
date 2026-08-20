@@ -1,9 +1,11 @@
 import { FitatuAuthClient } from "../api/auth/FitatuAuthClient.ts";
+import { BodyMeasurementClient } from "../api/bodyMeasurements/BodyMeasurementClient.ts";
 import { DayPlanClient } from "../api/dayPlan/DayPlanClient.ts";
 import { SummaryClient } from "../api/dietPlan/SummaryClient.ts";
 import { FoodSearchClient } from "../api/foodSearch/FoodSearchClient.ts";
 import { RecipeClient } from "../api/recipes/RecipeClient.ts";
 import { FitatuUserClient } from "../api/users/FitatuUserClient.ts";
+import { BodyMeasurementService } from "./bodyMeasurements/BodyMeasurementService.ts";
 import { CurrentUserService } from "./currentUser/CurrentUserService.ts";
 import { DayPlanQueryService } from "./dayPlan/DayPlanQueryService.ts";
 import { DietSummaryService } from "./dietSummary/DietSummaryService.ts";
@@ -20,6 +22,7 @@ import { RecipeMutationConfirmer } from "./recipes/RecipeMutationConfirmer.ts";
  * rather than constructing or importing HTTP clients themselves.
  */
 export class ApplicationServices {
+	public readonly bodyMeasurementService: BodyMeasurementService;
 	public readonly currentUserService: CurrentUserService;
 	public readonly dayPlanQueryService: DayPlanQueryService;
 	public readonly dietSummaryService: DietSummaryService;
@@ -35,7 +38,9 @@ export class ApplicationServices {
 		const summaryClient = new SummaryClient({ authClient, userClient, mobileClientProfile });
 		const foodSearchClient = new FoodSearchClient({ authClient, userClient, mobileClientProfile });
 		const recipeClient = new RecipeClient({ authClient, userClient, mobileClientProfile });
+		const bodyMeasurementClient = new BodyMeasurementClient({ authClient, userClient, mobileClientProfile });
 
+		this.bodyMeasurementService = new BodyMeasurementService(bodyMeasurementClient, userClient);
 		this.currentUserService = new CurrentUserService(userClient);
 		this.dayPlanQueryService = new DayPlanQueryService(dayPlanClient);
 		this.dietSummaryService = new DietSummaryService(summaryClient, userClient);

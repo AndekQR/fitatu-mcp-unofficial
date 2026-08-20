@@ -16,6 +16,8 @@ export const FITATU_CLIENT_OPERATIONS = {
 	dayPlanRemoveItems: "dayPlan.items.removeMany",
 	dayPlanMoveItem: "dayPlan.items.move",
 	dayPlanSync: "dayPlan.sync",
+	bodyMeasurementGet: "bodyMeasurement.get",
+	bodyMeasurementSave: "bodyMeasurement.save",
 	dietSummaryGet: "dietSummary.get",
 	dietEnergySummaryGet: "dietSummary.energy.get",
 } as const;

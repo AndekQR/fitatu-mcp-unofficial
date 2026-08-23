@@ -32,10 +32,17 @@ export class FoodSearchClient extends FitatuApiClientBase {
 				page: 1,
 				locale: request.locale,
 				limit: request.limit,
+				...(request.hasFilters === undefined ? {} : { hasFilters: request.hasFilters }),
 				accessType: ["FREE", "PREMIUM"],
 			},
 			failureMessage: "Fitatu public food search request failed",
 		});
+	}
+
+	public async searchPublicFoodByBarcode(barcode: string, limit: number): Promise<FoodSearchApiResponse> {
+		return this.searchPublicFood(
+			new PublicFoodSearchRequest(barcode, await super.getContextSearchLocale(), limit, false),
+		);
 	}
 
 	public searchUserFood(request: UserFoodSearchRequest): Promise<FoodSearchApiResponse> {
@@ -72,7 +79,7 @@ export class FoodSearchClient extends FitatuApiClientBase {
 
 	private fetchSearchResponse(options: {
 		readonly path: string;
-		readonly query: Record<string, string | number | readonly string[]>;
+		readonly query: Record<string, string | number | boolean | readonly string[]>;
 		readonly failureMessage: string;
 	}): Promise<FoodSearchApiResponse> {
 		return FitatuFallbackRunner.run(

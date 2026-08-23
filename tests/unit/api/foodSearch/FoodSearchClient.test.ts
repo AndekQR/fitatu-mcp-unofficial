@@ -14,6 +14,25 @@ const userClient = {
 	clearUserCache: () => undefined,
 };
 
+describe("FoodSearchClient.searchPublicFoodByBarcode", () => {
+	it("constructs the public barcode search request from the current user locale", async () => {
+		const fetchStub = createFetchStub(createJsonResponse([]));
+		const client = new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: fetchStub.fetchFn,
+			authClient,
+			userClient,
+		});
+
+		await client.searchPublicFoodByBarcode("5902057001748", 10);
+
+		expect(fetchStub.calls).toHaveLength(1);
+		expect(fetchStub.calls[0]?.input).toBe(
+			"https://fitatu.test/api/search/new/food?phrase=5902057001748&page=1&locale=pl_PL&limit=10&hasFilters=false&accessType=FREE&accessType=PREMIUM",
+		);
+	});
+});
+
 describe("FoodSearchService.search", () => {
 	it("searches the selected source and maps Fitatu rows to stable food results", async () => {
 		const fetchStub = createFetchStub(

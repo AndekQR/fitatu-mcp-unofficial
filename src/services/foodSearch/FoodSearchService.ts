@@ -6,7 +6,7 @@ import type { FoodSearchApiResponse } from "../../api/foodSearch/FoodSearchApiRe
 import type { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
 import { FoodDetailsRequest } from "../../api/foodSearch/FoodDetailsRequest.ts";
 import type { FoodMeasure } from "../../api/foodSearch/FoodMeasure.ts";
-import type { FoodSearchOptions } from "../../api/foodSearch/FoodSearchOptions.ts";
+import { FoodSearchOptions } from "../../api/foodSearch/FoodSearchOptions.ts";
 import { FoodSearchQueryResult } from "../../api/foodSearch/FoodSearchQueryResult.ts";
 import { FoodSearchResult } from "../../api/foodSearch/FoodSearchResult.ts";
 import type { FoodSearchSource } from "../../api/foodSearch/FoodSearchSource.ts";
@@ -22,23 +22,21 @@ import { FoodSearchResponseMapper } from "./FoodSearchResponseMapper.ts";
 import { FoodSourceSearchResult } from "./FoodSourceSearchResult.ts";
 import { UserFoodRelevanceFilter } from "./UserFoodRelevanceFilter.ts";
 
-type FoodSearchApi = Pick<
-	FoodSearchClient,
-	"getContextUserId" | "searchPublicFood" | "searchUserFood" | "getFoodDetails"
->;
+const BARCODE_PATTERN = /^(?:\d{8}|\d{12,14})$/;
+const MAX_BARCODES = 10;
 
 export interface FoodSearchProvider {
 	search(options: FoodSearchOptions): Promise<FoodSearchResult>;
 }
 
 export class FoodSearchService implements FoodSearchProvider {
-	private readonly foodSearchClient: FoodSearchApi;
+	private readonly foodSearchClient: FoodSearchClient;
 	private readonly optionsNormalizer: FoodSearchOptionsNormalizer;
 	private readonly responseMapper: FoodSearchResponseMapper;
 	private readonly userFoodRelevanceFilter: UserFoodRelevanceFilter;
 
 	public constructor(
-		foodSearchClient: FoodSearchApi,
+		foodSearchClient: FoodSearchClient,
 		optionsNormalizer: FoodSearchOptionsNormalizer = new FoodSearchOptionsNormalizer(),
 		responseMapper: FoodSearchResponseMapper = new FoodSearchResponseMapper(),
 		userFoodRelevanceFilter: UserFoodRelevanceFilter = new UserFoodRelevanceFilter(),
@@ -77,6 +75,34 @@ export class FoodSearchService implements FoodSearchProvider {
 		);
 	}
 
+	public async searchBarcodes(
+		inputBarcodes: readonly string[],
+		includeDetails?: boolean,
+		detailsLimit?: number,
+	): Promise<FoodSearchResult> {
+		const barcodes = normalizeBarcodes(inputBarcodes);
+		const normalized = this.optionsNormalizer.normalize(
+			new FoodSearchOptions(barcodes, undefined, undefined, 10, false, true, includeDetails, detailsLimit),
+		);
+		const results = await Promise.all(
+			normalized.queries.map((barcode) =>
+				this.searchOne(barcode, normalized, undefined, () =>
+					this.foodSearchClient.searchPublicFoodByBarcode(barcode, normalized.limit),
+				),
+			),
+		);
+
+		this.throwWhenEverySearchFailed(results);
+		return new FoodSearchResult(
+			normalized.date,
+			normalized.queries,
+			[],
+			this.responseMapper.toOutputItems(results, "public"),
+			results.flatMap((result) => result.warnings),
+			results.flatMap((result) => result.warningDetails),
+		);
+	}
+
 	public async getAvailableMeasureIds(foodId: string | number, foodType: FoodTypeName): Promise<ReadonlySet<string>> {
 		const measures = await this.getAvailableMeasures(foodId, foodType);
 		return new Set(measures.flatMap((measure) => (measure.measureId === null ? [] : [measure.measureId])));
@@ -108,6 +134,7 @@ export class FoodSearchService implements FoodSearchProvider {
 		query: string,
 		options: NormalizedFoodSearchOptions,
 		userId: string | undefined,
+		publicSearchRequest?: () => Promise<FoodSearchApiResponse>,
 	): Promise<FoodSearchQueryResult> {
 		const [userResult, publicResult] = await Promise.all([
 			options.includeUserFood && userId
@@ -118,10 +145,14 @@ export class FoodSearchService implements FoodSearchProvider {
 					)
 				: undefined,
 			options.includePublicFood
-				? this.searchSource(query, "public", () =>
-						this.foodSearchClient.searchPublicFood(
-							new PublicFoodSearchRequest(query, options.locale, options.limit),
-						),
+				? this.searchSource(
+						query,
+						"public",
+						publicSearchRequest ??
+							(() =>
+								this.foodSearchClient.searchPublicFood(
+									new PublicFoodSearchRequest(query, options.locale, options.limit),
+								)),
 					)
 				: undefined,
 		]);
@@ -205,6 +236,25 @@ export class FoodSearchService implements FoodSearchProvider {
 		const attempts = errors.slice(0, -1).flatMap(toRequestFailures);
 		throw finalError.withAttempts([...attempts, ...finalError.attempts], "All Fitatu food search requests failed");
 	}
+}
+
+function normalizeBarcodes(barcodes: readonly string[]): readonly string[] {
+	if (barcodes.length === 0 || barcodes.length > MAX_BARCODES) {
+		throw FitatuClientError.invalidRequest({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: `barcodes must contain between 1 and ${MAX_BARCODES} values`,
+		});
+	}
+
+	const normalized = barcodes.map((barcode) => barcode.trim());
+	const invalidIndex = normalized.findIndex((barcode) => !BARCODE_PATTERN.test(barcode));
+	if (invalidIndex >= 0) {
+		throw FitatuClientError.invalidRequest({
+			operation: FITATU_CLIENT_OPERATIONS.foodSearch,
+			message: `barcodes[${invalidIndex}] must contain 8, 12, 13, or 14 digits`,
+		});
+	}
+	return normalized;
 }
 
 function isFoodSourceSearchResult(value: FoodSourceSearchResult | undefined): value is FoodSourceSearchResult {

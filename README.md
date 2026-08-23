@@ -139,6 +139,7 @@ Append `/mcp` to the public URL printed by `cloudflared` and use the result as t
 | `get_day_plan_items` | Return meals and food items for a `YYYY-MM-DD` date. |
 | `get_diet_summary` | Summarize nutrition and energy for an inclusive date range. |
 | `search_food` | Search Fitatu food catalogs and return mutation-ready identifiers. |
+| `search_food_by_barcodes` | Search the public food catalog for up to 10 barcodes in parallel. |
 | `add_meal_items` | Add products, recipes, or custom items to a meal. |
 | `update_meal_item` | Update quantity, measure, or eaten state. |
 | `replace_meal_item` | Replace one exact meal entry. |

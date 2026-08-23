@@ -83,6 +83,10 @@ Fitatu HTTP API
 Dependencies should point downward through this flow. A lower layer must not import a higher layer. Cross-cutting helpers in `src/shared` must remain
 independent of feature workflows and MCP presentation concerns.
 
+Across all layers, type a dependency as its existing declared class or interface directly. Do not narrow dependencies with `Pick<ExistingType, ...>` or a
+local structural interface that repeats selected members of an existing type. A genuinely independent behavior port may still be declared as its own
+canonical interface, but consumers use that full interface directly rather than creating per-consumer subsets.
+
 ### 2.1 Bootstrap, composition, and transport
 
 **Location:** `src/index.ts`, `src/McpHttpServer.ts`, `src/config.ts`, and `src/logger.ts`.
@@ -114,6 +118,9 @@ Tools are adapters between the MCP protocol and application services. A tool:
 
 Tool handlers should remain thin. They must not perform HTTP calls, orchestrate multi-call use cases, enforce domain policy, or expose raw upstream responses.
 Plain objects are appropriate here for final MCP/Zod serialization.
+
+An MCP tool that delegates to an application service depends directly on the concrete existing service class, following the application-wide dependency
+typing rule above.
 
 Whenever a tool contract, service model, API response mapping, or accepted identifier format changes, update the corresponding input and output schemas in the
 same change. Keep field descriptions aligned with runtime constraints and verify the JSON Schema emitted by the MCP SDK, especially for Zod refinements that
@@ -159,6 +166,10 @@ Technical decoding may remain at this boundary when it only establishes that a p
 domain models belongs outside the client. API-specific request and response structures may live beside their client; they must not become accidental public
 service contracts.
 
+Organize API adapters by the Fitatu resource that owns the endpoint path. Routes rooted under `/users/{userId}/...` belong in `src/api/users`, and client
+classes are named after the owned resource rather than the consuming feature. For example, body-measurement routes belong in
+`src/api/users/MeasurementsClient.ts`, implemented by `MeasurementsClient`.
+
 ### 2.5 Shared utilities
 
 **Location:** `src/shared` and, for MCP-specific helpers, `src/tools/shared`.
@@ -177,6 +188,9 @@ boundary.
 - Integration tests exercise the Fitatu boundary with the authenticated user's account and may read or mutate personal data.
 - Fixtures hold reusable, non-secret test data.
 - Support helpers and test doubles are test infrastructure, not production-layer abstractions.
+- A fake for any class dependency extends the original class and overrides the required public methods. Its base constructor receives safe, deterministic
+  collaborators that fail on unexpected HTTP or credential access; do not rely on structural typing as a substitute for the class.
+- A fake for an interface dependency implements the complete original interface rather than a narrowed structural subset.
 
 Tests should mirror the production area they protect. Never place credentials, tokens, cookies, personal nutrition logs, or captured private responses in a
 fixture or committed test output.
@@ -301,6 +315,8 @@ For every architectural review, verify that:
 
 - new behavior is in the layer that owns it;
 - tools do not call Fitatu clients directly;
+- dependencies use their existing complete class or interface rather than `Pick<ExistingType, ...>` or a duplicate local subset;
+- class fakes extend their original class and interface fakes implement their complete original interface;
 - clients contain HTTP concerns rather than application workflows;
 - multi-call orchestration, domain policies, and caller-facing warnings remain in services;
 - a new model represents a distinct concept, state, or external contract;

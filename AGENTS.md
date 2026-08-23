@@ -82,6 +82,15 @@ Prefer:
 - `zod` for validating external input;
 - typed errors and focused mapper functions where they improve clarity.
 
+For dependencies throughout the application:
+
+- type constructor parameters, stored fields, and collaborators as their existing declared class or interface directly;
+- do not use `Pick<ExistingType, ...>` to narrow a dependency and do not introduce a local interface that merely repeats selected members of an existing
+  type;
+- when a test fake replaces a class dependency, make it extend the original class and override only the methods needed by the test;
+- when a test fake replaces an interface dependency, make it implement the original complete interface;
+- construct class bases with safe deterministic collaborators so an unexpected call fails without using credentials or real HTTP.
+
 Avoid:
 
 - `any` without a strong, documented reason;

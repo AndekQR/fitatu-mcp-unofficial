@@ -11,7 +11,7 @@ export class FitatuUserClient extends FitatuApiClientBase {
 
 	private readonly users = new Map<string, FitatuUserProfile>();
 
-	private constructor(options: FitatuApiClientBaseOptions = {}) {
+	protected constructor(options: FitatuApiClientBaseOptions = {}) {
 		super({
 			...options,
 			authClient: options.authClient ?? FitatuAuthClient.getInstance(),

@@ -12,6 +12,7 @@ plans, nutrition summaries, food search, and recipe management over stdio or Str
 ## Features
 
 - Profile, day-plan, and nutrition summary queries.
+- Body measurement lookup and partial updates for explicit calendar dates.
 - Food and recipe search with identifiers required by mutation tools.
 - Meal item creation, update, replacement, movement, and removal.
 - Recipe creation, inspection, update, and deletion.
@@ -136,6 +137,8 @@ Append `/mcp` to the public URL printed by `cloudflared` and use the result as t
 | Tool | Purpose |
 | --- | --- |
 | `get_current_user` | Return a safe subset of the authenticated user profile. |
+| `get_body_measurement` | Return the complete body measurement entry for a `YYYY-MM-DD` date, or report that it is missing. |
+| `save_body_measurement` | Partially update body measurements for a `YYYY-MM-DD` date using profile units. |
 | `get_day_plan_items` | Return meals and food items for a `YYYY-MM-DD` date. |
 | `get_diet_summary` | Summarize nutrition and energy for an inclusive date range. |
 | `search_food` | Search Fitatu food catalogs and return mutation-ready identifiers. |

@@ -17,6 +17,7 @@ fitatu_mcp_ts/
 │   ├── logger.ts                        # process-wide logging configuration
 │   ├── tools/                           # MCP boundary
 │   │   ├── addMealItems/
+│   │   ├── bodyMeasurements/
 │   │   ├── currentUser/
 │   │   ├── dayPlanItems/
 │   │   ├── dietSummary/
@@ -26,6 +27,7 @@ fitatu_mcp_ts/
 │   │   └── shared/                      # MCP result, schema, and safe-error helpers
 │   ├── services/                        # application and domain behavior
 │   │   ├── ApplicationServices.ts       # composition root for clients and services
+│   │   ├── bodyMeasurements/
 │   │   ├── currentUser/
 │   │   ├── dayPlan/
 │   │   ├── dietSummary/

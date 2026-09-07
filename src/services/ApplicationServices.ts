@@ -4,6 +4,8 @@ import { SummaryClient } from "../api/dietPlan/SummaryClient.ts";
 import { FoodSearchClient } from "../api/foodSearch/FoodSearchClient.ts";
 import { RecipeClient } from "../api/recipes/RecipeClient.ts";
 import { FitatuUserClient } from "../api/users/FitatuUserClient.ts";
+import { MeasurementsClient } from "../api/users/MeasurementsClient.ts";
+import { BodyMeasurementService } from "./bodyMeasurements/BodyMeasurementService.ts";
 import { CurrentUserService } from "./currentUser/CurrentUserService.ts";
 import { DayPlanQueryService } from "./dayPlan/DayPlanQueryService.ts";
 import { DietSummaryService } from "./dietSummary/DietSummaryService.ts";
@@ -21,6 +23,7 @@ import { RecipeMutationConfirmer } from "./recipes/RecipeMutationConfirmer.ts";
  */
 export class ApplicationServices {
 	public readonly currentUserService: CurrentUserService;
+	public readonly bodyMeasurementService: BodyMeasurementService;
 	public readonly dayPlanQueryService: DayPlanQueryService;
 	public readonly dietSummaryService: DietSummaryService;
 	public readonly mealItemMutationService: MealItemMutationService;
@@ -35,9 +38,11 @@ export class ApplicationServices {
 		const summaryClient = new SummaryClient({ authClient, userClient, mobileClientProfile });
 		const foodSearchClient = new FoodSearchClient({ authClient, userClient, mobileClientProfile });
 		const recipeClient = new RecipeClient({ authClient, userClient, mobileClientProfile });
+		const measurementsClient = new MeasurementsClient({ authClient, userClient, mobileClientProfile });
 		const foodSearchService = new FoodSearchService(foodSearchClient);
 
 		this.currentUserService = new CurrentUserService(userClient);
+		this.bodyMeasurementService = new BodyMeasurementService(measurementsClient, userClient);
 		this.dayPlanQueryService = new DayPlanQueryService(dayPlanClient);
 		this.dietSummaryService = new DietSummaryService(summaryClient, userClient);
 		this.mealItemMutationService = new MealItemMutationService(

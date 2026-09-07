@@ -19,6 +19,8 @@ import { GetRecipeTool } from "./tools/recipes/GetRecipeTool.ts";
 import { SearchRecipesTool } from "./tools/recipes/SearchRecipesTool.ts";
 import { UpdateRecipeTool } from "./tools/recipes/UpdateRecipeTool.ts";
 import { ApplicationServices } from "./services/ApplicationServices.ts";
+import { GetBodyMeasurementTool } from "./tools/bodyMeasurements/GetBodyMeasurementTool.ts";
+import { SaveBodyMeasurementTool } from "./tools/bodyMeasurements/SaveBodyMeasurementTool.ts";
 
 const applicationServices = new ApplicationServices();
 
@@ -30,6 +32,8 @@ const getServer = (): McpServer => {
 	});
 
 	new GetCurrentUserTool(applicationServices.currentUserService).register(server);
+	new GetBodyMeasurementTool(applicationServices.bodyMeasurementService).register(server);
+	new SaveBodyMeasurementTool(applicationServices.bodyMeasurementService).register(server);
 	new GetDayPlanItemsTool(applicationServices.dayPlanQueryService).register(server);
 	new GetDietSummaryTool(applicationServices.dietSummaryService).register(server);
 	new SearchFoodTool(applicationServices.foodSearchService).register(server);

@@ -2,6 +2,8 @@ export const FITATU_CLIENT_OPERATIONS = {
 	authLogin: "auth.login",
 	authRefresh: "auth.refresh",
 	usersGet: "users.get",
+	userSettingsGet: "userSettings.get",
+	userSettingsUpdate: "userSettings.update",
 	measurementsGet: "measurements.get",
 	measurementsSave: "measurements.save",
 	recipesGet: "recipes.get",

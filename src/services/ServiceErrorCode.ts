@@ -19,6 +19,10 @@ export const SERVICE_ERROR_CODES = {
 	bodyMeasurementValueRequired: "BODY_MEASUREMENT_VALUE_REQUIRED",
 	invalidBodyMeasurementValue: "INVALID_BODY_MEASUREMENT_VALUE",
 	bodyMeasurementUnitsUnavailable: "BODY_MEASUREMENT_UNITS_UNAVAILABLE",
+	userTimezoneUnavailable: "USER_TIMEZONE_UNAVAILABLE",
+	userSettingsValueRequired: "USER_SETTINGS_VALUE_REQUIRED",
+	invalidUserSettingsValue: "INVALID_USER_SETTINGS_VALUE",
+	invalidEnergyTarget: "INVALID_ENERGY_TARGET",
 } as const;
 
 export type ServiceErrorCode = (typeof SERVICE_ERROR_CODES)[keyof typeof SERVICE_ERROR_CODES];

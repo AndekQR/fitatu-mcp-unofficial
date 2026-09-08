@@ -24,6 +24,7 @@ fitatu_mcp_ts/
 │   │   ├── mealItems/
 │   │   ├── recipes/
 │   │   ├── searchFood/
+│   │   ├── userSettings/
 │   │   └── shared/                      # MCP result, schema, and safe-error helpers
 │   ├── services/                        # application and domain behavior
 │   │   ├── ApplicationServices.ts       # composition root for clients and services
@@ -32,7 +33,8 @@ fitatu_mcp_ts/
 │   │   ├── dayPlan/
 │   │   ├── dietSummary/
 │   │   ├── foodSearch/
-│   │   └── recipes/
+│   │   ├── recipes/
+│   │   └── userSettings/
 │   ├── api/                             # Fitatu HTTP boundary
 │   │   ├── auth/
 │   │   ├── dayPlan/

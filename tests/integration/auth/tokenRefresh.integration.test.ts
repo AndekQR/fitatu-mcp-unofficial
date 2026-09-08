@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { FitatuAuthClient } from "../../../src/api/auth/FitatuAuthClient.ts";
+import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 
-const authClient = FitatuAuthClient.getInstance();
+const authClient = IntegrationTestContext.fromEnvironment().authClient;
 
 describe.sequential("Fitatu auth token refresh integration", () => {
 	afterEach(() => {

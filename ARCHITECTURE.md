@@ -189,7 +189,8 @@ boundary.
 **Location:** `tests` and colocated configuration tests such as `src/config.test.ts`.
 
 - Unit tests exercise deterministic behavior with test doubles and no real credentials.
-- Integration tests exercise the Fitatu boundary with the authenticated user's account and may read or mutate personal data.
+- Integration tests exercise the Fitatu boundary as a dedicated test user configured through the integration-test credentials. They may create, update, or
+  remove data in that test account.
 - Fixtures hold reusable, non-secret test data.
 - Support helpers and test doubles are test infrastructure, not production-layer abstractions.
 - A fake for any class dependency extends the original class and overrides the required public methods. Its base constructor receives safe, deterministic

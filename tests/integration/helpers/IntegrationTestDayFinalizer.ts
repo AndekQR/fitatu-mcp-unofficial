@@ -6,7 +6,7 @@ const CLEAR_RETRY_DELAY_MS = 1_000;
 export class IntegrationTestDayFinalizer {
 	private readonly dayPlanClient: DayPlanClient;
 
-	public constructor(dayPlanClient: DayPlanClient = new DayPlanClient()) {
+	public constructor(dayPlanClient: DayPlanClient) {
 		this.dayPlanClient = dayPlanClient;
 	}
 

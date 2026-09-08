@@ -1,15 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
-import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
-import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
 import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
+import { DietSummaryService } from "../../../src/services/dietSummary/DietSummaryService.ts";
 import { FoodSearchService } from "../../../src/services/foodSearch/FoodSearchService.ts";
-import { ApplicationServices } from "../../../src/services/ApplicationServices.ts";
 import type { DayPlan } from "../../../src/api/dayPlan/DayPlan.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
 import { CleanupTracker, CleanupTrackingMealItemMutationConfirmer } from "../helpers/cleanupTracker.ts";
 import { expectMealItem, expectNoMealItem } from "../helpers/dayPlanAssertions.ts";
+import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 import {
 	searchMultipleQueries,
 	selectProductDifferentFrom,
@@ -17,15 +15,16 @@ import {
 } from "../helpers/productSelection.ts";
 import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 
-const dayPlanClient = new DayPlanClient();
-const foodSearchClient = new FoodSearchClient();
+const context = IntegrationTestContext.fromEnvironment();
+const dayPlanClient = context.dayPlanClient;
+const foodSearchClient = context.foodSearchClient;
 const foodSearchService = new FoodSearchService(foodSearchClient);
 const cleanup = new CleanupTracker(dayPlanClient);
-const dietSummaryService = new ApplicationServices().dietSummaryService;
+const dietSummaryService = new DietSummaryService(context.summaryClient, context.userClient);
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
 	foodSearchService,
-	new RecipeClient(),
+	context.recipeClient,
 	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
 );
 

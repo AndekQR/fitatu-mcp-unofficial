@@ -3,14 +3,14 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
 import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS } from "../../../src/api/fitatuApiClientBase/FitatuClientOperations.ts";
-import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
 import type { FoodSearchItem } from "../../../src/api/foodSearch/FoodSearchItem.ts";
 import type { FoodSearchResult } from "../../../src/api/foodSearch/FoodSearchResult.ts";
 import type { FoodSearchSource } from "../../../src/api/foodSearch/FoodSearchSource.ts";
 import { FoodSearchService, type FoodSearchProvider } from "../../../src/services/foodSearch/FoodSearchService.ts";
 import { SearchFoodTool } from "../../../src/tools/searchFood/SearchFoodTool.ts";
+import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 
-const foodSearchClient = new FoodSearchClient();
+const foodSearchClient = IntegrationTestContext.fromEnvironment().foodSearchClient;
 const foodSearchService = new FoodSearchService(foodSearchClient);
 const DEFAULT_DATE = "2026-06-15";
 const PUBLIC_SOURCE: readonly FoodSearchSource[] = ["public"];

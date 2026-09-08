@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
 import { FoodSearchService } from "../../../src/services/foodSearch/FoodSearchService.ts";
+import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 
 const KNOWN_BARCODE = "5902057001748";
-const foodSearchService = new FoodSearchService(new FoodSearchClient());
+const foodSearchService = new FoodSearchService(IntegrationTestContext.fromEnvironment().foodSearchClient);
 
 describe.sequential("Fitatu barcode food search integration", () => {
 	it("returns one public result group for every barcode input including duplicates", async () => {

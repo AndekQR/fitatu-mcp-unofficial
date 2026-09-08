@@ -1,23 +1,22 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
-import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
-import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
 import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
 import { FoodSearchService } from "../../../src/services/foodSearch/FoodSearchService.ts";
 import { CleanupTracker, CleanupTrackingMealItemMutationConfirmer } from "../helpers/cleanupTracker.ts";
 import { expectMealItem, expectNoMealItem } from "../helpers/dayPlanAssertions.ts";
+import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 import { selectProductsByMeasure } from "../helpers/productSelection.ts";
 import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 
-const dayPlanClient = new DayPlanClient();
-const foodSearchClient = new FoodSearchClient();
+const context = IntegrationTestContext.fromEnvironment();
+const dayPlanClient = context.dayPlanClient;
+const foodSearchClient = context.foodSearchClient;
 const foodSearchService = new FoodSearchService(foodSearchClient);
 const cleanup = new CleanupTracker(dayPlanClient);
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
 	foodSearchService,
-	new RecipeClient(),
+	context.recipeClient,
 	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
 );
 const MEAL_KEY = "breakfast";

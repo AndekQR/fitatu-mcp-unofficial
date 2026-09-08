@@ -27,6 +27,12 @@ const loggerConfigSchema = configSchema.pick({
 	LOG_LEVEL: true,
 });
 
+const mobileClientProfileConfigSchema = configSchema.pick({
+	FITATU_USER_AGENT: true,
+	FITATU_APP_VERSION: true,
+	FITATU_API_APK_UUID: true,
+});
+
 export type Config = z.infer<typeof configSchema>;
 export type LoggerConfig = z.infer<typeof loggerConfigSchema>;
 
@@ -46,8 +52,8 @@ export function getFitatuPassword(): string {
 	return getConfig().FITATU_PASSWORD;
 }
 
-export function getFitatuMobileClientProfile(): FitatuMobileClientProfile {
-	const config = getConfig();
+export function getFitatuMobileClientProfile(environment: NodeJS.ProcessEnv = process.env): FitatuMobileClientProfile {
+	const config = parseEnvironment(mobileClientProfileConfigSchema, environment);
 	return new FitatuMobileClientProfile(
 		config.FITATU_USER_AGENT,
 		config.FITATU_APP_VERSION,
@@ -63,9 +69,9 @@ export function isDevelopment(): boolean {
 	return getConfig().NODE_ENV === "development";
 }
 
-function parseEnvironment<Output>(schema: z.ZodType<Output>): Output {
+function parseEnvironment<Output>(schema: z.ZodType<Output>, environment: NodeJS.ProcessEnv = process.env): Output {
 	try {
-		return schema.parse(process.env);
+		return schema.parse(environment);
 	} catch (error) {
 		console.error("❌ Invalid environment configuration:", error);
 		process.exit(1);

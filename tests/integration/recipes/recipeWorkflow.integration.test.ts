@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
-import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
-import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { FitatuClientError } from "../../../src/api/fitatuApiClientBase/FitatuClientError.ts";
 import type { RecipeDetails } from "../../../src/api/recipes/RecipeDetails.ts";
 import type { RecipeSearchResult } from "../../../src/api/recipes/RecipeSearchResult.ts";
@@ -18,13 +15,15 @@ import {
 	CleanupTrackingRecipeMutationConfirmer,
 } from "../helpers/cleanupTracker.ts";
 import { findMealItem } from "../helpers/dayPlanAssertions.ts";
+import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 import { selectProductsByMeasure } from "../helpers/productSelection.ts";
 import { getIntegrationTestDate } from "../helpers/testDates.ts";
 
-const recipeClient = new RecipeClient();
-const foodSearchClient = new FoodSearchClient();
+const context = IntegrationTestContext.fromEnvironment();
+const recipeClient = context.recipeClient;
+const foodSearchClient = context.foodSearchClient;
 const foodSearchService = new FoodSearchService(foodSearchClient);
-const dayPlanClient = new DayPlanClient();
+const dayPlanClient = context.dayPlanClient;
 const cleanup = new CleanupTracker(dayPlanClient, recipeClient);
 const recipeService = new RecipeService(
 	recipeClient,

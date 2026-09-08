@@ -1,21 +1,20 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { DayPlanClient } from "../../../src/api/dayPlan/DayPlanClient.ts";
 import type { DayPlanItem } from "../../../src/api/dayPlan/DayPlanItem.ts";
-import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
-import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { MealItemMutationConfirmer } from "../../../src/services/dayPlan/MealItemMutationConfirmer.ts";
 import { MealItemMutationService } from "../../../src/services/dayPlan/MealItemMutationService.ts";
 import { FoodSearchService } from "../../../src/services/foodSearch/FoodSearchService.ts";
 import { CleanupTracker, CleanupTrackingMealItemMutationConfirmer } from "../helpers/cleanupTracker.ts";
 import { findMealItem } from "../helpers/dayPlanAssertions.ts";
+import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 import { getIntegrationTestDate } from "../helpers/testDates.ts";
 
-const dayPlanClient = new DayPlanClient();
+const context = IntegrationTestContext.fromEnvironment();
+const dayPlanClient = context.dayPlanClient;
 const cleanup = new CleanupTracker(dayPlanClient);
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
-	new FoodSearchService(new FoodSearchClient()),
-	new RecipeClient(),
+	new FoodSearchService(context.foodSearchClient),
+	context.recipeClient,
 	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
 );
 const READ_AFTER_WRITE_ATTEMPTS = 60;

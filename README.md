@@ -164,6 +164,8 @@ Runtime configuration is read from environment variables and validated at startu
 | --- | --- | --- | --- |
 | `FITATU_EMAIL` | Yes | — | Fitatu account email address. |
 | `FITATU_PASSWORD` | Yes | — | Fitatu account password. |
+| `FITATU_INTEGRATION_EMAIL` | For integration tests | — | Email address of a dedicated Fitatu integration-test account. |
+| `FITATU_INTEGRATION_PASSWORD` | For integration tests | — | Password for the dedicated Fitatu integration-test account. |
 | `MCP_TRANSPORT` | No | `http` | MCP transport: `http` or `stdio`. |
 | `PORT` | No | `3000` | HTTP port; unused in stdio mode. |
 | `NODE_ENV` | No | `development` | `development`, `production`, or `test`. |
@@ -202,8 +204,8 @@ The Dockerfile copies `.env` into the image. Treat the resulting image as sensit
 | Local coverage report | `npm run test:coverage` |
 | Integration tests | `npm run test:integration` |
 
-`npm run test:ci` is deterministic and does not load Fitatu credentials. Integration tests require valid credentials and may read or mutate meal-plan and
-recipe data in the authenticated account.
+`npm run test:ci` is deterministic and does not load Fitatu credentials. Integration tests use the dedicated Fitatu test account described above and may
+mutate its meal-plan, recipe, and body-measurement data.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for layer boundaries and design rules, and [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
 

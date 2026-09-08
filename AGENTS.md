@@ -54,7 +54,7 @@ The current project commands are:
 | Unit tests in watch mode | `npm run test` | Intended for interactive development. |
 | Deterministic unit test run | `npm run test:ci` | Produces coverage and JSON test output. |
 | Coverage report | `npm run test:coverage` | Produces local coverage reports. |
-| Integration tests | `npm run test:integration` | Requires valid Fitatu credentials and may mutate account data. |
+| Integration tests | `npm run test:integration` | Uses the dedicated Fitatu test account and may mutate its data. |
 | Type checking | `npm run typecheck` | Checks production and test TypeScript configurations. |
 | Lint | `npm run lint` | Checks source, tests, and Vitest configuration. |
 | Lint with fixes | `npm run lint:fix` | Mutates files to apply supported fixes. |
@@ -190,7 +190,8 @@ Do not add new test files or new test cases unless the user explicitly requests 
 contract change.
 
 - Unit tests must be deterministic and must not load real Fitatu credentials.
-- Integration tests require valid credentials and may read or mutate data in the authenticated account.
+- Integration tests run as the dedicated Fitatu test user configured with `FITATU_INTEGRATION_EMAIL` and `FITATU_INTEGRATION_PASSWORD`.
+- Integration tests may create, update, or remove data in that dedicated test account.
 - Treat integration test execution as a potentially state-changing operation.
 - Keep secrets, captured private responses, and personal data out of fixtures and committed test artifacts.
 - Prefer the narrowest relevant verification first, then broader checks when proportionate to the change.

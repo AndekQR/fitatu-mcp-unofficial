@@ -1,16 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { FitatuAuthClient } from "../../../src/api/auth/FitatuAuthClient.ts";
-import { MeasurementsClient } from "../../../src/api/users/MeasurementsClient.ts";
-import { FitatuUserClient } from "../../../src/api/users/FitatuUserClient.ts";
 import type { BodyMeasurement } from "../../../src/services/bodyMeasurements/BodyMeasurement.ts";
 import { BodyMeasurementService } from "../../../src/services/bodyMeasurements/BodyMeasurementService.ts";
 import { BodyMeasurementUpdate } from "../../../src/services/bodyMeasurements/BodyMeasurementUpdate.ts";
-import { getBodyMeasurementIntegrationTestDate } from "../helpers/bodyMeasurementTestDate.ts";
+import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 
-const date = getBodyMeasurementIntegrationTestDate();
-const authClient = FitatuAuthClient.getInstance();
-const userClient = FitatuUserClient.getInstance({ authClient });
-const service = new BodyMeasurementService(new MeasurementsClient({ authClient, userClient }), userClient);
+const date = "2000-01-01";
+const initialWeight = 70;
+const context = IntegrationTestContext.fromEnvironment();
+const service = new BodyMeasurementService(context.measurementsClient, context.userClient);
 
 const measurementFields = [
 	"weight",
@@ -27,11 +24,11 @@ const measurementFields = [
 
 type MeasurementField = (typeof measurementFields)[number];
 
-describe.skipIf(date === null).sequential("Fitatu body measurement integration workflow", () => {
-	it("partially updates, reads, and restores an existing measurement", async () => {
-		if (date === null) throw new Error("Body measurement integration date was not configured");
-		const original = await service.getBodyMeasurement(date);
-		if (!original) throw new Error("Configured date must contain an existing body measurement");
+describe.sequential("Fitatu body measurement integration workflow", () => {
+	it("creates a measurement when needed, partially updates, reads, and restores it", async () => {
+		const existing = await service.getBodyMeasurement(date);
+		const original =
+			existing ?? (await service.saveBodyMeasurement(new BodyMeasurementUpdate(date, initialWeight)));
 		const field = selectRestorableField(original);
 		const originalValue = original[field];
 		if (originalValue === null) throw new Error("Selected body measurement field must have a value");

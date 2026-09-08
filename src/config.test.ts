@@ -75,6 +75,26 @@ describe("getConfig", () => {
 		});
 	});
 
+	it("provides the mobile client profile without runtime Fitatu credentials", async () => {
+		const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+			throw new Error("process.exit called");
+		}) as never);
+		const { getFitatuMobileClientProfile } = await loadConfigWithEnv({
+			FITATU_EMAIL: undefined,
+			FITATU_PASSWORD: undefined,
+			FITATU_USER_AGENT: undefined,
+			FITATU_APP_VERSION: undefined,
+			FITATU_API_APK_UUID: undefined,
+		});
+
+		expect(getFitatuMobileClientProfile()).toEqual({
+			userAgent: "Dart/3.10 (dart:io)",
+			appVersion: "4.14.4",
+			apiApkUuid: "BE4B.251210.005",
+		});
+		expect(exit).not.toHaveBeenCalled();
+	});
+
 	it("allows the mobile client profile to be updated through environment variables", async () => {
 		const { getFitatuMobileClientProfile } = await loadConfigWithEnv({
 			FITATU_EMAIL: "test@example.com",

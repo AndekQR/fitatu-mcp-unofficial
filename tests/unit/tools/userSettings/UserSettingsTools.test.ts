@@ -21,7 +21,8 @@ describe("user settings tools", () => {
 		const result = await registered.invoke({});
 		const expected = {
 			settings: {
-				date: "2026-09-07",
+				requestedDate: "2026-09-08",
+				effectiveDate: "2026-09-07",
 				energyTarget: {
 					mode: "automatic",
 					kcal: 2700,
@@ -48,6 +49,18 @@ describe("user settings tools", () => {
 			readOnlyHint: true,
 			destructiveHint: false,
 			idempotentHint: true,
+		});
+		expect(registered.config.outputSchema).toMatchObject({
+			type: "object",
+			properties: {
+				settings: {
+					required: expect.arrayContaining(["requestedDate", "effectiveDate"]),
+					properties: {
+						requestedDate: { description: expect.stringContaining("requested from Fitatu") },
+						effectiveDate: { description: expect.stringContaining("earlier than requestedDate") },
+					},
+				},
+			},
 		});
 	});
 
@@ -80,7 +93,8 @@ describe("user settings tools", () => {
 		expect(result.structuredContent).toMatchObject({
 			status: "updated",
 			settings: {
-				date: "2026-09-07",
+				requestedDate: "2026-09-07",
+				effectiveDate: "2026-09-07",
 				energyTarget: {
 					mode: "manual",
 					proteinPercentage: 20.5,
@@ -232,6 +246,7 @@ class UnusedFitatuUserClient extends FitatuUserClient {
 
 function automaticSnapshot(): UserSettingsSnapshot {
 	return new UserSettingsSnapshot(
+		"2026-09-08",
 		"2026-09-07",
 		new AutomaticEnergyTarget(2700, new MacronutrientDistribution(null, null, null)),
 		new UserSettingsCalculatedValues(1800, 2700, 1.5, 2700, 0, 120),
@@ -241,6 +256,7 @@ function automaticSnapshot(): UserSettingsSnapshot {
 
 function manualFractionalSnapshot(): UserSettingsSnapshot {
 	return new UserSettingsSnapshot(
+		"2026-09-07",
 		"2026-09-07",
 		new ManualEnergyTarget(2250, new MacronutrientDistribution(20.5, 29.5, 50)),
 		undefined,

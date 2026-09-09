@@ -2,18 +2,21 @@ import type { EnergyTarget } from "./EnergyTarget.ts";
 import type { UserSettingsCalculatedValues } from "./UserSettingsCalculatedValues.ts";
 
 export class UserSettingsSnapshot {
-	public readonly date: string;
+	public readonly requestedDate: string;
+	public readonly effectiveDate: string;
 	public readonly energyTarget: EnergyTarget;
 	public readonly calculatedValues?: UserSettingsCalculatedValues;
 	public readonly waterServingSizeMl?: number;
 
 	public constructor(
-		date: string,
+		requestedDate: string,
+		effectiveDate: string,
 		energyTarget: EnergyTarget,
 		calculatedValues?: UserSettingsCalculatedValues,
 		waterServingSizeMl?: number,
 	) {
-		this.date = date;
+		this.requestedDate = requestedDate;
+		this.effectiveDate = effectiveDate;
 		this.energyTarget = energyTarget;
 		this.calculatedValues = calculatedValues;
 		this.waterServingSizeMl = waterServingSizeMl;

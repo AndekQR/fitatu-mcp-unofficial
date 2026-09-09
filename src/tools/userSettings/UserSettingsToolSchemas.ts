@@ -32,7 +32,12 @@ const energyTargetOutputSchema = (mode: "manual" | "automatic") =>
 
 export const userSettingsSnapshotOutputSchema = z
 	.object({
-		date: isoCalendarDateSchema().describe("Calendar date for which Fitatu resolved these settings."),
+		requestedDate: isoCalendarDateSchema().describe(
+			"Calendar date requested from Fitatu when resolving this snapshot. For update responses, which are not date-addressed, this equals effectiveDate.",
+		),
+		effectiveDate: isoCalendarDateSchema().describe(
+			"Calendar date of the settings snapshot returned by Fitatu. It can be earlier than requestedDate when older settings remain effective.",
+		),
 		energyTarget: z.discriminatedUnion("mode", [
 			energyTargetOutputSchema("manual"),
 			energyTargetOutputSchema("automatic"),
@@ -65,7 +70,8 @@ export const userSettingsNullKeys = ["proteinPercentage", "fatPercentage", "carb
 export function toUserSettingsForMcp(settings: UserSettingsSnapshot): z.infer<typeof userSettingsSnapshotOutputSchema> {
 	const distribution = settings.energyTarget.macronutrientDistribution;
 	return {
-		date: settings.date,
+		requestedDate: settings.requestedDate,
+		effectiveDate: settings.effectiveDate,
 		energyTarget: {
 			mode: settings.energyTarget.mode,
 			kcal: settings.energyTarget.kcal,

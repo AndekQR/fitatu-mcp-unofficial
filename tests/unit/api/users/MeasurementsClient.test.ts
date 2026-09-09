@@ -3,20 +3,34 @@ import { MeasurementsClient } from "../../../../src/api/users/MeasurementsClient
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
 
 describe("MeasurementsClient", () => {
-	it("gets and strictly decodes a body measurement", async () => {
+	it("gets and strictly decodes a body measurement and its history dates", async () => {
 		const response = completeMeasurementResponse();
-		const fetchStub = createFetchStub(createJsonResponse(response));
+		const historyResponse = [
+			{ date: "2026-09-06", value: 78 },
+			{ date: "2026-08-20", value: 79 },
+		];
+		const fetchStub = createFetchStub(
+			createJsonResponse(response),
+			createJsonResponse(historyResponse),
+			createJsonResponse(historyResponse),
+		);
 		const client = new MeasurementsClient({
 			baseUrl: "https://fitatu.test/api",
 			fetchFn: fetchStub.fetchFn,
 		});
 
 		const result = await client.getMeasurement({ userId: "user/1", date: "2026-09-06" });
+		const weightHistory = await client.getWeightMeasurementHistory("user/1");
+		const waistHistory = await client.getSizeMeasurementHistory("user/1", "waist");
 
-		expect(fetchStub.calls).toHaveLength(1);
+		expect(fetchStub.calls).toHaveLength(3);
 		expect(fetchStub.calls[0]?.input).toBe("https://fitatu.test/api/users/user%2F1/measurements/2026-09-06");
 		expect(fetchStub.calls[0]?.init?.method).toBe("GET");
 		expect(result).toEqual(response);
+		expect(fetchStub.calls[1]?.input).toBe("https://fitatu.test/api/users/user%2F1/measurements/summary/weight");
+		expect(fetchStub.calls[2]?.input).toBe("https://fitatu.test/api/users/user%2F1/measurements/size/waist");
+		expect(weightHistory.dates).toEqual(["2026-09-06", "2026-08-20"]);
+		expect(waistHistory.dates).toEqual(["2026-09-06", "2026-08-20"]);
 	});
 
 	it("saves only submitted measurements as JSON strings and returns the PUT response", async () => {
@@ -110,6 +124,16 @@ describe("MeasurementsClient", () => {
 		});
 
 		await expect(client.getMeasurement({ userId: "user-1", date: "2026-09-06" })).rejects.toMatchObject({
+			operation: "measurements.get",
+			failure: { kind: "invalidResponse" },
+		});
+
+		const historyFetchStub = createFetchStub(createJsonResponse(response));
+		const historyClient = new MeasurementsClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn: historyFetchStub.fetchFn,
+		});
+		await expect(historyClient.getWeightMeasurementHistory("user-1")).rejects.toMatchObject({
 			operation: "measurements.get",
 			failure: { kind: "invalidResponse" },
 		});

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { GetMeasurementRequest } from "../../../../src/api/users/GetMeasurementRequest.ts";
 import { MeasurementApiResponse } from "../../../../src/api/users/MeasurementApiResponse.ts";
+import { MeasurementDateHistoryApiResponse } from "../../../../src/api/users/MeasurementDateHistoryApiResponse.ts";
+import type { MeasurementSizeField } from "../../../../src/api/users/MeasurementSizeField.ts";
 import { MeasurementsClient } from "../../../../src/api/users/MeasurementsClient.ts";
 import type { SaveMeasurementRequest } from "../../../../src/api/users/SaveMeasurementRequest.ts";
 import { FitatuUserClient } from "../../../../src/api/users/FitatuUserClient.ts";
@@ -23,9 +25,16 @@ describe("BodyMeasurementService", () => {
 		const service = new BodyMeasurementService(measurementsClient, userClient);
 
 		const result = await service.getBodyMeasurement("2026-09-06");
+		const latest = await service.getBodyMeasurement();
 
-		expect(measurementsClient.getRequests).toEqual([{ userId: "user-1", date: "2026-09-06" }]);
+		expect(measurementsClient.getRequests).toEqual([
+			{ userId: "user-1", date: "2026-09-06" },
+			{ userId: "user-1", date: "2026-09-06" },
+		]);
+		expect(measurementsClient.weightHistoryUserIds).toEqual(["user-1"]);
+		expect(measurementsClient.sizeHistoryRequests).toHaveLength(9);
 		expect(result).toMatchObject({ date: "2026-09-06", weight: 78.13, waist: 86 });
+		expect(latest).toMatchObject({ date: "2026-09-06", weight: 78.13, waist: 86 });
 		expect(result?.neck).toBeNull();
 	});
 
@@ -130,6 +139,8 @@ describe("BodyMeasurementService", () => {
 class FakeMeasurementsClient extends MeasurementsClient {
 	public readonly getRequests: GetMeasurementRequest[] = [];
 	public readonly saveRequests: SaveMeasurementRequest[] = [];
+	public readonly weightHistoryUserIds: string[] = [];
+	public readonly sizeHistoryRequests: Array<{ readonly userId: string; readonly field: MeasurementSizeField }> = [];
 
 	public constructor(private readonly response: MeasurementApiResponse | null) {
 		super({ fetchFn: unusedFetch });
@@ -140,11 +151,28 @@ class FakeMeasurementsClient extends MeasurementsClient {
 		return this.response;
 	}
 
+	public override async getWeightMeasurementHistory(userId: string): Promise<MeasurementDateHistoryApiResponse> {
+		this.weightHistoryUserIds.push(userId);
+		return createHistoryResponse("2026-08-20");
+	}
+
+	public override async getSizeMeasurementHistory(
+		userId: string,
+		field: MeasurementSizeField,
+	): Promise<MeasurementDateHistoryApiResponse> {
+		this.sizeHistoryRequests.push({ userId, field });
+		return createHistoryResponse("2026-09-06");
+	}
+
 	public override async saveMeasurement(request: SaveMeasurementRequest): Promise<MeasurementApiResponse> {
 		this.saveRequests.push(request);
 		if (!this.response) throw new Error("FakeMeasurementsClient requires a response");
 		return this.response;
 	}
+}
+
+function createHistoryResponse(date: string): MeasurementDateHistoryApiResponse {
+	return MeasurementDateHistoryApiResponse.fromApiResponse([{ date }]);
 }
 
 class FakeFitatuUserClient extends FitatuUserClient {

@@ -12,7 +12,7 @@ import { UserSettingsUpdate } from "../../../../src/services/userSettings/UserSe
 
 describe("UserSettingsService", () => {
 	it("uses the authenticated user's timezone when the read date is omitted", async () => {
-		const settingsClient = new FakeUserSettingsClient(apiResponse());
+		const settingsClient = new FakeUserSettingsClient(apiResponse("2026-09-06T10:15:00+00:00"));
 		const userClient = new FakeFitatuUserClient(
 			FitatuUserProfile.fromApiResponse({ id: " user-1 ", timezone: "Asia/Tokyo" }),
 		);
@@ -22,7 +22,8 @@ describe("UserSettingsService", () => {
 
 		expect(settingsClient.getRequests).toEqual([{ userId: "user-1", date: "2026-09-07" }]);
 		expect(result).toMatchObject({
-			date: "2026-09-07",
+			requestedDate: "2026-09-07",
+			effectiveDate: "2026-09-06",
 			energyTarget: {
 				mode: "manual",
 				kcal: 2200,
@@ -51,9 +52,10 @@ describe("UserSettingsService", () => {
 			new FakeFitatuUserClient(FitatuUserProfile.fromApiResponse({ id: "user-1" })),
 		);
 
-		await service.getUserSettings("2028-02-29");
+		const result = await service.getUserSettings("2028-02-29");
 
 		expect(settingsClient.getRequests).toEqual([{ userId: "user-1", date: "2028-02-29" }]);
+		expect(result).toMatchObject({ requestedDate: "2028-02-29", effectiveDate: "2026-09-07" });
 	});
 
 	it("preserves current diet settings and combines manual energy and water in one patch", async () => {
@@ -195,9 +197,9 @@ class FakeFitatuUserClient extends FitatuUserClient {
 	}
 }
 
-function apiResponse(): UserSettingsApiResponse {
+function apiResponse(date = "2026-09-07T10:15:00+00:00"): UserSettingsApiResponse {
 	return UserSettingsApiResponse.fromApiResponse({
-		date: "2026-09-07T10:15:00+00:00",
+		date,
 		userDietSettings: {
 			manualEnergyTarget: true,
 			energy: 2200,

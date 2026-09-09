@@ -12,8 +12,12 @@ import {
 
 const getBodyMeasurementOutputSchema = z
 	.object({
-		date: isoCalendarDateSchema().describe("Requested date in YYYY-MM-DD format."),
-		found: z.boolean().describe("Whether Fitatu has a body measurement entry for the requested date."),
+		date: isoCalendarDateSchema()
+			.optional()
+			.describe(
+				"Resolved measurement date in YYYY-MM-DD format. Omitted only when the latest measurement was requested and no history exists.",
+			),
+		found: z.boolean().describe("Whether Fitatu has a body measurement entry for the requested or latest date."),
 		measurement: bodyMeasurementSchema.optional().describe("Complete body measurement when found is true."),
 	})
 	.strict()
@@ -25,12 +29,15 @@ const getBodyMeasurementOutputSchema = z
 				path: ["measurement"],
 			});
 		}
+		if (value.found && value.date === undefined) {
+			context.addIssue({ code: "custom", message: "date must be present when found is true", path: ["date"] });
+		}
 	})
 	.meta({
 		oneOf: [
 			{
 				properties: { found: { const: false } },
-				required: ["date", "found"],
+				required: ["found"],
 				not: { required: ["measurement"] },
 			},
 			{
@@ -53,10 +60,15 @@ export class GetBodyMeasurementTool {
 			GetBodyMeasurementTool.toolName,
 			{
 				title: "Get Fitatu Body Measurement",
-				description: "Gets the authenticated Fitatu user's body measurement for an explicit calendar date.",
+				description:
+					"Gets the authenticated Fitatu user's body measurement for an optional calendar date. When date is omitted, returns the most recent measurement across weight, circumference, and body-fat history.",
 				inputSchema: z
 					.object({
-						date: isoCalendarDateSchema().describe("Measurement date in YYYY-MM-DD format."),
+						date: isoCalendarDateSchema()
+							.optional()
+							.describe(
+								"Optional measurement date in YYYY-MM-DD format; defaults to the latest available entry.",
+							),
 					})
 					.strict(),
 				outputSchema: getBodyMeasurementOutputSchema,
@@ -73,8 +85,14 @@ export class GetBodyMeasurementTool {
 					const measurement = await this.bodyMeasurementService.getBodyMeasurement(date);
 					return createTextResult(
 						measurement === null
-							? { date, found: false }
-							: { date, found: true, measurement: toBodyMeasurementForMcp(measurement) },
+							? date === undefined
+								? { found: false }
+								: { date, found: false }
+							: {
+									date: measurement.date,
+									found: true,
+									measurement: toBodyMeasurementForMcp(measurement),
+								},
 						{ keepNullKeys: bodyMeasurementNullKeys },
 					);
 				} catch (error) {

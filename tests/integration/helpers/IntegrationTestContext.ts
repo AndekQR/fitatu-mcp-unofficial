@@ -6,6 +6,7 @@ import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.t
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
 import { FitatuUserClient } from "../../../src/api/users/FitatuUserClient.ts";
 import { MeasurementsClient } from "../../../src/api/users/MeasurementsClient.ts";
+import { UserSettingsClient } from "../../../src/api/users/UserSettingsClient.ts";
 import { getFitatuMobileClientProfile } from "../../../src/config.ts";
 import { IntegrationTestCredentialsProvider } from "./IntegrationTestCredentialsProvider.ts";
 
@@ -17,6 +18,7 @@ export class IntegrationTestContext {
 	public readonly foodSearchClient: FoodSearchClient;
 	public readonly recipeClient: RecipeClient;
 	public readonly measurementsClient: MeasurementsClient;
+	public readonly userSettingsClient: UserSettingsClient;
 
 	private constructor(environment: NodeJS.ProcessEnv) {
 		const credentialsProvider = IntegrationTestCredentialsProvider.fromEnvironment(environment);
@@ -37,6 +39,7 @@ export class IntegrationTestContext {
 		this.foodSearchClient = new FoodSearchClient(clientOptions);
 		this.recipeClient = new RecipeClient(clientOptions);
 		this.measurementsClient = new MeasurementsClient(clientOptions);
+		this.userSettingsClient = new UserSettingsClient(clientOptions);
 	}
 
 	public static fromEnvironment(environment: NodeJS.ProcessEnv = process.env): IntegrationTestContext {

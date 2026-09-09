@@ -38,7 +38,7 @@ export class UserSettingsService {
 		const userId = requireUserId(user.id);
 		const resolvedDate = date === undefined ? todayInUserTimezone(this.now(), user) : normalizeDate(date);
 		const response = await this.settingsClient.getSettings(new GetUserSettingsRequest(userId, resolvedDate));
-		return toUserSettingsSnapshot(response);
+		return toUserSettingsSnapshot(response, resolvedDate);
 	}
 
 	public async updateUserSettings(update: UserSettingsUpdate): Promise<UserSettingsSnapshot> {
@@ -78,10 +78,14 @@ function applyEnergyTarget(
 	});
 }
 
-function toUserSettingsSnapshot(response: UserSettingsApiResponse): UserSettingsSnapshot {
+function toUserSettingsSnapshot(
+	response: UserSettingsApiResponse,
+	requestedDate: string = response.date.slice(0, 10),
+): UserSettingsSnapshot {
 	const diet = response.userDietSettings;
 	const calculated = response.calculatedValues;
 	return new UserSettingsSnapshot(
+		requestedDate,
 		response.date.slice(0, 10),
 		diet.manualEnergyTarget
 			? new ManualEnergyTarget(diet.energy, toMacronutrientDistribution(response))

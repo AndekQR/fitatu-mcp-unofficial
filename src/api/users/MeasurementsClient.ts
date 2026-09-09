@@ -7,6 +7,8 @@ import { FitatuClientError } from "../fitatuApiClientBase/FitatuClientError.ts";
 import { FITATU_CLIENT_OPERATIONS, type FitatuClientOperation } from "../fitatuApiClientBase/FitatuClientOperations.ts";
 import type { GetMeasurementRequest } from "./GetMeasurementRequest.ts";
 import { MeasurementApiResponse } from "./MeasurementApiResponse.ts";
+import { MeasurementDateHistoryApiResponse } from "./MeasurementDateHistoryApiResponse.ts";
+import { MEASUREMENT_SIZE_FIELDS, type MeasurementSizeField } from "./MeasurementSizeField.ts";
 import type { SaveMeasurementRequest } from "./SaveMeasurementRequest.ts";
 
 const measurementFields = [
@@ -50,6 +52,42 @@ export class MeasurementsClient extends FitatuApiClientBase {
 			}
 			throw error;
 		}
+	}
+
+	public async getWeightMeasurementHistory(userId: string): Promise<MeasurementDateHistoryApiResponse> {
+		const normalizedUserId = requireUserId(userId, FITATU_CLIENT_OPERATIONS.measurementsGet);
+		return this.performCallout({
+			operation: FITATU_CLIENT_OPERATIONS.measurementsGet,
+			method: "GET",
+			path: `/users/${encodeURIComponent(normalizedUserId)}/measurements/summary/weight`,
+			endpointTemplate: "/users/:userId/measurements/summary/weight",
+			failureMessage: "Fitatu weight measurement history request failed",
+			invalidResponseMessage: "Fitatu weight measurement history response was invalid",
+			decoder: MeasurementDateHistoryApiResponse.fromApiResponse,
+		});
+	}
+
+	public async getSizeMeasurementHistory(
+		userId: string,
+		field: MeasurementSizeField,
+	): Promise<MeasurementDateHistoryApiResponse> {
+		const normalizedUserId = requireUserId(userId, FITATU_CLIENT_OPERATIONS.measurementsGet);
+		if (!MEASUREMENT_SIZE_FIELDS.includes(field)) {
+			throw FitatuClientError.invalidRequest({
+				operation: FITATU_CLIENT_OPERATIONS.measurementsGet,
+				message: "Unsupported body measurement history field",
+			});
+		}
+
+		return this.performCallout({
+			operation: FITATU_CLIENT_OPERATIONS.measurementsGet,
+			method: "GET",
+			path: `/users/${encodeURIComponent(normalizedUserId)}/measurements/size/${field}`,
+			endpointTemplate: "/users/:userId/measurements/size/:field",
+			failureMessage: "Fitatu size measurement history request failed",
+			invalidResponseMessage: "Fitatu size measurement history response was invalid",
+			decoder: MeasurementDateHistoryApiResponse.fromApiResponse,
+		});
 	}
 
 	public async saveMeasurement(request: SaveMeasurementRequest): Promise<MeasurementApiResponse> {
@@ -111,10 +149,7 @@ function normalizeRequest(
 	request: GetMeasurementRequest | SaveMeasurementRequest,
 	operation: FitatuClientOperation,
 ): { readonly path: string; readonly date: string } {
-	const userId = StringUtils.firstNonEmptyString(request.userId);
-	if (!userId) {
-		throw FitatuClientError.invalidRequest({ operation, message: "Fitatu user id is required" });
-	}
+	const userId = requireUserId(request.userId, operation);
 
 	let date: string;
 	try {
@@ -130,6 +165,14 @@ function normalizeRequest(
 		path: `/users/${encodeURIComponent(userId)}/measurements/${date}`,
 		date,
 	};
+}
+
+function requireUserId(value: unknown, operation: FitatuClientOperation): string {
+	const userId = StringUtils.firstNonEmptyString(value);
+	if (!userId) {
+		throw FitatuClientError.invalidRequest({ operation, message: "Fitatu user id is required" });
+	}
+	return userId;
 }
 
 function requireNonEmptyText(value: unknown, message: string, operation: FitatuClientOperation): string {

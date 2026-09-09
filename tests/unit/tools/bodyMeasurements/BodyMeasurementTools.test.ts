@@ -14,8 +14,10 @@ describe("body measurement tools", () => {
 	it("returns a complete found measurement with explicit null values", async () => {
 		const service = new FakeBodyMeasurementService(createMeasurement());
 		const registered = await registerToolForTest(new GetBodyMeasurementTool(service));
+		const latestRegistered = await registerToolForTest(new GetBodyMeasurementTool(service));
 
 		const result = await registered.invoke({ date: "2026-09-06" });
+		const latestResult = await latestRegistered.invoke({});
 		const expected = {
 			date: "2026-09-06",
 			found: true,
@@ -25,9 +27,11 @@ describe("body measurement tools", () => {
 			},
 		};
 
-		expect(service.getDates).toEqual(["2026-09-06"]);
+		expect(service.getDates).toEqual(["2026-09-06", undefined]);
 		expect(result.structuredContent).toEqual(expected);
 		expect(parseTextContent(result)).toEqual(expected);
+		expect(latestResult.structuredContent).toEqual(expected);
+		expect(parseTextContent(latestResult)).toEqual(expected);
 		expect(registered.config.annotations).toMatchObject({
 			readOnlyHint: true,
 			idempotentHint: true,
@@ -41,16 +45,28 @@ describe("body measurement tools", () => {
 				{ properties: { found: { const: true } }, required: ["date", "found", "measurement"] },
 			],
 		});
+		expect(registered.config.inputSchema).toMatchObject({
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				date: { description: expect.stringContaining("defaults to the latest available entry") },
+			},
+		});
+		expect(registered.config.inputSchema.required ?? []).not.toContain("date");
 	});
 
 	it("returns the explicit missing state without a measurement", async () => {
 		const service = new FakeBodyMeasurementService(null);
 		const registered = await registerToolForTest(new GetBodyMeasurementTool(service));
+		const latestRegistered = await registerToolForTest(new GetBodyMeasurementTool(service));
 
 		const result = await registered.invoke({ date: "2026-09-06" });
+		const latestResult = await latestRegistered.invoke({});
 
 		expect(result.structuredContent).toEqual({ date: "2026-09-06", found: false });
 		expect(parseTextContent(result)).toEqual({ date: "2026-09-06", found: false });
+		expect(latestResult.structuredContent).toEqual({ found: false });
+		expect(parseTextContent(latestResult)).toEqual({ found: false });
 	});
 
 	it("saves one or more values and publishes the non-empty update constraint", async () => {
@@ -155,7 +171,7 @@ describe("body measurement tools", () => {
 });
 
 class FakeBodyMeasurementService extends BodyMeasurementService {
-	public readonly getDates: string[] = [];
+	public readonly getDates: Array<string | undefined> = [];
 	public readonly updates: BodyMeasurementUpdate[] = [];
 
 	public constructor(
@@ -165,7 +181,7 @@ class FakeBodyMeasurementService extends BodyMeasurementService {
 		super(new MeasurementsClient({ fetchFn: unusedFetch }), new UnusedFitatuUserClient());
 	}
 
-	public override async getBodyMeasurement(date: string): Promise<BodyMeasurement | null> {
+	public override async getBodyMeasurement(date?: string): Promise<BodyMeasurement | null> {
 		this.getDates.push(date);
 		if (this.error) throw this.error;
 		return this.measurement;

@@ -1,4 +1,5 @@
 import { MeasurementsClient } from "../../api/users/MeasurementsClient.ts";
+import { MEASUREMENT_SIZE_FIELDS } from "../../api/users/MeasurementSizeField.ts";
 import { FitatuUserClient } from "../../api/users/FitatuUserClient.ts";
 import { DateUtils } from "../../shared/DateUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
@@ -16,11 +17,22 @@ export class BodyMeasurementService {
 		this.userClient = userClient;
 	}
 
-	public async getBodyMeasurement(date: string): Promise<BodyMeasurement | null> {
-		const normalizedDate = DateUtils.validateIsoDate(date);
+	public async getBodyMeasurement(date?: string): Promise<BodyMeasurement | null> {
 		const userId = await this.getAuthenticatedUserId();
-		const response = await this.measurementsClient.getMeasurement({ userId, date: normalizedDate });
-		return response === null ? null : new BodyMeasurement(normalizedDate, response);
+		if (date !== undefined) {
+			return this.getBodyMeasurementForDate(userId, DateUtils.validateIsoDate(date));
+		}
+
+		const histories = await Promise.all([
+			this.measurementsClient.getWeightMeasurementHistory(userId),
+			...MEASUREMENT_SIZE_FIELDS.map((field) => this.measurementsClient.getSizeMeasurementHistory(userId, field)),
+		]);
+		const dates = [...new Set(histories.flatMap((history) => history.dates))].sort().reverse();
+		for (const latestDate of dates) {
+			const measurement = await this.getBodyMeasurementForDate(userId, latestDate);
+			if (measurement !== null) return measurement;
+		}
+		return null;
 	}
 
 	public async saveBodyMeasurement(update: BodyMeasurementUpdate): Promise<BodyMeasurement> {
@@ -58,6 +70,11 @@ export class BodyMeasurementService {
 	private async getAuthenticatedUserId(): Promise<string> {
 		const user = await this.userClient.getAuthenticatedUser();
 		return requireUserId(user.id);
+	}
+
+	private async getBodyMeasurementForDate(userId: string, date: string): Promise<BodyMeasurement | null> {
+		const response = await this.measurementsClient.getMeasurement({ userId, date });
+		return response === null ? null : new BodyMeasurement(date, response);
 	}
 }
 

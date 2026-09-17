@@ -8,6 +8,8 @@
 	"scripts": {
 		"build": "vite build",
 		"dev": "node --env-file=.env --watch src/index.ts | pino-pretty",
+		"dev:all": "node --env-file=.env src/development/start.ts all",
+		"dev:test-account": "node --env-file=.env src/development/start.ts test",
 		"inspector": "npx @modelcontextprotocol/inspector",
 		"mitmproxy": "mitmweb --mode wireguard",
 		"start": "node --env-file=.env dist/index.js",

@@ -9,6 +9,7 @@ import { FitatuMobileClientProfile } from "./api/fitatuApiClientBase/FitatuMobil
 const configSchema = z.object({
 	MCP_TRANSPORT: z.enum(["http", "stdio"]).default("http"),
 	PORT: z.coerce.number().default(3000),
+	HOST: z.string().min(1).default("0.0.0.0"),
 	NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 	SERVER_NAME: z.string().default("fitatu-mcp"),
 	SERVER_VERSION: z.string().default("2.0.0"),

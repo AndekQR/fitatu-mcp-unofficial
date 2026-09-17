@@ -15,6 +15,7 @@ fitatu_mcp_ts/
 │   ├── McpHttpServer.ts                 # Streamable HTTP MCP transport
 │   ├── config.ts                        # environment parsing and validation
 │   ├── logger.ts                        # process-wide logging configuration
+│   ├── development/                     # local multi-account launcher and streaming tunnel gateway
 │   ├── tools/                           # MCP boundary
 │   │   ├── addMealItems/
 │   │   ├── bodyMeasurements/
@@ -106,6 +107,10 @@ This layer:
 
 It must not contain Fitatu response mapping, domain policy, or feature workflows. `ApplicationServices` is the process-wide composition root: tools receive
 services from it rather than constructing or importing HTTP clients directly.
+
+`src/development` is development-only bootstrap infrastructure, outside the production build entry point. It starts separate server processes for personal
+and integration-test credentials, binds them to loopback, and streams explicitly routed MCP requests through a local gateway to one ngrok tunnel. It does
+not call Fitatu directly, interpret MCP payloads, or provide authentication. Account credentials and sessions stay isolated in their server processes.
 
 ### 2.2 MCP tool layer
 

@@ -86,7 +86,7 @@ async function startStdio(): Promise<void> {
 async function startHttp(): Promise<void> {
 	const config = getConfig();
 	const httpServer = new McpHttpServer({ createServer: getServer, logger });
-	const listener = httpServer.app.listen(config.PORT, () => {
+	const listener = httpServer.app.listen(config.PORT, config.HOST, () => {
 		logger.info(
 			{
 				environment: config.NODE_ENV,

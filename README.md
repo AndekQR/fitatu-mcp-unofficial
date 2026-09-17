@@ -25,7 +25,7 @@ plans, nutrition summaries, food search, and recipe management over stdio or Str
 - npm
 - A Fitatu account
 
-Docker and `cloudflared` are optional and required only for their respective workflows.
+Docker and `ngrok` are optional and required only for their respective workflows.
 
 ## Quick start
 
@@ -118,19 +118,28 @@ npm run inspector
 
 Connect the Inspector to `http://localhost:3000/mcp`.
 
-#### Temporary Cloudflare Tunnel
+#### Remote MCP access with ngrok
 
-Install `cloudflared`, start the HTTP server locally, and run:
+Install and authenticate [ngrok](https://ngrok.com/download). In `.env`, configure two different Fitatu accounts using `FITATU_*` and
+`FITATU_INTEGRATION_*`, then add your assigned domain:
 
-```bash
-cloudflared tunnel --url http://localhost:3000
+```dotenv
+NGROK_DOMAIN=your-assigned-domain.ngrok-free.dev
 ```
 
-Append `/mcp` to the public URL printed by `cloudflared` and use the result as the MCP endpoint.
+```bash
+npm run dev:all           # Both accounts and the tunnel
+npm run dev:test-account # Test account only (alternative)
+```
 
-> [!WARNING]
-> The MCP server has no separate application-level access control. Anyone who can reach the tunnel URL may be able to invoke tools against the configured
-> Fitatu account. Use a public tunnel only for controlled, temporary testing and close it immediately afterward.
+In any MCP client that supports remote Streamable HTTP connections, use one of these URLs without authentication:
+
+- Personal: `https://YOUR_NGROK_DOMAIN/personal/mcp`
+- Test: `https://YOUR_NGROK_DOMAIN/test/mcp`
+
+Addresses stay the same after restarting. Keep the command running; `Ctrl+C` stops everything. Optional port settings are in [.env.example](.env.example).
+
+Anyone with the URL can access that account while the tunnel runs. Use it only for temporary development sessions.
 
 ## Available tools
 
@@ -164,10 +173,11 @@ Runtime configuration is read from environment variables and validated at startu
 | --- | --- | --- | --- |
 | `FITATU_EMAIL` | Yes | — | Fitatu account email address. |
 | `FITATU_PASSWORD` | Yes | — | Fitatu account password. |
-| `FITATU_INTEGRATION_EMAIL` | For integration tests | — | Email address of a dedicated Fitatu integration-test account. |
-| `FITATU_INTEGRATION_PASSWORD` | For integration tests | — | Password for the dedicated Fitatu integration-test account. |
+| `FITATU_INTEGRATION_EMAIL` | For integration tests and tunnel commands | — | Email address of a dedicated Fitatu test account. |
+| `FITATU_INTEGRATION_PASSWORD` | For integration tests and tunnel commands | — | Password for the dedicated Fitatu test account. |
 | `MCP_TRANSPORT` | No | `http` | MCP transport: `http` or `stdio`. |
 | `PORT` | No | `3000` | HTTP port; unused in stdio mode. |
+| `HOST` | No | `0.0.0.0` | HTTP bind address; unused in stdio mode. The tunnel launcher forces loopback. |
 | `NODE_ENV` | No | `development` | `development`, `production`, or `test`. |
 | `SERVER_NAME` | No | `fitatu-mcp` | Name reported by the MCP server. |
 | `SERVER_VERSION` | No | `2.0.0` | Version reported by the MCP server. |
@@ -195,6 +205,8 @@ The Dockerfile copies `.env` into the image. Treat the resulting image as sensit
 | Task | Command |
 | --- | --- |
 | Development server | `npm run dev` |
+| Both accounts with ngrok | `npm run dev:all` |
+| Test account with ngrok | `npm run dev:test-account` |
 | Production build | `npm run build` |
 | Start built server | `npm start` |
 | Type checking | `npm run typecheck` |

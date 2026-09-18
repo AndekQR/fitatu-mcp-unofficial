@@ -47,6 +47,10 @@ export class BodyMeasurementService {
 				SERVICE_ERROR_CODES.bodyMeasurementUnitsUnavailable,
 			);
 		}
+		const fatPercentage =
+			update.fatPercentage === undefined
+				? (await this.measurementsClient.getMeasurement({ userId, date: update.date }))?.fatPercentage
+				: update.fatPercentage;
 
 		const response = await this.measurementsClient.saveMeasurement({
 			userId,
@@ -62,7 +66,7 @@ export class BodyMeasurementService {
 			...(update.thigh === undefined ? {} : { thigh: update.thigh }),
 			...(update.calf === undefined ? {} : { calf: update.calf }),
 			...(update.biceps === undefined ? {} : { biceps: update.biceps }),
-			...(update.fatPercentage === undefined ? {} : { fatPercentage: update.fatPercentage }),
+			...(fatPercentage == null ? {} : { fatPercentage }),
 		});
 		return new BodyMeasurement(update.date, response);
 	}

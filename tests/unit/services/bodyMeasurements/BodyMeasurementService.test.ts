@@ -47,9 +47,9 @@ describe("BodyMeasurementService", () => {
 		expect(measurementsClient.getRequests).toEqual([{ userId: "user-1", date: "2026-09-06" }]);
 	});
 
-	it("saves a non-empty partial update with profile units and no pre-read", async () => {
+	it("preserves an omitted fat percentage when saving a partial update", async () => {
 		const measurementsClient = new FakeMeasurementsClient(
-			MeasurementApiResponse.fromApiResponse(completeMeasurementResponse()),
+			MeasurementApiResponse.fromApiResponse({ ...completeMeasurementResponse(), fatPercentage: 20.1 }),
 		);
 		const userClient = new FakeFitatuUserClient(
 			FitatuUserProfile.fromApiResponse({ id: "user-1", weightUnit: " KG ", sizeUnit: " CM " }),
@@ -60,7 +60,7 @@ describe("BodyMeasurementService", () => {
 			new BodyMeasurementUpdate("2026-09-06", 78.126, undefined, undefined, 85.999),
 		);
 
-		expect(measurementsClient.getRequests).toHaveLength(0);
+		expect(measurementsClient.getRequests).toEqual([{ userId: "user-1", date: "2026-09-06" }]);
 		expect(measurementsClient.saveRequests).toEqual([
 			{
 				userId: "user-1",
@@ -69,9 +69,10 @@ describe("BodyMeasurementService", () => {
 				sizeUnit: "CM",
 				weight: 78.13,
 				waist: 86,
+				fatPercentage: 20.1,
 			},
 		]);
-		expect(result).toMatchObject({ date: "2026-09-06", weight: 78, waist: 86 });
+		expect(result).toMatchObject({ date: "2026-09-06", weight: 78, waist: 86, fatPercentage: 20.1 });
 	});
 
 	it.each([

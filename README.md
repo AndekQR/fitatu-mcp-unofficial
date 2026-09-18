@@ -180,7 +180,7 @@ Runtime configuration is read from environment variables and validated at startu
 | `HOST` | No | `0.0.0.0` | HTTP bind address; unused in stdio mode. The tunnel launcher forces loopback. |
 | `NODE_ENV` | No | `development` | `development`, `production`, or `test`. |
 | `SERVER_NAME` | No | `fitatu-mcp` | Name reported by the MCP server. |
-| `SERVER_VERSION` | No | `2.0.0` | Version reported by the MCP server. |
+| `SERVER_VERSION` | No | `3.0.0` | Version reported by the MCP server. |
 | `LOG_LEVEL` | No | `info` | `silent`, `error`, `warn`, `info`, or `debug`. |
 | `FITATU_USER_AGENT` | No | `Dart/3.10 (dart:io)` | Fitatu mobile runtime user agent. |
 | `FITATU_APP_VERSION` | No | `4.14.4` | Fitatu mobile application version. |

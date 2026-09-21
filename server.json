@@ -1,0 +1,38 @@
+{
+	"$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+	"name": "io.github.andekqr/fitatu-mcp-unofficial",
+	"title": "Fitatu MCP Unofficial",
+	"description": "Unofficial MCP server for the Polish Fitatu app. Search foods and manage meals, recipes, and logs.",
+	"version": "3.0.1",
+	"repository": {
+		"url": "https://github.com/AndekQR/fitatu-mcp-unofficial",
+		"source": "github"
+	},
+	"packages": [
+		{
+			"registryType": "mcpb",
+			"identifier": "https://github.com/AndekQR/fitatu-mcp-unofficial/releases/download/v3.0.1/fitatu-mcp-unofficial-3.0.1.mcpb",
+			"version": "3.0.1",
+			"fileSha256": "1ab7231097ad97b2e25984f86b9d8d06b62d4cbdaefe070288d253d77000930c",
+			"transport": {
+				"type": "stdio"
+			},
+			"environmentVariables": [
+				{
+					"name": "FITATU_EMAIL",
+					"description": "Email address for your own Fitatu account.",
+					"isRequired": true,
+					"isSecret": true,
+					"format": "string"
+				},
+				{
+					"name": "FITATU_PASSWORD",
+					"description": "Password for your own Fitatu account.",
+					"isRequired": true,
+					"isSecret": true,
+					"format": "string"
+				}
+			]
+		}
+	]
+}

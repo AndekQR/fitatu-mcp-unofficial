@@ -1,6 +1,6 @@
 {
 	"$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-	"name": "io.github.andekqr/fitatu-mcp-unofficial",
+	"name": "io.github.AndekQR/fitatu-mcp-unofficial",
 	"title": "Fitatu MCP Unofficial",
 	"description": "Unofficial MCP server for the Polish Fitatu app. Search foods and manage meals, recipes, and logs.",
 	"version": "3.0.1",

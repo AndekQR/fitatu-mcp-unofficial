@@ -5,6 +5,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
+	MEAL_ITEM_MUTATION_SERIALIZATION_HINT,
 	MEAL_KEY_HINT,
 	mealKeySchema,
 	toUpdateMealItemForMcp,
@@ -28,8 +29,7 @@ export class UpdateMealItemTool {
 			UpdateMealItemTool.toolName,
 			{
 				title: "Update Fitatu Meal Item",
-				description:
-					"Updates and confirms one existing Fitatu meal item selected by its exact date, mealKey, and itemId. PRODUCT and RECIPE quantity or measure changes require a measure belonging to that food definition. For CUSTOM_ITEM entries, only the name, calories, protein, fat, carbohydrates, or eaten flag can be updated; their technical measure fields are immutable. Returns { status: 'confirmed', date, mealKey, itemId } after every requested field is observed in the persisted day plan.",
+				description: `Updates and confirms one existing Fitatu meal item selected by its exact date, mealKey, and itemId. PRODUCT and RECIPE quantity or measure changes require a measure belonging to that food definition. For CUSTOM_ITEM entries, only the name, calories, protein, fat, carbohydrates, or eaten flag can be updated; their technical measure fields are immutable. ${MEAL_ITEM_MUTATION_SERIALIZATION_HINT} Returns { status: 'confirmed', date, mealKey, itemId } after every requested field is observed in the persisted day plan.`,
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(

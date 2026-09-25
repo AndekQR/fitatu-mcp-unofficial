@@ -5,6 +5,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
+	MEAL_ITEM_MUTATION_SERIALIZATION_HINT,
 	MEAL_KEY_HINT,
 	mealKeySchema,
 	moveMealItemOutputSchema,
@@ -26,8 +27,7 @@ export class MoveMealItemTool {
 			MoveMealItemTool.toolName,
 			{
 				title: "Move Fitatu Meal Item",
-				description:
-					"Moves and confirms one existing Fitatu meal item selected by its exact source date, mealKey, and itemId. Provide a destination date, mealKey, or both that differs from the source. Fitatu creates a new item id during a valid move. Returns { status: 'confirmed', fromDate, fromMealKey, previousItemId, toDate, toMealKey, itemId }; use the returned itemId for later mutations.",
+				description: `Moves and confirms one existing Fitatu meal item selected by its exact source date, mealKey, and itemId. Provide a destination date, mealKey, or both that differs from the source. Fitatu creates a new item id during a valid move. ${MEAL_ITEM_MUTATION_SERIALIZATION_HINT} For move_meal_item, this rule applies to both fromDate and toDate. Returns { status: 'confirmed', fromDate, fromMealKey, previousItemId, toDate, toMealKey, itemId }; use the returned itemId for later mutations.`,
 				inputSchema: z
 					.object({
 						fromDate: isoCalendarDateSchema("fromDate").describe(

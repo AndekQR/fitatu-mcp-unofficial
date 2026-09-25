@@ -14,6 +14,9 @@ import { isoCalendarDateSchema, nonEmptyStringSchema, rawRecipeIdSchema } from "
 
 export const MEAL_KEY_HINT = `Typical keys are ${FITATU_MEAL_KEYS.join(", ")}, but accounts with renamed or additional meals may use other keys such as dinner.`;
 
+export const MEAL_ITEM_MUTATION_SERIALIZATION_HINT =
+	"Do not run this tool in parallel with another meal-item mutation that touches the same calendar date. Each mutation performs a read-modify-write synchronization of the full day snapshot; wait for the previous mutation to finish before starting the next one for that date.";
+
 export const mealKeySchema = z.string().trim().min(1, "mealKey must be a non-empty string");
 
 const catalogMealItemInputShape = {

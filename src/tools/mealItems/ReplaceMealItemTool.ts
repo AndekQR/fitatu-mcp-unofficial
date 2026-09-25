@@ -6,6 +6,7 @@ import { isoCalendarDateSchema, nonEmptyStringSchema } from "../shared/ToolSchem
 import { createTextResult } from "../shared/ToolResult.ts";
 import {
 	createSafeMealItemErrorResult,
+	MEAL_ITEM_MUTATION_SERIALIZATION_HINT,
 	MEAL_KEY_HINT,
 	mealItemInputSchema,
 	mealKeySchema,
@@ -28,8 +29,7 @@ export class ReplaceMealItemTool {
 			ReplaceMealItemTool.toolName,
 			{
 				title: "Replace Fitatu Meal Item",
-				description:
-					"Replaces and confirms one existing Fitatu meal item. Select the existing entry by its exact date, mealKey, and itemId, then provide replacement using the same strict PRODUCT, RECIPE, or fallback CUSTOM_ITEM payload accepted by add_meal_items. If replacement.eaten is omitted, the existing eaten state is preserved. Replacing a PRODUCT or RECIPE with the same catalog definition is rejected; use update_meal_item for quantity, measure, or eaten changes. Returns { status: 'confirmed', date, mealKey, previousItemId, itemId }; use the returned itemId for later mutations. The new item remains in the same meal, but item order is not part of the contract.",
+				description: `Replaces and confirms one existing Fitatu meal item. Select the existing entry by its exact date, mealKey, and itemId, then provide replacement using the same strict PRODUCT, RECIPE, or fallback CUSTOM_ITEM payload accepted by add_meal_items. If replacement.eaten is omitted, the existing eaten state is preserved. Replacing a PRODUCT or RECIPE with the same catalog definition is rejected; use update_meal_item for quantity, measure, or eaten changes. ${MEAL_ITEM_MUTATION_SERIALIZATION_HINT} Returns { status: 'confirmed', date, mealKey, previousItemId, itemId }; use the returned itemId for later mutations. The new item remains in the same meal, but item order is not part of the contract.`,
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe(

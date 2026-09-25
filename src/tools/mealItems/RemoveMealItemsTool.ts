@@ -6,6 +6,7 @@ import { createTextResult } from "../shared/ToolResult.ts";
 import type { MealItemMutationProvider } from "../../services/dayPlan/MealItemMutationService.ts";
 import {
 	createSafeMealItemErrorResult,
+	MEAL_ITEM_MUTATION_SERIALIZATION_HINT,
 	removeMealItemsOutputSchema,
 	toRemoveMealItemsForMcp,
 } from "./MealItemToolSupport.ts";
@@ -25,8 +26,7 @@ export class RemoveMealItemsTool {
 			RemoveMealItemsTool.toolName,
 			{
 				title: "Remove Fitatu Meal Items",
-				description:
-					"Atomically removes and confirms exact Fitatu day-plan entries of any food type. Copy each mealKey and itemId pair from get_day_plan_items; do not pass productId or recipeId. If any requested active item is missing from its declared meal context, nothing is synchronized. Returns { status: 'confirmed', date, removedItems: [{ inputIndex, mealKey, itemId }] } after every selected item is absent from the persisted active day plan.",
+				description: `Atomically removes and confirms exact Fitatu day-plan entries of any food type. Copy each mealKey and itemId pair from get_day_plan_items; do not pass productId or recipeId. If any requested active item is missing from its declared meal context, nothing is synchronized. ${MEAL_ITEM_MUTATION_SERIALIZATION_HINT} Returns { status: 'confirmed', date, removedItems: [{ inputIndex, mealKey, itemId }] } after every selected item is absent from the persisted active day plan.`,
 				inputSchema: z
 					.object({
 						date: isoCalendarDateSchema().describe("Day containing the exact meal items to remove."),

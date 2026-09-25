@@ -6,6 +6,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { TunnelGateway } from "./TunnelGateway.ts";
 import { readTunnelConfig, type Account } from "./tunnelConfig.ts";
 
+const NGROK_WEB_PORT = 4040;
+
 async function main(): Promise<void> {
 	const config = readTunnelConfig(process.env);
 	const mode = process.argv[2];
@@ -19,6 +21,17 @@ async function main(): Promise<void> {
 	let listener: Server | undefined;
 	let stopping = false;
 	const root = fileURLToPath(new URL("../../", import.meta.url));
+	const signal = (child: ChildProcess, name: NodeJS.Signals): void => {
+		if (!child.pid) {
+			return;
+		}
+
+		try {
+			process.kill(-child.pid, name);
+		} catch {
+			/* Child already stopped. */
+		}
+	};
 
 	const stop = async (exitCode: number): Promise<void> => {
 		if (stopping) {
@@ -29,18 +42,6 @@ async function main(): Promise<void> {
 		process.exitCode = exitCode;
 		listener?.close();
 		listener?.closeAllConnections();
-
-		const signal = (child: ChildProcess, name: NodeJS.Signals): void => {
-			if (!child.pid) {
-				return;
-			}
-
-			try {
-				process.kill(-child.pid, name);
-			} catch {
-				/* Child already stopped. */
-			}
-		};
 
 		const exits = children.map((child) => {
 			if (!child.pid || child.exitCode !== null || child.signalCode !== null) {
@@ -72,6 +73,14 @@ async function main(): Promise<void> {
 
 	process.once("SIGTERM", () => {
 		void stop(0);
+	});
+	process.once("SIGHUP", () => {
+		void stop(0);
+	});
+	process.once("exit", () => {
+		for (const child of children) {
+			signal(child, "SIGTERM");
+		}
 	});
 
 	const start = (name: string, command: string, args: string[], environment: NodeJS.ProcessEnv): ChildProcess => {
@@ -105,6 +114,12 @@ async function main(): Promise<void> {
 	try {
 		const ports = accounts.map((account) =>
 			account === "test" ? config.TUNNEL_TEST_PORT : config.TUNNEL_PERSONAL_PORT,
+		);
+
+		await checkPort(
+			NGROK_WEB_PORT,
+			`Ngrok web port ${NGROK_WEB_PORT} is already in use. A previous ngrok agent may still be running. ` +
+				`Inspect it with: lsof -nP -iTCP:${NGROK_WEB_PORT} -sTCP:LISTEN`,
 		);
 
 		for (const port of [config.TUNNEL_PORT, ...ports]) {
@@ -202,13 +217,13 @@ async function main(): Promise<void> {
 	}
 }
 
-async function checkPort(port: number): Promise<void> {
+async function checkPort(port: number, inUseMessage?: string): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
 		const server = createServer();
 		server.once("error", (error: NodeJS.ErrnoException) => {
 			const message =
 				error.code === "EADDRINUSE"
-					? `Port ${port} is in use. Stop the existing server or change the tunnel ports.`
+					? (inUseMessage ?? `Port ${port} is in use. Inspect it with: lsof -nP -iTCP:${port} -sTCP:LISTEN`)
 					: `Cannot bind port ${port} (${error.code ?? "unknown error"}). Check local network permissions.`;
 
 			reject(new Error(message));

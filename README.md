@@ -137,10 +137,6 @@ In any MCP client that supports remote Streamable HTTP connections, use one of t
 - Personal: `https://YOUR_NGROK_DOMAIN/personal/mcp`
 - Test: `https://YOUR_NGROK_DOMAIN/test/mcp`
 
-Addresses stay the same after restarting. Keep the command running; `Ctrl+C` stops everything. Optional port settings are in [.env.example](.env.example).
-
-Anyone with the URL can access that account while the tunnel runs. Use it only for temporary development sessions.
-
 ## Available tools
 
 | Tool | Purpose |

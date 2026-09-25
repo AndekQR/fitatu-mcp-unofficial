@@ -525,6 +525,38 @@ const errorCases = [
 ] as const;
 
 describe("meal item mutation tools", () => {
+	it.each([
+		new AddMealItemsTool(new FakeMealItemMutationService(successCases[0].result)),
+		new UpdateMealItemTool(new FakeMealItemMutationService(successCases[2].result)),
+		new ReplaceMealItemTool(new FakeMealItemMutationService(successCases[5].result)),
+		new MoveMealItemTool(new FakeMealItemMutationService(successCases[4].result)),
+		new RemoveMealItemsTool(new FakeMealItemMutationService(successCases[3].result)),
+	])("warns every meal-item mutation tool against parallel writes to the same date", async (tool) => {
+		const registered = await registerToolForTest(tool);
+
+		expect(registered.config.description).toContain("Do not run this tool in parallel");
+		expect(registered.config.description).toContain("same calendar date");
+		expect(registered.config.description).toContain("read-modify-write");
+		expect(registered.config.description).toContain("wait for the previous mutation to finish");
+	});
+
+	it("documents safe batching and sequencing for meal-item additions", async () => {
+		const registered = await registerToolForTest(
+			new AddMealItemsTool(new FakeMealItemMutationService(successCases[0].result)),
+		);
+
+		expect(registered.config.description).toContain("multiple items for the same meal in one items array");
+		expect(registered.config.description).toContain("different meals with sequential tool calls");
+	});
+
+	it("applies the move serialization warning to both affected dates", async () => {
+		const registered = await registerToolForTest(
+			new MoveMealItemTool(new FakeMealItemMutationService(successCases[4].result)),
+		);
+
+		expect(registered.config.description).toContain("both fromDate and toDate");
+	});
+
 	it("documents that replacement order is not part of the contract", async () => {
 		const registered = await registerToolForTest(
 			new ReplaceMealItemTool(new FakeMealItemMutationService(successCases[5].result)),

@@ -39,7 +39,7 @@ cp .env.example .env
 Set `FITATU_EMAIL` and `FITATU_PASSWORD` in `.env`, then start the development server:
 
 ```bash
-npm run dev
+npm run dev:server
 ```
 
 The default MCP endpoint is `http://localhost:3000/mcp`.
@@ -84,7 +84,7 @@ The client starts and stops the server. In stdio mode, logs are written to stder
 
 ### Streamable HTTP
 
-Start the server with `npm run dev`, or build and run it with:
+Start the server with `npm run dev:server`, or build and run it with:
 
 ```bash
 npm run build
@@ -128,8 +128,8 @@ NGROK_DOMAIN=your-assigned-domain.ngrok-free.dev
 ```
 
 ```bash
-npm run dev:all           # Both accounts and the tunnel
-npm run dev:test-account # Test account only (alternative)
+npm run dev:tunnel:all  # Personal and test accounts, gateway, and ngrok tunnel
+npm run dev:tunnel:test # Test account, gateway, and ngrok tunnel (alternative)
 ```
 
 In any MCP client that supports remote Streamable HTTP connections, use one of these URLs without authentication:
@@ -200,9 +200,10 @@ The Dockerfile copies `.env` into the image. Treat the resulting image as sensit
 
 | Task | Command |
 | --- | --- |
-| Development server | `npm run dev` |
-| Both accounts with ngrok | `npm run dev:all` |
-| Test account with ngrok | `npm run dev:test-account` |
+| One server using `.env`, with automatic restart; no ngrok | `npm run dev:server` |
+| Personal and test servers, gateway, and ngrok | `npm run dev:tunnel:all` |
+| Test server, gateway, and ngrok | `npm run dev:tunnel:test` |
+| Stop this repository's development servers and ngrok, including orphaned processes | `npm run dev:stop` |
 | Production build | `npm run build` |
 | Start built server | `npm start` |
 | Type checking | `npm run typecheck` |

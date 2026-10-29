@@ -119,7 +119,7 @@ async function main(): Promise<void> {
 		await checkPort(
 			NGROK_WEB_PORT,
 			`Ngrok web port ${NGROK_WEB_PORT} is already in use. A previous ngrok agent may still be running. ` +
-				`Inspect it with: lsof -nP -iTCP:${NGROK_WEB_PORT} -sTCP:LISTEN`,
+				`Run npm run dev:stop to stop this project's development processes, then retry.`,
 		);
 
 		for (const port of [config.TUNNEL_PORT, ...ports]) {
@@ -210,7 +210,7 @@ async function main(): Promise<void> {
 			console.log(`Fitatu ${account}: https://${config.NGROK_DOMAIN}/${account}/mcp`);
 		}
 
-		console.log("No authentication. Ctrl+C stops all processes and the public tunnel.");
+		console.log("No authentication. Ctrl+C or npm run dev:stop stops all processes and the public tunnel.");
 	} catch (error) {
 		await stop(1);
 		throw error;
@@ -223,7 +223,9 @@ async function checkPort(port: number, inUseMessage?: string): Promise<void> {
 		server.once("error", (error: NodeJS.ErrnoException) => {
 			const message =
 				error.code === "EADDRINUSE"
-					? (inUseMessage ?? `Port ${port} is in use. Inspect it with: lsof -nP -iTCP:${port} -sTCP:LISTEN`)
+					? (inUseMessage ??
+						`Port ${port} is in use. Run npm run dev:stop to stop this project's development processes. ` +
+							`If still occupied, inspect it with: lsof -nP -iTCP:${port} -sTCP:LISTEN`)
 					: `Cannot bind port ${port} (${error.code ?? "unknown error"}). Check local network permissions.`;
 
 			reject(new Error(message));

@@ -48,7 +48,10 @@ The current project commands are:
 
 | Purpose | Command | Notes |
 | --- | --- | --- |
-| Development server | `npm run dev` | Runs the TypeScript entry point in watch mode. |
+| Single development server | `npm run dev:server` | Uses `.env`, watches sources, no ngrok. |
+| Both accounts with ngrok | `npm run dev:tunnel:all` | Starts personal and test servers, gateway, and tunnel. |
+| Test account with ngrok | `npm run dev:tunnel:test` | Starts test server, gateway, and tunnel. |
+| Stop development processes | `npm run dev:stop` | Stops this checkout's servers and ngrok, including orphaned processes; macOS/Linux. |
 | Production build | `npm run build` | Produces the distributable output. |
 | Start built server | `npm start` | Requires a successful build. |
 | Unit tests in watch mode | `npm run test` | Intended for interactive development. |

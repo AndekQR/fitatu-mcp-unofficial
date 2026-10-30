@@ -1,0 +1,12 @@
+.env
+.env.*
+node_modules/
+dist/
+tests/
+coverage/
+.git/
+.claude/
+.codex/
+*.log
+tmp/
+docs/

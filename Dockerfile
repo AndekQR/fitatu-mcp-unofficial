@@ -8,7 +8,6 @@ RUN npm ci --prefer-offline
 
 COPY *.ts *.json ./
 COPY ./src/ ./src/
-COPY .env ./
 
 RUN npm run build
 

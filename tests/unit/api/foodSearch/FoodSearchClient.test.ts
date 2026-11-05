@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FoodSearchClient } from "../../../../src/api/foodSearch/FoodSearchClient.ts";
+import { FavouriteFoodsRequest } from "../../../../src/api/foodSearch/FavouriteFoodsRequest.ts";
 import { FoodSearchApiResponse } from "../../../../src/api/foodSearch/FoodSearchApiResponse.ts";
 import { PublicFoodSearchRequest } from "../../../../src/api/foodSearch/PublicFoodSearchRequest.ts";
 import { FoodSearchService } from "../../../../src/services/foodSearch/FoodSearchService.ts";
@@ -30,6 +31,125 @@ describe("FoodSearchClient.searchPublicFoodByBarcode", () => {
 		expect(fetchStub.calls[0]?.input).toBe(
 			"https://fitatu.test/api/search/new/food?phrase=5902057001748&page=1&locale=pl_PL&limit=10&hasFilters=false&accessType=FREE&accessType=PREMIUM",
 		);
+	});
+});
+
+describe("FoodSearchClient.getFavouriteFoods", () => {
+	function createClient(fetchFn: typeof fetch): FoodSearchClient {
+		return new FoodSearchClient({ baseUrl: "https://fitatu.test/api", fetchFn, authClient, userClient });
+	}
+
+	it("requests the user's favourite foods with paging and an optional phrase", async () => {
+		const fetchStub = createFetchStub(createJsonResponse([]));
+
+		await createClient(fetchStub.fetchFn).getFavouriteFoods(new FavouriteFoodsRequest("user-1", 20, "jogurt"));
+
+		expect(fetchStub.calls).toHaveLength(1);
+		expect(fetchStub.calls[0]?.input).toBe(
+			"https://fitatu.test/api/users/user-1/favorite/foods?page=1&limit=20&phrase=jogurt",
+		);
+		expect(fetchStub.calls[0]?.init?.method).toBe("GET");
+		expect(fetchStub.calls[0]?.init?.headers).toMatchObject({ accept: "application/json; version=v3" });
+	});
+
+	it("omits the phrase query parameter when no phrase is given", async () => {
+		const fetchStub = createFetchStub(createJsonResponse([]));
+
+		await createClient(fetchStub.fetchFn).getFavouriteFoods(new FavouriteFoodsRequest("user-1", 50));
+
+		expect(fetchStub.calls[0]?.input).toBe("https://fitatu.test/api/users/user-1/favorite/foods?page=1&limit=50");
+	});
+
+	it("retries with the plain JSON accept header after an HTTP failure", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse({ message: "unsupported" }, { status: 406 }),
+			createJsonResponse([]),
+		);
+
+		await createClient(fetchStub.fetchFn).getFavouriteFoods(new FavouriteFoodsRequest("user-1", 5));
+
+		expect(fetchStub.calls).toHaveLength(2);
+		expect(fetchStub.calls[1]?.init?.headers).toMatchObject({ accept: "application/json" });
+	});
+
+	it("surfaces a typed client error when every attempt fails", async () => {
+		const fetchStub = createFetchStub(
+			createJsonResponse({ message: "down" }, { status: 503 }),
+			createJsonResponse({ message: "down" }, { status: 503 }),
+		);
+
+		await expect(
+			createClient(fetchStub.fetchFn).getFavouriteFoods(new FavouriteFoodsRequest("user-1", 5)),
+		).rejects.toMatchObject({
+			name: "FitatuClientError",
+			operation: "food.favourites.get",
+			failure: { kind: "http", statusCode: 503 },
+		});
+	});
+});
+
+describe("FoodSearchService.getFavouriteFoods", () => {
+	function createService(fetchFn: typeof fetch): FoodSearchService {
+		return new FoodSearchService(
+			new FoodSearchClient({ baseUrl: "https://fitatu.test/api", fetchFn, authClient, userClient }),
+		);
+	}
+
+	const favouriteRows = [
+		{ id: "food-1", name: "Jogurt naturalny", measure: { id: "m1", name: "opakowanie", quantity: 1, weight: 180 } },
+		{ id: "food-1", name: "Jogurt naturalny", measure: { id: "m1", name: "opakowanie", quantity: 1, weight: 180 } },
+		{ id: "food-2", name: "Kasza gryczana", measure: { id: "m2", name: "g", quantity: 100, weight: 100 } },
+	];
+
+	it("maps favourites to deduplicated user-source items using the current user id", async () => {
+		const fetchStub = createFetchStub(createJsonResponse({ items: favouriteRows }));
+
+		const result = await createService(fetchStub.fetchFn).getFavouriteFoods("  jogurt  ", 10);
+
+		expect(fetchStub.calls[0]?.input).toBe(
+			"https://fitatu.test/api/users/user-1/favorite/foods?page=1&limit=10&phrase=jogurt",
+		);
+		expect(result.publicItems).toEqual([]);
+		expect(result.userItems.map((item) => [item.source, item.productId])).toEqual([
+			["user", "food-1"],
+			["user", "food-2"],
+		]);
+	});
+
+	it("treats a blank phrase as no filter and applies the default limit", async () => {
+		const fetchStub = createFetchStub(createJsonResponse({ items: [] }));
+
+		await createService(fetchStub.fetchFn).getFavouriteFoods("   ");
+
+		expect(fetchStub.calls[0]?.input).toBe("https://fitatu.test/api/users/user-1/favorite/foods?page=1&limit=50");
+	});
+
+	it("truncates the result to the requested limit", async () => {
+		const fetchStub = createFetchStub(createJsonResponse({ items: favouriteRows }));
+
+		const result = await createService(fetchStub.fetchFn).getFavouriteFoods(undefined, 1);
+
+		expect(result.userItems).toHaveLength(1);
+	});
+
+	it.each([0, 201, 1.5])("rejects limit %s before any HTTP request", async (limit) => {
+		const fetchStub = createFetchStub();
+
+		await expect(createService(fetchStub.fetchFn).getFavouriteFoods(undefined, limit)).rejects.toMatchObject({
+			name: "FitatuClientError",
+			operation: "food.favourites.get",
+			message: "limit must be between 1 and 200",
+		});
+		expect(fetchStub.calls).toHaveLength(0);
+	});
+
+	it("propagates upstream failures instead of returning an empty list", async () => {
+		const fetchFn: typeof fetch = async () => createJsonResponse({ message: "down" }, { status: 503 });
+
+		await expect(createService(fetchFn).getFavouriteFoods()).rejects.toMatchObject({
+			name: "FitatuClientError",
+			failure: { kind: "http", statusCode: 503 },
+		});
 	});
 });
 

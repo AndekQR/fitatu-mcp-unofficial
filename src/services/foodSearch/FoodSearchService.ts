@@ -4,6 +4,7 @@ import { FitatuClientError } from "../../api/fitatuApiClientBase/FitatuClientErr
 import { FITATU_CLIENT_OPERATIONS } from "../../api/fitatuApiClientBase/FitatuClientOperations.ts";
 import type { FoodSearchApiResponse } from "../../api/foodSearch/FoodSearchApiResponse.ts";
 import type { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
+import { FavouriteFoodsRequest } from "../../api/foodSearch/FavouriteFoodsRequest.ts";
 import { FoodDetailsRequest } from "../../api/foodSearch/FoodDetailsRequest.ts";
 import type { FoodMeasure } from "../../api/foodSearch/FoodMeasure.ts";
 import { FoodSearchOptions } from "../../api/foodSearch/FoodSearchOptions.ts";
@@ -15,6 +16,7 @@ import type { NormalizedFoodSearchItem } from "../../api/foodSearch/NormalizedFo
 import type { NormalizedFoodSearchOptions } from "../../api/foodSearch/NormalizedFoodSearchOptions.ts";
 import { PublicFoodSearchRequest } from "../../api/foodSearch/PublicFoodSearchRequest.ts";
 import { UserFoodSearchRequest } from "../../api/foodSearch/UserFoodSearchRequest.ts";
+import { DateUtils } from "../../shared/DateUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
 import { ValidationError } from "../../shared/ValidationError.ts";
 import { FoodSearchOptionsNormalizer } from "./FoodSearchOptionsNormalizer.ts";
@@ -24,6 +26,9 @@ import { UserFoodRelevanceFilter } from "./UserFoodRelevanceFilter.ts";
 
 const BARCODE_PATTERN = /^(?:\d{8}|\d{12,14})$/;
 const MAX_BARCODES = 10;
+const DEFAULT_FAVOURITES_LIMIT = 50;
+const MAX_FAVOURITES_LIMIT = 200;
+const FAVOURITES_QUERY_LABEL = "favourites";
 
 export interface FoodSearchProvider {
 	search(options: FoodSearchOptions): Promise<FoodSearchResult>;
@@ -100,6 +105,38 @@ export class FoodSearchService implements FoodSearchProvider {
 			this.responseMapper.toOutputItems(results, "public"),
 			results.flatMap((result) => result.warnings),
 			results.flatMap((result) => result.warningDetails),
+		);
+	}
+
+	public async getFavouriteFoods(phrase?: string, limit = DEFAULT_FAVOURITES_LIMIT): Promise<FoodSearchResult> {
+		const userId = StringUtils.firstNonEmptyString(await this.foodSearchClient.getContextUserId());
+		if (!userId) {
+			throw FitatuClientError.authentication({
+				operation: FITATU_CLIENT_OPERATIONS.foodFavouritesGet,
+				message: "Fitatu user id is required",
+			});
+		}
+		if (!Number.isInteger(limit) || limit < 1 || limit > MAX_FAVOURITES_LIMIT) {
+			throw FitatuClientError.invalidRequest({
+				operation: FITATU_CLIENT_OPERATIONS.foodFavouritesGet,
+				message: `limit must be between 1 and ${MAX_FAVOURITES_LIMIT}`,
+			});
+		}
+
+		const trimmedPhrase = phrase?.trim();
+		const response = await this.foodSearchClient.getFavouriteFoods(
+			new FavouriteFoodsRequest(userId, limit, trimmedPhrase ? trimmedPhrase : undefined),
+		);
+		const label = trimmedPhrase ? trimmedPhrase : FAVOURITES_QUERY_LABEL;
+		const items = deduplicateItems(this.responseMapper.mapSearchItems(response, "user")).slice(0, limit);
+		const queryResult = new FoodSearchQueryResult(label, items, [], [], [], 1, 1);
+		return new FoodSearchResult(
+			DateUtils.toLocalDateString(),
+			[label],
+			this.responseMapper.toOutputItems([queryResult], "user"),
+			[],
+			[],
+			[],
 		);
 	}
 

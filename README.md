@@ -150,6 +150,7 @@ In any MCP client that supports remote Streamable HTTP connections, use one of t
 | `get_diet_summary` | Summarize nutrition and energy for an inclusive date range. |
 | `search_food` | Search Fitatu food catalogs and return mutation-ready identifiers. |
 | `search_food_by_barcodes` | Search the public food catalog for up to 10 barcodes in parallel. |
+| `get_favourites` | List products and recipes the user marked as favourites, optionally filtered by phrase. |
 | `add_meal_items` | Add products, recipes, or custom items to a meal. |
 | `update_meal_item` | Update quantity, measure, or eaten state. |
 | `replace_meal_item` | Replace one exact meal entry. |

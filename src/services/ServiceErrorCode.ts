@@ -16,6 +16,7 @@ export const SERVICE_ERROR_CODES = {
 	authenticationRequired: "AUTHENTICATION_REQUIRED",
 	mutationConfirmationTimeout: "MUTATION_CONFIRMATION_TIMEOUT",
 	mutationConfirmationReadFailed: "MUTATION_CONFIRMATION_READ_FAILED",
+	mutationOutcomeUnknown: "MUTATION_OUTCOME_UNKNOWN",
 	bodyMeasurementValueRequired: "BODY_MEASUREMENT_VALUE_REQUIRED",
 	invalidBodyMeasurementValue: "INVALID_BODY_MEASUREMENT_VALUE",
 	bodyMeasurementUnitsUnavailable: "BODY_MEASUREMENT_UNITS_UNAVAILABLE",

@@ -2,6 +2,7 @@ import { FitatuAuthClient } from "../api/auth/FitatuAuthClient.ts";
 import { DayPlanClient } from "../api/dayPlan/DayPlanClient.ts";
 import { SummaryClient } from "../api/dietPlan/SummaryClient.ts";
 import { FoodSearchClient } from "../api/foodSearch/FoodSearchClient.ts";
+import { ProductClient } from "../api/products/ProductClient.ts";
 import { RecipeClient } from "../api/recipes/RecipeClient.ts";
 import { FitatuUserClient } from "../api/users/FitatuUserClient.ts";
 import { UserSettingsClient } from "../api/users/UserSettingsClient.ts";
@@ -12,6 +13,7 @@ import { DayPlanQueryService } from "./dayPlan/DayPlanQueryService.ts";
 import { DietSummaryService } from "./dietSummary/DietSummaryService.ts";
 import { MealItemMutationService } from "./dayPlan/MealItemMutationService.ts";
 import { FoodSearchService } from "./foodSearch/FoodSearchService.ts";
+import { ProductService } from "./products/ProductService.ts";
 import { RecipeService } from "./recipes/RecipeService.ts";
 import { getFitatuMobileClientProfile } from "../config.ts";
 import { BoundedPoller } from "../shared/BoundedPoller.ts";
@@ -30,6 +32,7 @@ export class ApplicationServices {
 	public readonly dietSummaryService: DietSummaryService;
 	public readonly mealItemMutationService: MealItemMutationService;
 	public readonly foodSearchService: FoodSearchService;
+	public readonly productService: ProductService;
 	public readonly recipeService: RecipeService;
 	public readonly userSettingsService: UserSettingsService;
 
@@ -40,6 +43,7 @@ export class ApplicationServices {
 		const dayPlanClient = new DayPlanClient({ authClient, userClient, mobileClientProfile });
 		const summaryClient = new SummaryClient({ authClient, userClient, mobileClientProfile });
 		const foodSearchClient = new FoodSearchClient({ authClient, userClient, mobileClientProfile });
+		const productClient = new ProductClient({ authClient, userClient, mobileClientProfile });
 		const recipeClient = new RecipeClient({ authClient, userClient, mobileClientProfile });
 		const userSettingsClient = new UserSettingsClient({ authClient, userClient, mobileClientProfile });
 		const measurementsClient = new MeasurementsClient({ authClient, userClient, mobileClientProfile });
@@ -56,6 +60,7 @@ export class ApplicationServices {
 			new MealItemMutationConfirmer(dayPlanClient, new BoundedPoller()),
 		);
 		this.foodSearchService = foodSearchService;
+		this.productService = new ProductService(productClient, foodSearchService);
 		this.recipeService = new RecipeService(
 			recipeClient,
 			foodSearchService,

@@ -148,7 +148,6 @@ vite.config.ts.timestamp-*
 .codex/
 
 /.idea/*
-/docs/*
 /test-results.json
 /tmp/*
 /PYTHON_REFERENCE_ENDPOINTS.md

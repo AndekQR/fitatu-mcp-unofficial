@@ -50,9 +50,10 @@ fitatu_mcp_ts/
 │   ├── fixtures/                        # reusable test data
 │   ├── integration/                     # tests against Fitatu
 │   └── unit/                            # deterministic tests and test doubles
-├── AGENTS.md                            # repository-wide implementation rules
+├── docs/
+│   └── agent/                           # topic-specific repository-wide agent instructions
+├── AGENTS.md                            # core rules and links to detailed agent instructions
 ├── ARCHITECTURE.md                      # this architectural map
-├── PYTHON_REFERENCE_ENDPOINTS.md        # read-only endpoint research
 ├── README.md                            # user-facing setup and operation
 ├── package.json                         # scripts, dependencies, and package metadata
 ├── tsconfig.json                        # production TypeScript configuration

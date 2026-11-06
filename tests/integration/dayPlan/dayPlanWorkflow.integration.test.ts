@@ -18,7 +18,7 @@ import { addDays, getIntegrationTestDate } from "../helpers/testDates.ts";
 const context = IntegrationTestContext.fromEnvironment();
 const dayPlanClient = context.dayPlanClient;
 const foodSearchClient = context.foodSearchClient;
-const foodSearchService = new FoodSearchService(foodSearchClient);
+const foodSearchService = new FoodSearchService(foodSearchClient, context.favouritesClient);
 const cleanup = new CleanupTracker(dayPlanClient);
 const dietSummaryService = new DietSummaryService(context.summaryClient, context.userClient);
 const mealItemMutationService = new MealItemMutationService(

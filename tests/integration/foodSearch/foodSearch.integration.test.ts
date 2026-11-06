@@ -10,8 +10,9 @@ import { FoodSearchService, type FoodSearchProvider } from "../../../src/service
 import { SearchFoodTool } from "../../../src/tools/searchFood/SearchFoodTool.ts";
 import { IntegrationTestContext } from "../helpers/IntegrationTestContext.ts";
 
-const foodSearchClient = IntegrationTestContext.fromEnvironment().foodSearchClient;
-const foodSearchService = new FoodSearchService(foodSearchClient);
+const context = IntegrationTestContext.fromEnvironment();
+const foodSearchClient = context.foodSearchClient;
+const foodSearchService = new FoodSearchService(foodSearchClient, context.favouritesClient);
 const DEFAULT_DATE = "2026-06-15";
 const PUBLIC_SOURCE: readonly FoodSearchSource[] = ["public"];
 

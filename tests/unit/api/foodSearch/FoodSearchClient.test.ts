@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FoodSearchClient } from "../../../../src/api/foodSearch/FoodSearchClient.ts";
-import { FavouriteFoodsRequest } from "../../../../src/api/foodSearch/FavouriteFoodsRequest.ts";
+import { FavouritesClient } from "../../../../src/api/users/FavouritesClient.ts";
+import { FavouriteFoodsRequest } from "../../../../src/api/users/FavouriteFoodsRequest.ts";
 import { FoodSearchApiResponse } from "../../../../src/api/foodSearch/FoodSearchApiResponse.ts";
 import { PublicFoodSearchRequest } from "../../../../src/api/foodSearch/PublicFoodSearchRequest.ts";
 import { FoodSearchService } from "../../../../src/services/foodSearch/FoodSearchService.ts";
@@ -34,9 +35,9 @@ describe("FoodSearchClient.searchPublicFoodByBarcode", () => {
 	});
 });
 
-describe("FoodSearchClient.getFavouriteFoods", () => {
-	function createClient(fetchFn: typeof fetch): FoodSearchClient {
-		return new FoodSearchClient({ baseUrl: "https://fitatu.test/api", fetchFn, authClient, userClient });
+describe("FavouritesClient.getFavouriteFoods", () => {
+	function createClient(fetchFn: typeof fetch): FavouritesClient {
+		return new FavouritesClient({ baseUrl: "https://fitatu.test/api", fetchFn, authClient, userClient });
 	}
 
 	it("requests the user's favourite foods with paging and an optional phrase", async () => {
@@ -92,6 +93,7 @@ describe("FoodSearchService.getFavouriteFoods", () => {
 	function createService(fetchFn: typeof fetch): FoodSearchService {
 		return new FoodSearchService(
 			new FoodSearchClient({ baseUrl: "https://fitatu.test/api", fetchFn, authClient, userClient }),
+			new FavouritesClient({ baseUrl: "https://fitatu.test/api", fetchFn, authClient, userClient }),
 		);
 	}
 
@@ -176,6 +178,12 @@ describe("FoodSearchService.search", () => {
 				authClient,
 				userClient,
 			}),
+			new FavouritesClient({
+				baseUrl: "https://fitatu.test/api",
+				fetchFn: fetchStub.fetchFn,
+				authClient,
+				userClient,
+			}),
 		);
 
 		const result = await client.search({
@@ -234,6 +242,12 @@ describe("FoodSearchService.search", () => {
 				authClient,
 				userClient,
 			}),
+			new FavouritesClient({
+				baseUrl: "https://fitatu.test/api",
+				fetchFn,
+				authClient,
+				userClient,
+			}),
 		);
 
 		const result = await client.search({
@@ -282,6 +296,12 @@ describe("FoodSearchService.search", () => {
 				authClient,
 				userClient,
 			}),
+			new FavouritesClient({
+				baseUrl: "https://fitatu.test/api",
+				fetchFn,
+				authClient,
+				userClient,
+			}),
 		);
 
 		const result = await client.search({ queries: ["jablko"], date: "2026-07-13" });
@@ -323,6 +343,12 @@ describe("FoodSearchService.search", () => {
 				authClient,
 				userClient,
 			}),
+			new FavouritesClient({
+				baseUrl: "https://fitatu.test/api",
+				fetchFn,
+				authClient,
+				userClient,
+			}),
 		);
 
 		const search = client.search({ queries: ["skyr"], date: "2026-07-13" });
@@ -343,6 +369,12 @@ describe("FoodSearchService.search", () => {
 		);
 		const client = new FoodSearchService(
 			new FoodSearchClient({
+				baseUrl: "https://fitatu.test/api",
+				fetchFn: fetchStub.fetchFn,
+				authClient,
+				userClient,
+			}),
+			new FavouritesClient({
 				baseUrl: "https://fitatu.test/api",
 				fetchFn: fetchStub.fetchFn,
 				authClient,
@@ -376,6 +408,12 @@ describe("FoodSearchService.search", () => {
 				authClient,
 				userClient,
 			}),
+			new FavouritesClient({
+				baseUrl: "https://fitatu.test/api",
+				fetchFn: fetchStub.fetchFn,
+				authClient,
+				userClient,
+			}),
 		);
 
 		await expect(client.search({ queries: ["granola"] })).rejects.toMatchObject({
@@ -398,6 +436,12 @@ describe("FoodSearchService.search", () => {
 		);
 		const client = new FoodSearchService(
 			new FoodSearchClient({
+				baseUrl: "https://fitatu.test/api",
+				fetchFn: fetchStub.fetchFn,
+				authClient,
+				userClient,
+			}),
+			new FavouritesClient({
 				baseUrl: "https://fitatu.test/api",
 				fetchFn: fetchStub.fetchFn,
 				authClient,
@@ -459,6 +503,12 @@ describe("FoodSearchService.search", () => {
 		);
 		const client = new FoodSearchService(
 			new FoodSearchClient({
+				baseUrl: "https://fitatu.test/api",
+				fetchFn: fetchStub.fetchFn,
+				authClient,
+				userClient,
+			}),
+			new FavouritesClient({
 				baseUrl: "https://fitatu.test/api",
 				fetchFn: fetchStub.fetchFn,
 				authClient,

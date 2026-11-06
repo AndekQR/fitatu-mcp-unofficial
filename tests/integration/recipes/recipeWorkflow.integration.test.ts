@@ -22,7 +22,7 @@ import { getIntegrationTestDate } from "../helpers/testDates.ts";
 const context = IntegrationTestContext.fromEnvironment();
 const recipeClient = context.recipeClient;
 const foodSearchClient = context.foodSearchClient;
-const foodSearchService = new FoodSearchService(foodSearchClient);
+const foodSearchService = new FoodSearchService(foodSearchClient, context.favouritesClient);
 const dayPlanClient = context.dayPlanClient;
 const cleanup = new CleanupTracker(dayPlanClient, recipeClient);
 const recipeService = new RecipeService(

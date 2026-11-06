@@ -13,7 +13,7 @@ const dayPlanClient = context.dayPlanClient;
 const cleanup = new CleanupTracker(dayPlanClient);
 const mealItemMutationService = new MealItemMutationService(
 	dayPlanClient,
-	new FoodSearchService(context.foodSearchClient),
+	new FoodSearchService(context.foodSearchClient, context.favouritesClient),
 	context.recipeClient,
 	new CleanupTrackingMealItemMutationConfirmer(new MealItemMutationConfirmer(dayPlanClient), cleanup),
 );

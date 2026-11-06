@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FoodSearchClient } from "../../../../src/api/foodSearch/FoodSearchClient.ts";
 import { FoodSearchService } from "../../../../src/services/foodSearch/FoodSearchService.ts";
+import { FavouritesClient } from "../../../../src/api/users/FavouritesClient.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import { createAuthClientStub } from "../../support/authTestDouble.ts";
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
@@ -105,6 +106,12 @@ describe("FoodSearchService.searchBarcodes", () => {
 function createService(fetchFn: typeof fetch): FoodSearchService {
 	return new FoodSearchService(
 		new FoodSearchClient({
+			baseUrl: "https://fitatu.test/api",
+			fetchFn,
+			authClient,
+			userClient,
+		}),
+		new FavouritesClient({
 			baseUrl: "https://fitatu.test/api",
 			fetchFn,
 			authClient,

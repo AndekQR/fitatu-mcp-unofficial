@@ -4,6 +4,7 @@ import { FoodNutrition } from "../../../../src/api/foodSearch/FoodNutrition.ts";
 import { FoodSearchItem } from "../../../../src/api/foodSearch/FoodSearchItem.ts";
 import { FoodSearchResult } from "../../../../src/api/foodSearch/FoodSearchResult.ts";
 import { NormalizedFoodSearchItem } from "../../../../src/api/foodSearch/NormalizedFoodSearchItem.ts";
+import { FavouritesClient } from "../../../../src/api/users/FavouritesClient.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import { FoodSearchService } from "../../../../src/services/foodSearch/FoodSearchService.ts";
 import { SearchFoodByBarcodesTool } from "../../../../src/tools/searchFood/SearchFoodByBarcodesTool.ts";
@@ -92,7 +93,7 @@ class FakeBarcodeFoodSearchService extends FoodSearchService {
 	private readonly includeProduct: boolean;
 
 	public constructor(error?: Error, includeProduct = false) {
-		super(createUnusedFoodSearchClient());
+		super(createUnusedFoodSearchClient(), createUnusedFavouritesClient());
 		this.error = error;
 		this.includeProduct = includeProduct;
 	}
@@ -138,6 +139,20 @@ class FakeBarcodeFoodSearchService extends FoodSearchService {
 
 function createUnusedFoodSearchClient(): FoodSearchClient {
 	return new FoodSearchClient({
+		baseUrl: "https://fitatu.test/api",
+		fetchFn: async () => {
+			throw new Error("Unexpected HTTP request from barcode tool test double");
+		},
+		authClient: createAuthClientStub({ userId: "user-1" }),
+		userClient: {
+			getCurrentUser: async () => FitatuUserProfile.fromApiResponse({ id: "user-1", locale: "pl_PL" }),
+			clearUserCache: () => undefined,
+		},
+	});
+}
+
+function createUnusedFavouritesClient(): FavouritesClient {
+	return new FavouritesClient({
 		baseUrl: "https://fitatu.test/api",
 		fetchFn: async () => {
 			throw new Error("Unexpected HTTP request from barcode tool test double");

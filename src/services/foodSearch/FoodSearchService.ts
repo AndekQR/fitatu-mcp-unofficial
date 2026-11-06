@@ -4,7 +4,8 @@ import { FitatuClientError } from "../../api/fitatuApiClientBase/FitatuClientErr
 import { FITATU_CLIENT_OPERATIONS } from "../../api/fitatuApiClientBase/FitatuClientOperations.ts";
 import type { FoodSearchApiResponse } from "../../api/foodSearch/FoodSearchApiResponse.ts";
 import type { FoodSearchClient } from "../../api/foodSearch/FoodSearchClient.ts";
-import { FavouriteFoodsRequest } from "../../api/foodSearch/FavouriteFoodsRequest.ts";
+import type { FavouritesClient } from "../../api/users/FavouritesClient.ts";
+import { FavouriteFoodsRequest } from "../../api/users/FavouriteFoodsRequest.ts";
 import { FoodDetailsRequest } from "../../api/foodSearch/FoodDetailsRequest.ts";
 import type { FoodMeasure } from "../../api/foodSearch/FoodMeasure.ts";
 import { FoodSearchOptions } from "../../api/foodSearch/FoodSearchOptions.ts";
@@ -36,17 +37,20 @@ export interface FoodSearchProvider {
 
 export class FoodSearchService implements FoodSearchProvider {
 	private readonly foodSearchClient: FoodSearchClient;
+	private readonly favouritesClient: FavouritesClient;
 	private readonly optionsNormalizer: FoodSearchOptionsNormalizer;
 	private readonly responseMapper: FoodSearchResponseMapper;
 	private readonly userFoodRelevanceFilter: UserFoodRelevanceFilter;
 
 	public constructor(
 		foodSearchClient: FoodSearchClient,
+		favouritesClient: FavouritesClient,
 		optionsNormalizer: FoodSearchOptionsNormalizer = new FoodSearchOptionsNormalizer(),
 		responseMapper: FoodSearchResponseMapper = new FoodSearchResponseMapper(),
 		userFoodRelevanceFilter: UserFoodRelevanceFilter = new UserFoodRelevanceFilter(),
 	) {
 		this.foodSearchClient = foodSearchClient;
+		this.favouritesClient = favouritesClient;
 		this.optionsNormalizer = optionsNormalizer;
 		this.responseMapper = responseMapper;
 		this.userFoodRelevanceFilter = userFoodRelevanceFilter;
@@ -109,7 +113,7 @@ export class FoodSearchService implements FoodSearchProvider {
 	}
 
 	public async getFavouriteFoods(phrase?: string, limit = DEFAULT_FAVOURITES_LIMIT): Promise<FoodSearchResult> {
-		const userId = StringUtils.firstNonEmptyString(await this.foodSearchClient.getContextUserId());
+		const userId = StringUtils.firstNonEmptyString(await this.favouritesClient.getContextUserId());
 		if (!userId) {
 			throw FitatuClientError.authentication({
 				operation: FITATU_CLIENT_OPERATIONS.foodFavouritesGet,
@@ -124,7 +128,7 @@ export class FoodSearchService implements FoodSearchProvider {
 		}
 
 		const trimmedPhrase = phrase?.trim();
-		const response = await this.foodSearchClient.getFavouriteFoods(
+		const response = await this.favouritesClient.getFavouriteFoods(
 			new FavouriteFoodsRequest(userId, limit, trimmedPhrase ? trimmedPhrase : undefined),
 		);
 		const label = trimmedPhrase ? trimmedPhrase : FAVOURITES_QUERY_LABEL;

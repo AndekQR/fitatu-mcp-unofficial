@@ -3,6 +3,7 @@ import { DayPlanClient } from "../api/dayPlan/DayPlanClient.ts";
 import { SummaryClient } from "../api/dietPlan/SummaryClient.ts";
 import { FoodSearchClient } from "../api/foodSearch/FoodSearchClient.ts";
 import { RecipeClient } from "../api/recipes/RecipeClient.ts";
+import { FavouritesClient } from "../api/users/FavouritesClient.ts";
 import { FitatuUserClient } from "../api/users/FitatuUserClient.ts";
 import { UserSettingsClient } from "../api/users/UserSettingsClient.ts";
 import { MeasurementsClient } from "../api/users/MeasurementsClient.ts";
@@ -43,7 +44,8 @@ export class ApplicationServices {
 		const recipeClient = new RecipeClient({ authClient, userClient, mobileClientProfile });
 		const userSettingsClient = new UserSettingsClient({ authClient, userClient, mobileClientProfile });
 		const measurementsClient = new MeasurementsClient({ authClient, userClient, mobileClientProfile });
-		const foodSearchService = new FoodSearchService(foodSearchClient);
+		const favouritesClient = new FavouritesClient({ authClient, userClient, mobileClientProfile });
+		const foodSearchService = new FoodSearchService(foodSearchClient, favouritesClient);
 
 		this.currentUserService = new CurrentUserService(userClient);
 		this.bodyMeasurementService = new BodyMeasurementService(measurementsClient, userClient);

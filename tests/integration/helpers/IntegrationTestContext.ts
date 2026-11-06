@@ -4,6 +4,7 @@ import { SummaryClient } from "../../../src/api/dietPlan/SummaryClient.ts";
 import { FitatuApiClientBaseOptions } from "../../../src/api/fitatuApiClientBase/FitatuApiClientBaseOptions.ts";
 import { FoodSearchClient } from "../../../src/api/foodSearch/FoodSearchClient.ts";
 import { RecipeClient } from "../../../src/api/recipes/RecipeClient.ts";
+import { FavouritesClient } from "../../../src/api/users/FavouritesClient.ts";
 import { FitatuUserClient } from "../../../src/api/users/FitatuUserClient.ts";
 import { MeasurementsClient } from "../../../src/api/users/MeasurementsClient.ts";
 import { UserSettingsClient } from "../../../src/api/users/UserSettingsClient.ts";
@@ -16,6 +17,7 @@ export class IntegrationTestContext {
 	public readonly dayPlanClient: DayPlanClient;
 	public readonly summaryClient: SummaryClient;
 	public readonly foodSearchClient: FoodSearchClient;
+	public readonly favouritesClient: FavouritesClient;
 	public readonly recipeClient: RecipeClient;
 	public readonly measurementsClient: MeasurementsClient;
 	public readonly userSettingsClient: UserSettingsClient;
@@ -37,6 +39,7 @@ export class IntegrationTestContext {
 		this.dayPlanClient = new DayPlanClient(clientOptions);
 		this.summaryClient = new SummaryClient(clientOptions);
 		this.foodSearchClient = new FoodSearchClient(clientOptions);
+		this.favouritesClient = new FavouritesClient(clientOptions);
 		this.recipeClient = new RecipeClient(clientOptions);
 		this.measurementsClient = new MeasurementsClient(clientOptions);
 		this.userSettingsClient = new UserSettingsClient(clientOptions);

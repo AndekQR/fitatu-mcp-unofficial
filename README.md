@@ -186,15 +186,48 @@ Do not commit `.env`. The mobile client profile defaults match Fitatu 4.14.4 tra
 
 ## Docker
 
-The current image build requires a configured `.env` file:
+Build the image (no `.env` file needed at build time):
+
+```bash
+docker build -t fitatu-mcp .
+```
+
+### Passing environment variables at runtime
+
+**Using `-e` flags:**
+
+```bash
+docker run --name fitatu-mcp -p 3000:3000 \
+  -e FITATU_EMAIL=you@example.com \
+  -e FITATU_PASSWORD=secret \
+  fitatu-mcp
+```
+
+**Using `--env-file`:**
 
 ```bash
 cp .env.example .env
-docker build -t fitatu-mcp .
-docker run --name fitatu-mcp -p 3000:3000 fitatu-mcp
+# fill in FITATU_EMAIL and FITATU_PASSWORD in .env
+docker run --name fitatu-mcp -p 3000:3000 --env-file .env fitatu-mcp
 ```
 
-The Dockerfile copies `.env` into the image. Treat the resulting image as sensitive; do not publish or share it.
+**Using Docker Compose:**
+
+```yaml
+services:
+  fitatu-mcp:
+    image: fitatu-mcp
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - FITATU_EMAIL=you@example.com
+      - FITATU_PASSWORD=secret
+      - MCP_TRANSPORT=http
+      - LOG_LEVEL=info
+```
+
+The full list of supported variables is in the [Configuration](#configuration) section above.
 
 ## Development
 

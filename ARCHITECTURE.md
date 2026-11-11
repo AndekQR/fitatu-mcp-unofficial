@@ -23,6 +23,7 @@ fitatu_mcp_ts/
 │   │   ├── dayPlanItems/
 │   │   ├── dietSummary/
 │   │   ├── mealItems/
+│   │   ├── products/
 │   │   ├── recipes/
 │   │   ├── searchFood/
 │   │   ├── userSettings/
@@ -34,6 +35,7 @@ fitatu_mcp_ts/
 │   │   ├── dayPlan/
 │   │   ├── dietSummary/
 │   │   ├── foodSearch/
+│   │   ├── products/
 │   │   ├── recipes/
 │   │   └── userSettings/
 │   ├── api/                             # Fitatu HTTP boundary
@@ -43,6 +45,7 @@ fitatu_mcp_ts/
 │   │   ├── dietPlan/
 │   │   ├── fitatuApiClientBase/
 │   │   ├── foodSearch/
+│   │   ├── products/
 │   │   ├── recipes/
 │   │   └── users/
 │   └── shared/                          # layer-neutral utilities and technical errors

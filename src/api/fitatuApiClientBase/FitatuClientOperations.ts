@@ -11,6 +11,7 @@ export const FITATU_CLIENT_OPERATIONS = {
 	recipesReplace: "recipes.replace",
 	recipesDelete: "recipes.delete",
 	recipesSearch: "recipes.search",
+	productsCreate: "products.create",
 	foodSearch: "food.search",
 	foodDetailsGet: "food.details.get",
 	foodFavouritesGet: "food.favourites.get",

@@ -3,7 +3,7 @@
 # Fitatu MCP Unofficial
 
 Unofficial Model Context Protocol (MCP) server for accessing and updating data in your own Fitatu account. It provides typed tools for profile data, meal
-plans, nutrition summaries, food search, and recipe management over stdio or Streamable HTTP.
+plans, nutrition summaries, food search, own product creation, and recipe management over stdio or Streamable HTTP.
 
 > [!IMPORTANT]
 > This project is not affiliated with, endorsed by, or sponsored by Fitatu. Use it only with your own account and treat Fitatu credentials and account data as
@@ -14,6 +14,7 @@ plans, nutrition summaries, food search, and recipe management over stdio or Str
 - Profile, day-plan, and nutrition summary queries.
 - Latest or date-specific body measurement lookup and partial updates for explicit calendar dates.
 - Food and recipe search with identifiers required by mutation tools.
+- Own product creation from nutrition values per 100 g.
 - Meal item creation, update, replacement, movement, and removal.
 - Recipe creation, inspection, update, and deletion.
 - MCP transports for local stdio and Streamable HTTP clients.
@@ -151,6 +152,7 @@ In any MCP client that supports remote Streamable HTTP connections, use one of t
 | `search_food` | Search Fitatu food catalogs and return mutation-ready identifiers. |
 | `search_food_by_barcodes` | Search the public food catalog for up to 10 barcodes in parallel. |
 | `get_favourites` | List products and recipes the user marked as favourites, optionally filtered by phrase. |
+| `create_product` | Create a product in the user's own catalog from nutrition values per 100 g. |
 | `add_meal_items` | Add products, recipes, or custom items to a meal. |
 | `update_meal_item` | Update quantity, measure, or eaten state. |
 | `replace_meal_item` | Replace one exact meal entry. |

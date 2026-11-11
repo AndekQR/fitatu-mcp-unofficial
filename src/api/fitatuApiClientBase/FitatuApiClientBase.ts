@@ -80,10 +80,25 @@ export abstract class FitatuApiClientBase {
 		options: FitatuJsonRequestOptions<T>,
 		attempts: readonly FitatuRequestFailure[],
 	): Promise<T> {
-		let data: unknown;
-
+		let text: string;
 		try {
-			const text = await response.text();
+			text = await response.text();
+		} catch (error) {
+			if (!isRecognizedTransportError(error)) {
+				throw error;
+			}
+			throw FitatuClientError.transport({
+				message: options.failureMessage,
+				operation: options.operation,
+				method: options.method,
+				endpointTemplate: options.endpointTemplate,
+				error,
+				attempts,
+			});
+		}
+
+		let data: unknown;
+		try {
 			data = text.trim() ? JSON.parse(text) : null;
 		} catch (error) {
 			if (!(error instanceof SyntaxError)) {

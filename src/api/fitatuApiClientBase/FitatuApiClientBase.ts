@@ -84,7 +84,6 @@ export abstract class FitatuApiClientBase {
 		try {
 			text = await response.text();
 		} catch (error) {
-			// The connection can drop after the status line, while the body is still streaming.
 			if (!isRecognizedTransportError(error)) {
 				throw error;
 			}

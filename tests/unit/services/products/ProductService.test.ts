@@ -5,7 +5,7 @@ import { FavouritesClient } from "../../../../src/api/users/FavouritesClient.ts"
 import { ProductClient } from "../../../../src/api/products/ProductClient.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import { FoodSearchService } from "../../../../src/services/foodSearch/FoodSearchService.ts";
-import { ProductCreation } from "../../../../src/services/products/ProductCreation.ts";
+import { ProductWriteInput } from "../../../../src/api/products/ProductWriteInput.ts";
 import { ProductService } from "../../../../src/services/products/ProductService.ts";
 import { createAuthClientStub } from "../../support/authTestDouble.ts";
 import { createFetchStub, createJsonResponse } from "../../support/httpTestDouble.ts";
@@ -198,8 +198,8 @@ describe("ProductService", () => {
 	});
 });
 
-function product(): ProductCreation {
-	return new ProductCreation("Test bun", null, null, 395, 18, 51, 5.3, null, null, null, null);
+function product(): ProductWriteInput {
+	return new ProductWriteInput("Test bun", null, null, 395, 18, 51, 5.3, null, null, null, null);
 }
 
 function createService(fetchStub: Pick<ReturnType<typeof createFetchStub>, "fetchFn">): ProductService {

@@ -17,7 +17,6 @@ export class MutationConfirmationError extends ServiceError {
 		);
 	}
 
-	/** The request may have been applied, but Fitatu's answer was lost or unreadable. */
 	public static outcomeUnknown(context: MutationConfirmationContext): MutationConfirmationError {
 		return new MutationConfirmationError(
 			`Fitatu may have accepted the ${context.subject}, but its response could not be read. Do not retry automatically; check with ${context.inspectionTool} whether it was applied.`,

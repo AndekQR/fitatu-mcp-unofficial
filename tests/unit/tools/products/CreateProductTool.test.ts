@@ -9,7 +9,7 @@ import { ProductCreateResult } from "../../../../src/api/products/ProductCreateR
 import { FitatuUserClient } from "../../../../src/api/users/FitatuUserClient.ts";
 import { FitatuUserProfile } from "../../../../src/api/users/FitatuUserProfile.ts";
 import { FoodSearchService } from "../../../../src/services/foodSearch/FoodSearchService.ts";
-import type { ProductCreation } from "../../../../src/services/products/ProductCreation.ts";
+import type { ProductWriteInput } from "../../../../src/api/products/ProductWriteInput.ts";
 import { ProductService } from "../../../../src/services/products/ProductService.ts";
 import { ProductServiceCreateResult } from "../../../../src/services/products/ProductServiceCreateResult.ts";
 import { ProductWarning } from "../../../../src/services/products/ProductWarning.ts";
@@ -193,7 +193,7 @@ function unconfirmedResult(): ProductServiceCreateResult {
 }
 
 class FakeProductService extends ProductService {
-	public readonly inputs: ProductCreation[] = [];
+	public readonly inputs: ProductWriteInput[] = [];
 	private readonly outcome: () => ProductServiceCreateResult | Error;
 
 	public constructor(outcome: () => ProductServiceCreateResult | Error) {
@@ -206,12 +206,12 @@ class FakeProductService extends ProductService {
 		this.outcome = outcome;
 	}
 
-	public override async createProduct(creation: ProductCreation): Promise<ProductServiceCreateResult> {
+	public override async createProduct(input: ProductWriteInput): Promise<ProductServiceCreateResult> {
 		const outcome = this.outcome();
 		if (outcome instanceof Error) {
 			throw outcome;
 		}
-		this.inputs.push(creation);
+		this.inputs.push(input);
 		return outcome;
 	}
 }

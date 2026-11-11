@@ -6,9 +6,7 @@ export type ProductCreateStatus = "confirmed" | "unconfirmed";
 
 export class ProductServiceCreateResult {
 	public readonly created: ProductCreateResult;
-	/** Measures read back from Fitatu; empty when the read-back failed. */
 	public readonly measures: readonly FoodMeasure[];
-	/** Measure id whose quantity is a number of grams, or null when the read-back did not expose one. */
 	public readonly gramMeasureId: string | null;
 	public readonly warnings: readonly ProductWarning[];
 	public readonly status: ProductCreateStatus;

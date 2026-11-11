@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { ProductCreation } from "../../services/products/ProductCreation.ts";
+import { ProductWriteInput } from "../../api/products/ProductWriteInput.ts";
 import { ProductService } from "../../services/products/ProductService.ts";
 import type { ProductWarning } from "../../services/products/ProductWarning.ts";
 import { FoodMeasureForMcp } from "../searchFood/FoodMeasureForMcp.ts";
@@ -100,7 +100,7 @@ export class CreateProductTool {
 			async (input) => {
 				try {
 					const result = await this.productService.createProduct(
-						new ProductCreation(
+						new ProductWriteInput(
 							input.name,
 							input.brand || null,
 							input.barcode || null,

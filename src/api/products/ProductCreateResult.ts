@@ -12,7 +12,6 @@ export class ProductCreateResult {
 		this.name = name;
 	}
 
-	/** Fitatu echoes the stored name; the requested name is used when it does not. */
 	public static fromApiResponse(data: unknown, requestedName: string): ProductCreateResult {
 		if (!ObjectUtils.isRecord(data)) {
 			throw new ValidationError("Fitatu product response was not a valid JSON object");

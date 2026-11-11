@@ -3,15 +3,13 @@ import { FITATU_CLIENT_OPERATIONS } from "../../api/fitatuApiClientBase/FitatuCl
 import type { FoodMeasure } from "../../api/foodSearch/FoodMeasure.ts";
 import { ProductClient } from "../../api/products/ProductClient.ts";
 import type { ProductCreateResult } from "../../api/products/ProductCreateResult.ts";
-import { ProductWriteInput } from "../../api/products/ProductWriteInput.ts";
+import type { ProductWriteInput } from "../../api/products/ProductWriteInput.ts";
 import { FoodSearchService } from "../foodSearch/FoodSearchService.ts";
 import { MutationConfirmationContext } from "../MutationConfirmationContext.ts";
 import { MutationConfirmationError } from "../MutationConfirmationError.ts";
-import type { ProductCreation } from "./ProductCreation.ts";
 import { ProductServiceCreateResult } from "./ProductServiceCreateResult.ts";
 import { ProductWarning } from "./ProductWarning.ts";
 
-/** Weight of one unit of a gram measure, so its quantity equals grams. */
 const GRAM_MEASURE_WEIGHT = 1;
 
 /**
@@ -29,14 +27,13 @@ export class ProductService {
 		this.foodSearchService = foodSearchService;
 	}
 
-	public async createProduct(creation: ProductCreation): Promise<ProductServiceCreateResult> {
-		const created = await this.createOrReportUnknownOutcome(creation);
+	public async createProduct(input: ProductWriteInput): Promise<ProductServiceCreateResult> {
+		const created = await this.createOrReportUnknownOutcome(input);
 
 		let measures: readonly FoodMeasure[];
 		try {
 			measures = await this.foodSearchService.getAvailableMeasures(created.productId, "PRODUCT");
 		} catch (error) {
-			// Any failure here comes after a known write, so it must never hide the new productId.
 			return unconfirmed(
 				created,
 				`Product ${created.productId} was created, but reading it back failed. Do not create it again; look up its measures with search_food.`,
@@ -44,7 +41,6 @@ export class ProductService {
 			);
 		}
 
-		// Every product is created with a gram measure, so a read-back without measures does not confirm it.
 		if (measures.length === 0) {
 			return unconfirmed(
 				created,
@@ -66,18 +62,13 @@ export class ProductService {
 		return new ProductServiceCreateResult(created, measures, gramMeasureId, warnings, "confirmed");
 	}
 
-	/**
-	 * A lost or unreadable answer to the create call does not tell whether the
-	 * product was stored, so it is reported as an unknown outcome instead of a
-	 * plain failure that would invite a retry.
-	 */
-	private async createOrReportUnknownOutcome(creation: ProductCreation): Promise<ProductCreateResult> {
+	private async createOrReportUnknownOutcome(input: ProductWriteInput): Promise<ProductCreateResult> {
 		try {
-			return await this.productClient.createProduct(toWriteInput(creation));
+			return await this.productClient.createProduct(input);
 		} catch (error) {
 			if (error instanceof FitatuClientError && leavesOutcomeUnknown(error)) {
 				throw MutationConfirmationError.outcomeUnknown(
-					new MutationConfirmationContext(`product "${creation.name}"`, "search_food"),
+					new MutationConfirmationContext(`product "${input.name}"`, "search_food"),
 				);
 			}
 			throw error;
@@ -85,13 +76,7 @@ export class ProductService {
 	}
 }
 
-/**
- * A rejection (4xx) means nothing was stored. A lost or unreadable answer, a
- * request timeout or a server-side failure (5xx, e.g. a gateway timeout) can
- * happen after the product was already written.
- */
 function leavesOutcomeUnknown(error: FitatuClientError): boolean {
-	// Login, profile or session-refresh failures happen before the POST is sent.
 	if (error.operation !== FITATU_CLIENT_OPERATIONS.productsCreate) {
 		return false;
 	}
@@ -116,27 +101,6 @@ function unconfirmed(
 	return new ProductServiceCreateResult(created, [], null, [warning], "unconfirmed");
 }
 
-function toWriteInput(creation: ProductCreation): ProductWriteInput {
-	return new ProductWriteInput(
-		creation.name,
-		creation.brand,
-		creation.barcode,
-		creation.energy,
-		creation.fat,
-		creation.carbohydrate,
-		creation.protein,
-		creation.saturatedFat,
-		creation.sugars,
-		creation.fiber,
-		creation.salt,
-	);
-}
-
-/**
- * Fitatu exposes grams as a measure weighing 1 g (measureId "1", name "g").
- * The 100 g measure sent on creation is also listed, but its quantity counts
- * 100 g portions, so it is not the gram measure.
- */
 function findGramMeasureId(measures: readonly FoodMeasure[]): string | null {
 	const gramMeasures = measures.filter(
 		(measure) => measure.measureId !== null && measure.weightG === GRAM_MEASURE_WEIGHT,

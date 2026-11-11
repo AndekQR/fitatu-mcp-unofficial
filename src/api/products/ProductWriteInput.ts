@@ -1,10 +1,6 @@
 import { NumberUtils } from "../../shared/NumberUtils.ts";
 import { StringUtils } from "../../shared/StringUtils.ts";
 
-/**
- * Optional micronutrient fields accepted by Fitatu's product form. The web app
- * sends every one of them as null when the user leaves the field empty.
- */
 const UNSET_MICRONUTRIENT_FIELDS = [
 	"animalProtein",
 	"vegetableProtein",
@@ -39,7 +35,6 @@ const UNSET_MICRONUTRIENT_FIELDS = [
 	"iron",
 ] as const;
 
-/** Nutrition values in the payload are always declared per this many grams. */
 const NUTRITION_REFERENCE_WEIGHT_GRAMS = 100;
 
 /** A new user-owned product. All nutrition values are per 100 g. */
